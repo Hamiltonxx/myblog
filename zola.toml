@@ -1,0 +1,53 @@
+# Serene theme config
+# docs: https://github.com/isunjn/serene/blob/latest/USAGE.md
+
+base_url = "https://blog.cirray.cn"
+title = "Cirray's Blog"
+description = "A tech blog"
+default_language = "en"
+theme = "serene"
+output_dir = "public"
+compile_sass = true
+minify_html = false
+build_search_index = false
+generate_feeds = false
+feed_filenames = ["feed.xml"]
+taxonomies = [{ name = "tags" }, { name = "categories" }]
+
+[markdown]
+render_emoji = false
+external_links_target_blank = false
+external_links_no_follow = true
+external_links_no_referrer = true
+smart_punctuation = false
+github_alerts = true
+
+[markdown.highlighting]
+style = "class"
+light_theme = "github-light"
+dark_theme = "github-dark"
+
+[slugify]
+paths = "on"
+taxonomies = "on"
+anchors = "on"
+
+[extra]
+
+sections = [
+  { name = "posts", path = "/posts", is_external = false },
+]
+blog_section_path = "/posts"
+
+back_link_text = "Back"
+force_theme = false
+
+footer_copyright = "© 2026 Cirray AI"
+footer_credits = true
+
+not_found_error_text = "404 Not Found"
+not_found_recover_text = "« back to home »"
+
+reaction = false
+reaction_align = "right"
+reaction_endpoint = ""

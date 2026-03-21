@@ -1,0 +1,329 @@
+<!DOCTYPE html>
+
+<html lang="zh">
+
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="color-scheme" content="light dark">
+  
+  
+    
+  
+  <meta name="description" content="国内用户要想正确用上 Claude Code，主要要跨越三道门槛：网络、手机号、银行卡。本文分享笔者的最佳实践。">
+
+  <title>国内用上 Claude Code 的三道门槛</title>
+  <link rel="icon" type="image/png" sizes="32x32" href="https://blog.cirray.cn/img/favicon-32x32.png">
+  <link rel="icon" type="image/png" sizes="16x16" href="https://blog.cirray.cn/img/favicon-16x16.png">
+  <link rel="apple-touch-icon" sizes="180x180" href="https://blog.cirray.cn/img/apple-touch-icon.png">
+  
+  <style>
+
+  /* light mode colors */
+  body {
+    --primary-color: #5871a2;
+    --primary-pale-color: #5871a233;
+    --primary-decoration-color: #5871a210;
+    --bg-color: #ffffff;
+    --text-color: #2f3030;
+    --text-pale-color: #767676;
+    --text-decoration-color: #a9a9a9;
+    --highlight-mark-color: #5f75b020;
+
+    --callout-note-color: #5871a2;
+    --callout-tip-color: #268556;
+    --callout-important-color: #885fc9;
+    --callout-warning-color: #ab6632;
+    --callout-caution-color: #c64e4e;
+  }
+
+  /* dark mode colors */
+  body.dark {
+    --primary-color: #6f8fd1;
+    --primary-pale-color: #6f8fd166;
+    --primary-decoration-color: #6f8fd112;
+    --bg-color: #1c1c1c;
+    --text-color: #c1c1c1;
+    --text-pale-color: #848484;
+    --text-decoration-color: #5f5f5f;
+    --highlight-mark-color: #8296cb3b;
+
+    --callout-note-color: #6f8fd1;
+    --callout-tip-color: #47976f;
+    --callout-important-color: #9776cd;
+    --callout-warning-color: #ad7a52;
+    --callout-caution-color: #d06161;
+  }
+
+  /* typography */
+  body {
+    --main-font: ui-sans-serif, system-ui, sans-serif, 'Apple Color Emoji', 'Segoe UI Emoji', 'Segoe UI Symbol', 'Noto Color Emoji';
+    --code-font: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, 'Liberation Mono', 'Courier New', monospace;
+    --homepage-max-width: 768px;
+    --main-max-width: 768px;
+    --avatar-size: 60px;
+    --font-size: 16px;
+    --line-height: 1.75;
+    --img-border-radius: 0px;
+    --detail-border-radius: 0px;
+    --dark-mode-img-brightness: 0.75;
+    --dark-mode-chart-brightness: 0.75;
+    --inline-code-border-radius: 2px;
+    --inline-code-bg-color: var(--primary-decoration-color);
+    --block-code-border-radius: 0px;
+    --block-code-border-color: var(--primary-color);
+    --detail-border-color: var(--primary-color);
+  }
+
+</style>
+
+  <link rel="stylesheet" href="https://blog.cirray.cn/main.css">
+  
+
+<link id="hl" rel="stylesheet" type="text/css" href="/giallo-light.css" />
+
+
+
+  
+</head>
+
+<body class="post">
+  
+  <script>
+    const theme = sessionStorage.getItem('theme');
+    const match = window.matchMedia("(prefers-color-scheme: dark)").matches;
+    if ((theme && theme == 'dark') || (!theme && match)) {
+      document.body.classList.add('dark');
+      const hl = document.querySelector('link#hl');
+      if (hl) hl.href = 'https://blog.cirray.cn/giallo-dark.css';
+    }
+  </script>
+  
+  
+<div id="wrapper">
+  <div id="blank"></div>
+  <aside>
+    
+    
+    <nav>
+      <ul>
+        
+        <li>
+          <a class="h2" href="#wang-luo">网络</a>
+          
+          <ul>
+            
+            <li>
+              <a class="h3" href="#1-ban-wa-gong">1. 搬瓦工</a>
+            </li>
+            
+            <li>
+              <a class="h3" href="#2-da-fu-wu-qi">2. 搭服务器</a>
+            </li>
+            
+            <li>
+              <a class="h3" href="#3-ke-hu-duan">3. 客户端</a>
+            </li>
+            
+          </ul>
+          
+        </li>
+        
+        <li>
+          <a class="h2" href="#shou-ji-hao">手机号</a>
+          
+        </li>
+        
+        <li>
+          <a class="h2" href="#yin-xing-qia">银行卡</a>
+          
+        </li>
+        
+        <li>
+          <a class="h2" href="#faq">FAQ</a>
+          
+          <ul>
+            
+            <li>
+              <a class="h3" href="#wei-shen-me-yao-mai-vps-zi-ji-da-fu-wu-qi-zhe-me-ma-fan-mai-xian-cheng-de-vpnbu-shi-geng-jian-dan-ma">为什么要买VPS，自己搭服务器，这么麻烦。买现成的VPN不是更简单吗？</a>
+            </li>
+            
+            <li>
+              <a class="h3" href="#pao-tong-yao-duo-shao-qian">跑通要多少钱？</a>
+            </li>
+            
+            <li>
+              <a class="h3" href="#hui-you-feng-hao-zhe-lei-feng-xian-ma">会有封号这类风险吗？</a>
+            </li>
+            
+            <li>
+              <a class="h3" href="#zhe-ge-liu-cheng-dui-xin-shou-lai-shuo-tai-nan-liao-ba">这个流程对新手来说太难了吧？</a>
+            </li>
+            
+            <li>
+              <a class="h3" href="#zhe-xie-bu-zou-ke-yi-jiang-de-geng-xiang-xi-xie-ma">这些步骤可以讲的更详细些吗？</a>
+            </li>
+            
+          </ul>
+          
+        </li>
+        
+      </ul>
+    </nav>
+    
+    
+    <button id="back-to-top" aria-label="back to top">
+      
+      <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="feather feather-arrow-up"><line x1="12" y1="19" x2="12" y2="5"></line><polyline points="5 12 12 5 19 12"></polyline></svg>
+
+    </button>
+    
+  </aside>
+  <main>
+    
+<header>
+  <nav>
+    <a id="back-link" href="https:&#x2F;&#x2F;blog.cirray.cn&#x2F;posts">← Back</a>
+  </nav>
+</header>
+
+
+    <div>
+      
+      
+      
+      
+      <div id="copy-cfg" style="display: none;" data-copy-icon="&lt;svg xmlns=&quot;http:&#x2F;&#x2F;www.w3.org&#x2F;2000&#x2F;svg&quot; viewBox=&quot;0 0 24 24&quot; width=&quot;18&quot; height=&quot;18&quot;&gt;&lt;path d=&quot;M6.9998 6V3C6.9998 2.44772 7.44752 2 7.9998 2H19.9998C20.5521 2 20.9998 2.44772 20.9998 3V17C20.9998 17.5523 20.5521 18 19.9998 18H16.9998V20.9991C16.9998 21.5519 16.5499 22 15.993 22H4.00666C3.45059 22 3 21.5554 3 20.9991L3.0026 7.00087C3.0027 6.44811 3.45264 6 4.00942 6H6.9998ZM5.00242 8L5.00019 20H14.9998V8H5.00242ZM8.9998 6H16.9998V16H18.9998V4H8.9998V6Z&quot; fill=&quot;currentColor&quot;&gt;&lt;&#x2F;path&gt;&lt;&#x2F;svg&gt;
+" data-check-icon="&lt;svg xmlns=&quot;http:&#x2F;&#x2F;www.w3.org&#x2F;2000&#x2F;svg&quot; viewBox=&quot;0 0 24 24&quot; width=&quot;18&quot; height=&quot;18&quot;&gt;&lt;path d=&quot;M10.0007 15.1709L19.1931 5.97852L20.6073 7.39273L10.0007 17.9993L3.63672 11.6354L5.05093 10.2212L10.0007 15.1709Z&quot; fill=&quot;currentColor&quot;&gt;&lt;&#x2F;path&gt;&lt;&#x2F;svg&gt;
+"></div>
+      
+      <article class="prose">
+        <h1>国内用上 Claude Code 的三道门槛</h1>
+        <div id="post-info">
+          <div id="date">
+            <span id="publish">2026-03-21</span>
+            </div>
+
+          
+          <div id="tags">
+            <a class="instant" href="https://blog.cirray.cn/tags/claude"><span>#</span>claude</a><a class="instant" href="https://blog.cirray.cn/tags/ai"><span>#</span>ai</a><a class="instant" href="https://blog.cirray.cn/tags/wang-luo"><span>#</span>网络</a><a class="instant" href="https://blog.cirray.cn/tags/jiao-cheng"><span>#</span>教程</a>
+          </div>
+          
+        </div>
+
+        
+        
+
+        
+
+        <p>国内用户要想正确用上Claude Code,主要要跨越三道门槛: 网络，手机号，银行卡。而这也是大多数应用识别用户身份与特征的三个地方。</p>
+<h1 id="wang-luo">网络<a class="zola-anchor" href="#wang-luo" aria-label="Anchor link for: wang-luo" style="visibility: hidden;"></a>
+</h1>
+<p>国内网络是无法直接访问Claude的，同样也无法访问Google, Reddit等一干网站应用。所以第一步必须是得先跨越防火长城。</p>
+<p>而访问Claude或ChatGPT等大模型，比访问Google,Reddit等网站要求更严格，需要TUN(虚拟网卡)层实现跨越。</p>
+<p>我的做法是:</p>
+<h2 id="1-ban-wa-gong">1. 搬瓦工<a class="zola-anchor" href="#1-ban-wa-gong" aria-label="Anchor link for: 1-ban-wa-gong" style="visibility: hidden;"></a>
+</h2>
+<p>首先买一台美国的虚拟主机，作为你网络通往大洋彼岸的桥头堡。这里有很多VPS厂商可以选择。推荐用<a rel="nofollow noreferrer external" href="https://bandwagonhost.com/">搬瓦工</a>,如果这个站点打不开，可以用搜索引擎搜一下，还有其他镜像站点可以登录。
+选择美国西海岸(如洛杉矶)的机房,费用50刀/年。可能有人要说，别的厂商更便宜。笔者也试过Cloudcone,Racknerd等VPS，10+刀/年，使用下来总感觉时不时会出现网络一卡一卡。最后还是回到搬瓦工。用了N多年，基本没幺蛾子。</p>
+<h2 id="2-da-fu-wu-qi">2. 搭服务器<a class="zola-anchor" href="#2-da-fu-wu-qi" aria-label="Anchor link for: 2-da-fu-wu-qi" style="visibility: hidden;"></a>
+</h2>
+<p>系统最好选择Linux(Ubuntu).
+这里有几步步骤: 1. 安装Trojan 2. 用acme.sh申请TLS证书(前提是已准备好域名) 3. 配置Trojan文件 4. 配置伪装站(Nginx) 5. 启动服务</p>
+<h2 id="3-ke-hu-duan">3. 客户端<a class="zola-anchor" href="#3-ke-hu-duan" aria-label="Anchor link for: 3-ke-hu-duan" style="visibility: hidden;"></a>
+</h2>
+<p>以笔者的Mac系统为例，客户端选择Clash Verge，它有TUN选项，保证所有网络流量都走美国服务器。</p>
+<p>当这些都准备好后，可以访问claude.ai网站试试。能访问就说明网络问题已解决。</p>
+<h1 id="shou-ji-hao">手机号<a class="zola-anchor" href="#shou-ji-hao" aria-label="Anchor link for: shou-ji-hao" style="visibility: hidden;"></a>
+</h1>
+<p>并不是要你购买美国的手机号，而是在claude.ai注册时，接收短信验证码。国内手机号不行。</p>
+<p>首先需要一个邮箱，最好是美区的gmail等邮箱。邮箱注册也需要短信验证码验证。这时需要使用接码平台。</p>
+<p>推荐使用 <a rel="nofollow noreferrer external" href="https://hero-sms.com/">hero-sms</a>. 先账号充值，然后选择Claude服务对应的号码，选择美国或英国。
+如果一个号码接不到码就换一个号码。</p>
+<p>收到码验证通过后，就可以在claude.ai上用上网页版的Claude(Sonnet 4.6等)模型。</p>
+<h1 id="yin-xing-qia">银行卡<a class="zola-anchor" href="#yin-xing-qia" aria-label="Anchor link for: yin-xing-qia" style="visibility: hidden;"></a>
+</h1>
+<p>在Claude Code里使用Claude模型，通常是两种配置方式。要么使用Claude账号登录，要么使用Claude Platform的API。</p>
+<p>而使用API方式可以用很多中转API，甚至是国内一些模型(DeepSeek/MiniMax等)的API。API方式的一大问题是Token烧的太快。</p>
+<p>一天可以给你烧掉上百刀的Token。</p>
+<p>要购买Pro或Max的账号Plan,必须用Stripe支持的信用卡。国内的信用卡，就算是VISA卡也不行。</p>
+<p>没办法，笔者也是求助于美国的同学，帮忙充值。好在过程简单。</p>
+<p>让对方用你的邮箱登录，你邮箱里会收到Sign In Link. 把链接Copy给他就可以登录。对方充好值，再把人民币转给他。</p>
+<p>最后在Claude Code里 /login即可。</p>
+<h1 id="faq">FAQ<a class="zola-anchor" href="#faq" aria-label="Anchor link for: faq" style="visibility: hidden;"></a>
+</h1>
+<h2 id="wei-shen-me-yao-mai-vps-zi-ji-da-fu-wu-qi-zhe-me-ma-fan-mai-xian-cheng-de-vpnbu-shi-geng-jian-dan-ma">为什么要买VPS，自己搭服务器，这么麻烦。买现成的VPN不是更简单吗？<a class="zola-anchor" href="#wei-shen-me-yao-mai-vps-zi-ji-da-fu-wu-qi-zhe-me-ma-fan-mai-xian-cheng-de-vpnbu-shi-geng-jian-dan-ma" aria-label="Anchor link for: wei-shen-me-yao-mai-vps-zi-ji-da-fu-wu-qi-zhe-me-ma-fan-mai-xian-cheng-de-vpnbu-shi-geng-jian-dan-ma" style="visibility: hidden;"></a>
+</h2>
+<p>买VPN的问题是，出现问题自己没法修复。而且如果IP老是变的话是非常忌讳的，可能会引来某些平台的封号等反制措施。
+自己买VPS就有点像自己买了一台电脑在美国上网。</p>
+<h2 id="pao-tong-yao-duo-shao-qian">跑通要多少钱？<a class="zola-anchor" href="#pao-tong-yao-duo-shao-qian" aria-label="Anchor link for: pao-tong-yao-duo-shao-qian" style="visibility: hidden;"></a>
+</h2>
+<p>这是笔者的最佳实践跑通，或者是笔者认为最具性价比的跑通。并不是最省钱的跑通。</p>
+<p>VPS 50刀/年，加上接码平台充值3刀(使用了一个号码，消费掉0.2刀)，加上买了Claude Pro一个月20刀。总共73刀。</p>
+<h2 id="hui-you-feng-hao-zhe-lei-feng-xian-ma">会有封号这类风险吗？<a class="zola-anchor" href="#hui-you-feng-hao-zhe-lei-feng-xian-ma" aria-label="Anchor link for: hui-you-feng-hao-zhe-lei-feng-xian-ma" style="visibility: hidden;"></a>
+</h2>
+<p>笔者目前正常使用。确保打开Claude Code之前开启Clash Verge的TUN模式。</p>
+<h2 id="zhe-ge-liu-cheng-dui-xin-shou-lai-shuo-tai-nan-liao-ba">这个流程对新手来说太难了吧？<a class="zola-anchor" href="#zhe-ge-liu-cheng-dui-xin-shou-lai-shuo-tai-nan-liao-ba" aria-label="Anchor link for: zhe-ge-liu-cheng-dui-xin-shou-lai-shuo-tai-nan-liao-ba" style="visibility: hidden;"></a>
+</h2>
+<p>确实，国内严防死守，你是想认命还是想拨云见日。</p>
+<h2 id="zhe-xie-bu-zou-ke-yi-jiang-de-geng-xiang-xi-xie-ma">这些步骤可以讲的更详细些吗？<a class="zola-anchor" href="#zhe-xie-bu-zou-ke-yi-jiang-de-geng-xiang-xi-xie-ma" aria-label="Anchor link for: zhe-xie-bu-zou-ke-yi-jiang-de-geng-xiang-xi-xie-ma" style="visibility: hidden;"></a>
+</h2>
+<p>目前是点到为止。以后可能会分块详细讲解。</p>
+
+      </article>
+
+      
+      
+
+      
+      
+    </div>
+
+    
+
+
+<footer>
+  <div class="left">
+    <div class="copyright">
+      © 2026 Cirray AI
+      
+      <span>|</span>
+      Built with <a href="https://www.getzola.org" rel="noreferrer" target="_blank">zola</a> and <a href="https://github.com/isunjn/serene" rel="noreferrer" target="_blank">serene</a>
+      
+    </div>
+  </div>
+
+  <div class="right">
+    
+    
+    
+    
+
+    
+    
+    
+    <button id="theme-toggle" aria-label="theme switch">
+      <span class="moon-icon"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="18" height="18"><path d="M10 7C10 10.866 13.134 14 17 14C18.9584 14 20.729 13.1957 21.9995 11.8995C22 11.933 22 11.9665 22 12C22 17.5228 17.5228 22 12 22C6.47715 22 2 17.5228 2 12C2 6.47715 6.47715 2 12 2C12.0335 2 12.067 2 12.1005 2.00049C10.8043 3.27098 10 5.04157 10 7ZM4 12C4 16.4183 7.58172 20 12 20C15.0583 20 17.7158 18.2839 19.062 15.7621C18.3945 15.9187 17.7035 16 17 16C12.0294 16 8 11.9706 8 7C8 6.29648 8.08133 5.60547 8.2379 4.938C5.71611 6.28423 4 8.9417 4 12Z" fill="currentColor"></path></svg>
+</span>
+      <span class="sun-icon"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="18" height="18"><path d="M12 18C8.68629 18 6 15.3137 6 12C6 8.68629 8.68629 6 12 6C15.3137 6 18 8.68629 18 12C18 15.3137 15.3137 18 12 18ZM12 16C14.2091 16 16 14.2091 16 12C16 9.79086 14.2091 8 12 8C9.79086 8 8 9.79086 8 12C8 14.2091 9.79086 16 12 16ZM11 1H13V4H11V1ZM11 20H13V23H11V20ZM3.51472 4.92893L4.92893 3.51472L7.05025 5.63604L5.63604 7.05025L3.51472 4.92893ZM16.9497 18.364L18.364 16.9497L20.4853 19.0711L19.0711 20.4853L16.9497 18.364ZM19.0711 3.51472L20.4853 4.92893L18.364 7.05025L16.9497 5.63604L19.0711 3.51472ZM5.63604 16.9497L7.05025 18.364L4.92893 20.4853L3.51472 19.0711L5.63604 16.9497ZM23 11V13H20V11H23ZM4 11V13H1V11H4Z" fill="currentColor"></path></svg>
+</span>
+    </button>
+    
+  </div>
+</footer>
+
+
+
+
+
+  </main>
+</div>
+
+  
+<script src="/js/lightense.min.js"></script>
+
+
+  <script src="https://blog.cirray.cn/js/main.js"></script>
+</body>
+
+</html>
