@@ -353,6 +353,7 @@ venv、PYTHONPATH、缺少 `gh`——这些环境问题可以直接扔给 Claude
 ---
 
 ## 九、项目现状（v0.1）
+项目地址: https://github.com/Hamiltonxx/agentic-pdf-reader.git , 来个star鞭笞我吧。
 
 ```bash
 git clone https://github.com/Hamiltonxx/agentic-pdf-reader.git
@@ -370,4 +371,4 @@ python main.py your_book.pdf --vocab-threshold 4000
 
 ---
 
-*本文由作者与 Claude Code (claude-sonnet-4-6) 协作整理。*
+*本文由作者与 Claude Code 协作整理。*
