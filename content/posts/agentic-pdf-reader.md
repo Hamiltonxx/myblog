@@ -353,7 +353,7 @@ venv、PYTHONPATH、缺少 `gh`——这些环境问题可以直接扔给 Claude
 ---
 
 ## 九、项目现状（v0.1）
-项目地址: [https://github.com/Hamiltonxx/agentic-pdf-reader.git](https://github.com/Hamiltonxx/agentic-pdf-reader.git) , 来个star鞭笞我吧。
+项目地址: [https://github.com/Hamiltonxx/agentic-pdf-reader](https://github.com/Hamiltonxx/agentic-pdf-reader) , 来个star鞭笞我吧。
 
 ```bash
 git clone https://github.com/Hamiltonxx/agentic-pdf-reader.git
