@@ -29,10 +29,17 @@
         <lastmod>2026-03-21</lastmod>
     </url>
     <url>
+        <loc>https://blog.cirray.cn/posts/notes-cli-rust/</loc>
+        <lastmod>2026-03-23</lastmod>
+    </url>
+    <url>
         <loc>https://blog.cirray.cn/tags/</loc>
     </url>
     <url>
         <loc>https://blog.cirray.cn/tags/ai/</loc>
+    </url>
+    <url>
+        <loc>https://blog.cirray.cn/tags/claude-code/</loc>
     </url>
     <url>
         <loc>https://blog.cirray.cn/tags/claude/</loc>
@@ -41,12 +48,21 @@
         <loc>https://blog.cirray.cn/tags/cli/</loc>
     </url>
     <url>
+        <loc>https://blog.cirray.cn/tags/gong-ju/</loc>
+    </url>
+    <url>
         <loc>https://blog.cirray.cn/tags/jiao-cheng/</loc>
     </url>
     <url>
         <loc>https://blog.cirray.cn/tags/kai-fa-gong-ju/</loc>
     </url>
     <url>
+        <loc>https://blog.cirray.cn/tags/rust/</loc>
+    </url>
+    <url>
         <loc>https://blog.cirray.cn/tags/wang-luo/</loc>
+    </url>
+    <url>
+        <loc>https://blog.cirray.cn/tags/xiao-lu/</loc>
     </url>
 </urlset>

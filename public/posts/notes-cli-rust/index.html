@@ -1,0 +1,498 @@
+<!DOCTYPE html>
+
+<html lang="zh">
+
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="color-scheme" content="light dark">
+  
+  
+    
+  
+  <meta name="description" content="从一个灵魂拷问出发：有了 CC 之后想法太多，怎么不让它们消失？记录了从设计 notes 系统、写 shell 脚本、到用 Rust 重写 CLI 的完整过程。">
+
+  <title>有了 Claude Code，一天能做很多事——但想法怎么管？</title>
+  <link rel="icon" type="image/png" sizes="32x32" href="https://blog.cirray.cn/img/favicon-32x32.png">
+  <link rel="icon" type="image/png" sizes="16x16" href="https://blog.cirray.cn/img/favicon-16x16.png">
+  <link rel="apple-touch-icon" sizes="180x180" href="https://blog.cirray.cn/img/apple-touch-icon.png">
+  
+  <style>
+
+  /* light mode colors */
+  body {
+    --primary-color: #5871a2;
+    --primary-pale-color: #5871a233;
+    --primary-decoration-color: #5871a210;
+    --bg-color: #ffffff;
+    --text-color: #2f3030;
+    --text-pale-color: #767676;
+    --text-decoration-color: #a9a9a9;
+    --highlight-mark-color: #5f75b020;
+
+    --callout-note-color: #5871a2;
+    --callout-tip-color: #268556;
+    --callout-important-color: #885fc9;
+    --callout-warning-color: #ab6632;
+    --callout-caution-color: #c64e4e;
+  }
+
+  /* dark mode colors */
+  body.dark {
+    --primary-color: #6f8fd1;
+    --primary-pale-color: #6f8fd166;
+    --primary-decoration-color: #6f8fd112;
+    --bg-color: #1c1c1c;
+    --text-color: #c1c1c1;
+    --text-pale-color: #848484;
+    --text-decoration-color: #5f5f5f;
+    --highlight-mark-color: #8296cb3b;
+
+    --callout-note-color: #6f8fd1;
+    --callout-tip-color: #47976f;
+    --callout-important-color: #9776cd;
+    --callout-warning-color: #ad7a52;
+    --callout-caution-color: #d06161;
+  }
+
+  /* typography */
+  body {
+    --main-font: ui-sans-serif, system-ui, sans-serif, 'Apple Color Emoji', 'Segoe UI Emoji', 'Segoe UI Symbol', 'Noto Color Emoji';
+    --code-font: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, 'Liberation Mono', 'Courier New', monospace;
+    --homepage-max-width: 768px;
+    --main-max-width: 768px;
+    --avatar-size: 60px;
+    --font-size: 16px;
+    --line-height: 1.75;
+    --img-border-radius: 0px;
+    --detail-border-radius: 0px;
+    --dark-mode-img-brightness: 0.75;
+    --dark-mode-chart-brightness: 0.75;
+    --inline-code-border-radius: 2px;
+    --inline-code-bg-color: var(--primary-decoration-color);
+    --block-code-border-radius: 0px;
+    --block-code-border-color: var(--primary-color);
+    --detail-border-color: var(--primary-color);
+  }
+
+</style>
+
+  <link rel="stylesheet" href="https://blog.cirray.cn/main.css">
+  
+
+<link id="hl" rel="stylesheet" type="text/css" href="/giallo-light.css" />
+
+
+
+  
+</head>
+
+<body class="post">
+  
+  <script>
+    const theme = sessionStorage.getItem('theme');
+    const match = window.matchMedia("(prefers-color-scheme: dark)").matches;
+    if ((theme && theme == 'dark') || (!theme && match)) {
+      document.body.classList.add('dark');
+      const hl = document.querySelector('link#hl');
+      if (hl) hl.href = 'https://blog.cirray.cn/giallo-dark.css';
+    }
+  </script>
+  
+  
+<div id="wrapper">
+  <div id="blank"></div>
+  <aside>
+    
+    
+    <nav>
+      <ul>
+        
+        <li>
+          <a class="h2" href="#wen-ti-xiang-fa-guan-li">问题：想法管理</a>
+          
+        </li>
+        
+        <li>
+          <a class="h2" href="#fang-an-zai-bo-ke-li-jia-notes-mu-lu">方案：在博客里加 notes 目录</a>
+          
+        </li>
+        
+        <li>
+          <a class="h2" href="#wen-jian-ge-shi-she-ji">文件格式设计</a>
+          
+        </li>
+        
+        <li>
+          <a class="h2" href="#notes-sh-yong-shell-guan-li-zhe-liang-ge-wen-jian">notes.sh：用 shell 管理这两个文件</a>
+          
+        </li>
+        
+        <li>
+          <a class="h2" href="#yong-rust-zhong-xie">用 Rust 重写</a>
+          
+          <ul>
+            
+            <li>
+              <a class="h3" href="#workspace-jie-gou">workspace 结构</a>
+            </li>
+            
+            <li>
+              <a class="h3" href="#clap-chu-li-zi-ming-ling">clap 处理子命令</a>
+            </li>
+            
+            <li>
+              <a class="h3" href="#ta-de-ri-qi-pan-duan">ta 的日期判断</a>
+            </li>
+            
+            <li>
+              <a class="h3" href="#td-yong-flat-map-yi-ci-bian-li">td 用 flat_map 一次遍历</a>
+            </li>
+            
+          </ul>
+          
+        </li>
+        
+        <li>
+          <a class="h2" href="#todo-bg-zhuo-mian-bi-zhi-gen-zhao-dai-ban-zou">todo-bg：桌面壁纸跟着待办走</a>
+          
+          <ul>
+            
+            <li>
+              <a class="h3" href="#jie-xi-bug">解析 bug</a>
+            </li>
+            
+            <li>
+              <a class="h3" href="#mo-bo-li-bi-zhi">磨玻璃壁纸</a>
+            </li>
+            
+          </ul>
+          
+        </li>
+        
+        <li>
+          <a class="h2" href="#bu-shu">部署</a>
+          
+          <ul>
+            
+            <li>
+              <a class="h3" href="#notes-xi-tong-ming-ling">notes → 系统命令</a>
+            </li>
+            
+            <li>
+              <a class="h3" href="#todo-bg-kai-ji-zi-qi-launchd">todo-bg → 开机自启（launchd）</a>
+            </li>
+            
+          </ul>
+          
+        </li>
+        
+      </ul>
+    </nav>
+    
+    
+    <button id="back-to-top" aria-label="back to top">
+      
+      <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="feather feather-arrow-up"><line x1="12" y1="19" x2="12" y2="5"></line><polyline points="5 12 12 5 19 12"></polyline></svg>
+
+    </button>
+    
+  </aside>
+  <main>
+    
+<header>
+  <nav>
+    <a id="back-link" href="https:&#x2F;&#x2F;blog.cirray.cn&#x2F;posts">← Back</a>
+  </nav>
+</header>
+
+
+    <div>
+      
+      
+      
+      
+      <div id="copy-cfg" style="display: none;" data-copy-icon="&lt;svg xmlns=&quot;http:&#x2F;&#x2F;www.w3.org&#x2F;2000&#x2F;svg&quot; viewBox=&quot;0 0 24 24&quot; width=&quot;18&quot; height=&quot;18&quot;&gt;&lt;path d=&quot;M6.9998 6V3C6.9998 2.44772 7.44752 2 7.9998 2H19.9998C20.5521 2 20.9998 2.44772 20.9998 3V17C20.9998 17.5523 20.5521 18 19.9998 18H16.9998V20.9991C16.9998 21.5519 16.5499 22 15.993 22H4.00666C3.45059 22 3 21.5554 3 20.9991L3.0026 7.00087C3.0027 6.44811 3.45264 6 4.00942 6H6.9998ZM5.00242 8L5.00019 20H14.9998V8H5.00242ZM8.9998 6H16.9998V16H18.9998V4H8.9998V6Z&quot; fill=&quot;currentColor&quot;&gt;&lt;&#x2F;path&gt;&lt;&#x2F;svg&gt;
+" data-check-icon="&lt;svg xmlns=&quot;http:&#x2F;&#x2F;www.w3.org&#x2F;2000&#x2F;svg&quot; viewBox=&quot;0 0 24 24&quot; width=&quot;18&quot; height=&quot;18&quot;&gt;&lt;path d=&quot;M10.0007 15.1709L19.1931 5.97852L20.6073 7.39273L10.0007 17.9993L3.63672 11.6354L5.05093 10.2212L10.0007 15.1709Z&quot; fill=&quot;currentColor&quot;&gt;&lt;&#x2F;path&gt;&lt;&#x2F;svg&gt;
+"></div>
+      
+      <article class="prose">
+        <h1>有了 Claude Code，一天能做很多事——但想法怎么管？</h1>
+        <div id="post-info">
+          <div id="date">
+            <span id="publish">2026-03-23</span>
+            </div>
+
+          
+          <div id="tags">
+            <a class="instant" href="https://blog.cirray.cn/tags/rust"><span>#</span>rust</a><a class="instant" href="https://blog.cirray.cn/tags/cli"><span>#</span>cli</a><a class="instant" href="https://blog.cirray.cn/tags/claude-code"><span>#</span>claude-code</a><a class="instant" href="https://blog.cirray.cn/tags/gong-ju"><span>#</span>工具</a><a class="instant" href="https://blog.cirray.cn/tags/xiao-lu"><span>#</span>效率</a>
+          </div>
+          
+        </div>
+
+        
+        
+
+        
+
+        <blockquote>
+<p>有了 Claude Code 之后，一天能做的事多了很多。但随之而来的问题是：想法、待办、灵感，冒出来的速度比消化的速度快。怎么办？</p>
+</blockquote>
+<h2 id="wen-ti-xiang-fa-guan-li">问题：想法管理<a class="zola-anchor" href="#wen-ti-xiang-fa-guan-li" aria-label="Anchor link for: wen-ti-xiang-fa-guan-li" style="visibility: hidden;"></a>
+</h2>
+<p>以前没有 CC 的时候，一天能做的事有限，想法不多，随手记在某个地方就行。</p>
+<p>有了 CC 之后不一样了——一个下午可以同时推进好几件事，想法也跟着多起来。有些要写进博客分享，有些要做 reminder 提醒自己，有些是纯粹的灵感，过了就忘了。</p>
+<p>问题来了：<strong>怎样零摩擦地把这些东西记下来，又不引入新工具？</strong></p>
+<h2 id="fang-an-zai-bo-ke-li-jia-notes-mu-lu">方案：在博客里加 notes 目录<a class="zola-anchor" href="#fang-an-zai-bo-ke-li-jia-notes-mu-lu" aria-label="Anchor link for: fang-an-zai-bo-ke-li-jia-notes-mu-lu" style="visibility: hidden;"></a>
+</h2>
+<p>最轻量的做法是直接在已有的 Zola 博客里加一个 <code>notes/</code> 目录：</p>
+<pre class="giallo z-code"><code data-lang="plain"><span class="giallo-l"><span>content/</span></span>
+<span class="giallo-l"><span>  posts/     ← 正式博客</span></span>
+<span class="giallo-l"><span>  notes/     ← 随手记</span></span>
+<span class="giallo-l"><span>    todo.md  ← 待办</span></span>
+<span class="giallo-l"><span>    note.md  ← 灵感</span></span></code></pre>
+<p>两个文件，职责分开：</p>
+<ul>
+<li><code>todo.md</code>：有时间区间的待办，知道每件事花了多长时间</li>
+<li><code>note.md</code>：灵感和想法，分已实现和未实现</li>
+</ul>
+<p>在 <code>config.toml</code> 里把 notes 目录排除掉，不对外发布：</p>
+<pre class="giallo z-code"><code data-lang="toml"><span class="giallo-l"><span class="z-variable z-other">ignored_content</span><span> =</span><span> [</span><span class="z-punctuation z-definition z-string">&quot;</span><span class="z-string">notes/**</span><span class="z-punctuation z-definition z-string">&quot;</span><span>]</span></span></code></pre><h2 id="wen-jian-ge-shi-she-ji">文件格式设计<a class="zola-anchor" href="#wen-jian-ge-shi-she-ji" aria-label="Anchor link for: wen-jian-ge-shi-she-ji" style="visibility: hidden;"></a>
+</h2>
+<p><strong>todo.md</strong></p>
+<pre class="giallo z-code"><code data-lang="markdown"><span class="giallo-l"><span class="z-markup z-heading">##</span><span class="z-entity z-name"> 待办</span></span>
+<span class="giallo-l"><span class="z-punctuation z-definition z-list z-begin z-markdown">-</span><span> [ ] 2026-03-23 14:30-15:30 给博客加评论功能</span></span>
+<span class="giallo-l"></span>
+<span class="giallo-l"><span class="z-markup z-heading">##</span><span class="z-entity z-name"> 已完成</span></span>
+<span class="giallo-l"><span class="z-punctuation z-definition z-list z-begin z-markdown">-</span><span> [</span><span class="z-string z-other z-link">✓</span><span>]</span><span> 2026-03-23 13:00-14:00 配好 webhook 自动部署</span></span></code></pre>
+<p>时间区间由自己输入，不是自动记录的。这样更灵活——可以提前记计划，也可以事后补记。</p>
+<p><strong>note.md</strong></p>
+<pre class="giallo z-code"><code data-lang="markdown"><span class="giallo-l"><span class="z-markup z-heading">##</span><span class="z-entity z-name"> 想法</span></span>
+<span class="giallo-l"></span>
+<span class="giallo-l"><span class="z-markup z-heading">##</span><span class="z-entity z-name"> 实现</span></span></code></pre><h2 id="notes-sh-yong-shell-guan-li-zhe-liang-ge-wen-jian">notes.sh：用 shell 管理这两个文件<a class="zola-anchor" href="#notes-sh-yong-shell-guan-li-zhe-liang-ge-wen-jian" aria-label="Anchor link for: notes-sh-yong-shell-guan-li-zhe-liang-ge-wen-jian" style="visibility: hidden;"></a>
+</h2>
+<p>格式定好之后，需要一个工具来操作它们。第一反应是 shell 脚本——最小依赖，Mac 和服务器都能用。</p>
+<p>核心命令：</p>
+<pre class="giallo z-code"><code data-lang="shellscript"><span class="giallo-l"><span class="z-entity z-name">notes</span><span class="z-string"> ta</span><span class="z-string"> 2026-03-24</span><span class="z-string"> 09:00-10:00</span><span class="z-string"> 给博客加评论功能</span><span class="z-punctuation z-definition z-comment">  #</span><span class="z-comment"> 添加待办（日期可选，默认今天）</span></span>
+<span class="giallo-l"><span class="z-entity z-name">notes</span><span class="z-string"> td</span><span class="z-string"> 评论</span><span class="z-punctuation z-definition z-comment">                                      #</span><span class="z-comment"> 模糊搜索，移到已完成</span></span>
+<span class="giallo-l"><span class="z-entity z-name">notes</span><span class="z-string"> tr</span><span class="z-string"> 评论</span><span class="z-punctuation z-definition z-comment">                                      #</span><span class="z-comment"> 模糊搜索，确认后删除</span></span>
+<span class="giallo-l"><span class="z-entity z-name">notes</span><span class="z-string"> na</span><span class="z-string"> 写篇</span><span class="z-string"> webhook</span><span class="z-string"> 踩坑文章</span><span class="z-punctuation z-definition z-comment">                     #</span><span class="z-comment"> 记录灵感</span></span>
+<span class="giallo-l"><span class="z-entity z-name">notes</span><span class="z-string"> nd</span><span class="z-string"> webhook</span><span class="z-punctuation z-definition z-comment">                                   #</span><span class="z-comment"> 灵感已实现</span></span>
+<span class="giallo-l"><span class="z-entity z-name">notes</span><span class="z-string"> nr</span><span class="z-string"> webhook</span><span class="z-punctuation z-definition z-comment">                                   #</span><span class="z-comment"> 删除灵感</span></span>
+<span class="giallo-l"><span class="z-entity z-name">notes</span><span class="z-string"> ls</span><span class="z-punctuation z-definition z-comment">                                           #</span><span class="z-comment"> 查看待办</span></span></code></pre>
+<p>几个细节值得说：</p>
+<p><strong>日期可选</strong></p>
+<p><code>ta</code> 的日期可以省略，省略时用今天。这样既能提前排计划，也能快速记当下：</p>
+<pre class="giallo z-code"><code data-lang="shellscript"><span class="giallo-l"><span class="z-entity z-name">notes</span><span class="z-string"> ta</span><span class="z-string"> 09:00-10:00</span><span class="z-string"> 买菜</span><span class="z-punctuation z-definition z-comment">          #</span><span class="z-comment"> 今天</span></span>
+<span class="giallo-l"><span class="z-entity z-name">notes</span><span class="z-string"> ta</span><span class="z-string"> 2026-03-25</span><span class="z-string"> 09:00-10:00</span><span class="z-string"> 买菜</span><span class="z-punctuation z-definition z-comment">  #</span><span class="z-comment"> 指定日期</span></span></code></pre>
+<p><strong>默认 ta</strong></p>
+<p>不写子命令直接默认走 <code>ta</code>，少打几个字：</p>
+<pre class="giallo z-code"><code data-lang="shellscript"><span class="giallo-l"><span class="z-entity z-name">notes</span><span class="z-string"> 09:00-10:00</span><span class="z-string"> 买菜</span><span class="z-punctuation z-definition z-comment">  #</span><span class="z-comment"> 等价于 notes ta 09:00-10:00 买菜</span></span></code></pre>
+<p><strong>td 的 bug</strong></p>
+<p><code>td</code> 原来用 <code>sed "/$MATCHED/d"</code> 删行，但 <code>$MATCHED</code> 里含有 <code>[ ]</code>，sed 把它当正则字符类处理，匹配不到原行，待办删不掉。</p>
+<p>改用行号删除：</p>
+<pre class="giallo z-code"><code data-lang="shellscript"><span class="giallo-l"><span class="z-variable z-other">LINENUM</span><span class="z-keyword">=</span><span>$(</span><span class="z-entity z-name">grep</span><span class="z-constant"> -</span><span class="z-constant">n</span><span class="z-punctuation z-definition z-string"> &quot;</span><span class="z-variable z-other">$</span><span class="z-variable z-other">CONTENT</span><span class="z-punctuation z-definition z-string">&quot;</span><span class="z-variable z-other"> $</span><span class="z-variable z-other">TODO</span><span class="z-keyword"> |</span><span class="z-entity z-name"> head</span><span class="z-constant"> -</span><span class="z-constant">1</span><span class="z-keyword"> |</span><span class="z-entity z-name"> cut</span><span class="z-constant"> -</span><span class="z-constant">d:</span><span class="z-constant"> -</span><span class="z-constant">f1</span><span>)</span></span>
+<span class="giallo-l"><span class="z-entity z-name">sed</span><span class="z-constant"> -</span><span class="z-constant">i</span><span class="z-punctuation z-definition z-string"> &#39;</span><span class="z-punctuation z-definition z-string">&#39;</span><span class="z-punctuation z-definition z-string"> &quot;</span><span class="z-string">$</span><span class="z-string">{</span><span class="z-variable z-other">LINENUM</span><span class="z-string">}</span><span class="z-string">d</span><span class="z-punctuation z-definition z-string">&quot;</span><span class="z-variable z-other"> $</span><span class="z-variable z-other">TODO</span></span></code></pre>
+<p>同样的问题在 <code>nd</code>、<code>tr</code>、<code>nr</code> 里也有，一并修了。</p>
+<hr />
+<h2 id="yong-rust-zhong-xie">用 Rust 重写<a class="zola-anchor" href="#yong-rust-zhong-xie" aria-label="Anchor link for: yong-rust-zhong-xie" style="visibility: hidden;"></a>
+</h2>
+<p>shell 脚本能用，但有个问题：<strong>写完就忘</strong>。过段时间回来看，不知道哪里有 bug，也不敢随便改。</p>
+<p>趁着这个机会，用 Rust 重写成 CLI 工具。顺便搭了一个个人工具 workspace <code>cli-tools</code>，以后的小工具都往里放。</p>
+<h3 id="workspace-jie-gou">workspace 结构<a class="zola-anchor" href="#workspace-jie-gou" aria-label="Anchor link for: workspace-jie-gou" style="visibility: hidden;"></a>
+</h3>
+<pre class="giallo z-code"><code data-lang="plain"><span class="giallo-l"><span>cli-tools/</span></span>
+<span class="giallo-l"><span>├── Cargo.toml      # workspace 根</span></span>
+<span class="giallo-l"><span>├── notes/          # notes CLI</span></span>
+<span class="giallo-l"><span>└── todo-bg/        # 桌面壁纸生成（后面说）</span></span></code></pre>
+<p>根 <code>Cargo.toml</code>：</p>
+<pre class="giallo z-code"><code data-lang="toml"><span class="giallo-l"><span>[</span><span class="z-entity z-name">workspace</span><span>]</span></span>
+<span class="giallo-l"><span class="z-variable z-other">members</span><span> =</span><span> [</span><span class="z-punctuation z-definition z-string">&quot;</span><span class="z-string">notes</span><span class="z-punctuation z-definition z-string">&quot;</span><span>,</span><span class="z-punctuation z-definition z-string"> &quot;</span><span class="z-string">todo-bg</span><span class="z-punctuation z-definition z-string">&quot;</span><span>]</span></span>
+<span class="giallo-l"><span class="z-variable z-other">resolver</span><span> =</span><span class="z-punctuation z-definition z-string"> &quot;</span><span class="z-string">2</span><span class="z-punctuation z-definition z-string">&quot;</span></span></code></pre>
+<p>好处：共享 <code>target/</code> 编译缓存，<code>cargo build -p notes</code> 单独编译某个工具。</p>
+<h3 id="clap-chu-li-zi-ming-ling">clap 处理子命令<a class="zola-anchor" href="#clap-chu-li-zi-ming-ling" aria-label="Anchor link for: clap-chu-li-zi-ming-ling" style="visibility: hidden;"></a>
+</h3>
+<p>用 <code>clap</code> 的 derive 宏定义结构：</p>
+<pre class="giallo z-code"><code data-lang="rust"><span class="giallo-l"><span>#</span><span>[</span><span>derive</span><span>(</span><span class="z-entity z-name">Parser</span><span>)</span><span>]</span></span>
+<span class="giallo-l"><span>#</span><span>[</span><span>command</span><span>(</span><span>name </span><span class="z-keyword">=</span><span class="z-punctuation z-definition z-string"> &quot;</span><span class="z-string">notes</span><span class="z-punctuation z-definition z-string">&quot;</span><span>)</span><span>]</span></span>
+<span class="giallo-l"><span class="z-storage z-type">struct</span><span class="z-entity z-name"> Cli</span><span> {</span></span>
+<span class="giallo-l"><span>    #</span><span>[</span><span>command</span><span>(</span><span>subcommand</span><span>)</span><span>]</span></span>
+<span class="giallo-l"><span class="z-variable z-other">    cmd</span><span class="z-keyword">:</span><span class="z-entity z-name"> Option</span><span>&lt;</span><span class="z-entity z-name">Cmd</span><span>&gt;</span><span>,</span></span>
+<span class="giallo-l"></span>
+<span class="giallo-l"><span>    #</span><span>[</span><span>arg</span><span>(</span><span>trailing_var_arg </span><span class="z-keyword">=</span><span> true</span><span>)</span><span>]</span></span>
+<span class="giallo-l"><span class="z-variable z-other">    args</span><span class="z-keyword">:</span><span class="z-entity z-name"> Vec</span><span>&lt;</span><span class="z-entity z-name">String</span><span>&gt;</span><span>,</span></span>
+<span class="giallo-l"><span>}</span></span>
+<span class="giallo-l"></span>
+<span class="giallo-l"><span>#</span><span>[</span><span>derive</span><span>(</span><span class="z-entity z-name">Subcommand</span><span>)</span><span>]</span></span>
+<span class="giallo-l"><span class="z-storage z-type">enum</span><span class="z-entity z-name"> Cmd</span><span> {</span></span>
+<span class="giallo-l"><span class="z-entity z-name">    Ta</span><span> {</span><span class="z-variable z-other"> args</span><span class="z-keyword">:</span><span class="z-entity z-name"> Vec</span><span>&lt;</span><span class="z-entity z-name">String</span><span>&gt;</span><span> }</span><span>,</span></span>
+<span class="giallo-l"><span class="z-entity z-name">    Td</span><span> {</span><span class="z-variable z-other"> keyword</span><span class="z-keyword">:</span><span class="z-entity z-name"> Vec</span><span>&lt;</span><span class="z-entity z-name">String</span><span>&gt;</span><span> }</span><span>,</span></span>
+<span class="giallo-l"><span class="z-entity z-name">    Tr</span><span> {</span><span class="z-variable z-other"> keyword</span><span class="z-keyword">:</span><span class="z-entity z-name"> Vec</span><span>&lt;</span><span class="z-entity z-name">String</span><span>&gt;</span><span> }</span><span>,</span></span>
+<span class="giallo-l"><span class="z-punctuation z-definition z-comment">    //</span><span class="z-comment"> ...</span></span>
+<span class="giallo-l"><span class="z-entity z-name">    Ls</span><span>,</span></span>
+<span class="giallo-l"><span>}</span></span></code></pre>
+<p><code>cmd: Option&lt;Cmd&gt;</code> 让子命令变成可选——<code>None</code> 时走默认 <code>ta</code> 逻辑，实现"不写子命令直接记待办"。</p>
+<p><code>#[derive(Parser)]</code> 是 clap 提供的宏，编译时自动给 <code>Cli</code> 生成 <code>parse()</code> 方法。clap 会把枚举变体名自动转成小写作为命令名，<code>Cmd::Ls</code> 对应命令行的 <code>ls</code>。</p>
+<h3 id="ta-de-ri-qi-pan-duan">ta 的日期判断<a class="zola-anchor" href="#ta-de-ri-qi-pan-duan" aria-label="Anchor link for: ta-de-ri-qi-pan-duan" style="visibility: hidden;"></a>
+</h3>
+<p>不用正则，直接看第一个参数格式：</p>
+<pre class="giallo z-code"><code data-lang="rust"><span class="giallo-l"><span class="z-keyword">fn</span><span class="z-entity z-name"> is_date</span><span>(</span><span class="z-variable z-other">s</span><span class="z-keyword">:</span><span class="z-keyword"> &amp;</span><span class="z-entity z-name">str</span><span>)</span><span class="z-keyword"> -&gt;</span><span class="z-entity z-name"> bool</span><span> {</span></span>
+<span class="giallo-l"><span class="z-storage z-type">    let</span><span class="z-variable z-other"> parts</span><span class="z-keyword">:</span><span class="z-entity z-name"> Vec</span><span>&lt;</span><span class="z-keyword">&amp;</span><span class="z-entity z-name">str</span><span>&gt;</span><span class="z-keyword"> =</span><span class="z-variable z-other"> s</span><span class="z-keyword">.</span><span class="z-entity z-name">split</span><span>(</span><span class="z-string">&#39;</span><span class="z-string">-</span><span class="z-string">&#39;</span><span>)</span><span class="z-keyword">.</span><span class="z-entity z-name">collect</span><span>(</span><span>)</span><span>;</span></span>
+<span class="giallo-l"><span class="z-variable z-other">    parts</span><span class="z-keyword">.</span><span class="z-entity z-name">len</span><span>(</span><span>)</span><span class="z-keyword"> ==</span><span class="z-constant"> 3</span><span class="z-keyword"> &amp;&amp;</span><span class="z-variable z-other"> parts</span><span>[</span><span class="z-constant">0</span><span>]</span><span class="z-keyword">.</span><span class="z-entity z-name">len</span><span>(</span><span>)</span><span class="z-keyword"> ==</span><span class="z-constant"> 4</span></span>
+<span class="giallo-l"><span>}</span></span>
+<span class="giallo-l"></span>
+<span class="giallo-l"><span class="z-keyword">fn</span><span class="z-entity z-name"> cmd_ta</span><span>(</span><span class="z-variable z-other">args</span><span class="z-keyword">:</span><span class="z-entity z-name"> Vec</span><span>&lt;</span><span class="z-entity z-name">String</span><span>&gt;</span><span>)</span><span> {</span></span>
+<span class="giallo-l"><span class="z-storage z-type">    let</span><span class="z-variable z-other"> today</span><span class="z-keyword"> =</span><span class="z-entity z-name"> Local</span><span class="z-keyword">::</span><span class="z-entity z-name">now</span><span>(</span><span>)</span><span class="z-keyword">.</span><span class="z-entity z-name">format</span><span>(</span><span class="z-punctuation z-definition z-string">&quot;</span><span class="z-string">%Y-%m-%d</span><span class="z-punctuation z-definition z-string">&quot;</span><span>)</span><span class="z-keyword">.</span><span class="z-entity z-name">to_string</span><span>(</span><span>)</span><span>;</span></span>
+<span class="giallo-l"><span class="z-storage z-type">    let</span><span> (</span><span class="z-variable z-other">date</span><span>,</span><span class="z-variable z-other"> rest</span><span>)</span><span class="z-keyword"> =</span><span class="z-keyword"> if</span><span class="z-entity z-name"> is_date</span><span>(</span><span class="z-keyword">&amp;</span><span class="z-variable z-other">args</span><span>[</span><span class="z-constant">0</span><span>]</span><span>)</span><span> {</span></span>
+<span class="giallo-l"><span>        (</span><span class="z-variable z-other">args</span><span>[</span><span class="z-constant">0</span><span>]</span><span class="z-keyword">.</span><span class="z-entity z-name">clone</span><span>(</span><span>)</span><span>,</span><span class="z-variable z-other"> args</span><span>[</span><span class="z-constant">1</span><span class="z-keyword">..</span><span>]</span><span class="z-keyword">.</span><span class="z-entity z-name">to_vec</span><span>(</span><span>)</span><span>)</span></span>
+<span class="giallo-l"><span>    }</span><span class="z-keyword"> else</span><span> {</span></span>
+<span class="giallo-l"><span>        (</span><span class="z-variable z-other">today</span><span>,</span><span class="z-variable z-other"> args</span><span class="z-keyword">.</span><span class="z-entity z-name">clone</span><span>(</span><span>)</span><span>)</span></span>
+<span class="giallo-l"><span>    }</span><span>;</span></span>
+<span class="giallo-l"><span class="z-storage z-type">    let</span><span class="z-variable z-other"> content</span><span class="z-keyword"> =</span><span class="z-variable z-other"> rest</span><span class="z-keyword">.</span><span class="z-entity z-name">join</span><span>(</span><span class="z-punctuation z-definition z-string">&quot;</span><span class="z-punctuation z-definition z-string"> &quot;</span><span>)</span><span>;</span></span>
+<span class="giallo-l"><span class="z-punctuation z-definition z-comment">    //</span><span class="z-comment"> ...</span></span>
+<span class="giallo-l"><span>}</span></span></code></pre><h3 id="td-yong-flat-map-yi-ci-bian-li">td 用 flat_map 一次遍历<a class="zola-anchor" href="#td-yong-flat-map-yi-ci-bian-li" aria-label="Anchor link for: td-yong-flat-map-yi-ci-bian-li" style="visibility: hidden;"></a>
+</h3>
+<p>删除原行 + 插入到已完成，一次遍历搞定：</p>
+<pre class="giallo z-code"><code data-lang="rust"><span class="giallo-l"><span class="z-storage z-type">let</span><span class="z-variable z-other"> new_content</span><span class="z-keyword">:</span><span class="z-entity z-name"> String</span><span class="z-keyword"> =</span><span class="z-variable z-other"> content</span><span class="z-keyword">.</span><span class="z-entity z-name">lines</span><span>(</span><span>)</span></span>
+<span class="giallo-l"><span class="z-keyword">    .</span><span class="z-entity z-name">flat_map</span><span>(</span><span class="z-keyword">|</span><span class="z-variable z-other">l</span><span class="z-keyword">|</span><span> {</span></span>
+<span class="giallo-l"><span class="z-keyword">        if</span><span class="z-variable z-other"> l</span><span class="z-keyword"> ==</span><span class="z-variable z-other"> matched</span><span> {</span></span>
+<span class="giallo-l"><span class="z-entity z-name">            vec!</span><span>[</span><span>]</span><span class="z-punctuation z-definition z-comment">                        //</span><span class="z-comment"> 删除原行</span></span>
+<span class="giallo-l"><span>        }</span><span class="z-keyword"> else</span><span class="z-keyword"> if</span><span class="z-variable z-other"> l</span><span class="z-keyword"> ==</span><span class="z-punctuation z-definition z-string"> &quot;</span><span class="z-string">## 已完成</span><span class="z-punctuation z-definition z-string">&quot;</span><span> {</span></span>
+<span class="giallo-l"><span class="z-entity z-name">            vec!</span><span>[</span><span class="z-punctuation z-definition z-string">&quot;</span><span class="z-string">## 已完成</span><span class="z-punctuation z-definition z-string">&quot;</span><span>,</span><span class="z-keyword"> &amp;</span><span class="z-variable z-other">done</span><span>]</span><span class="z-punctuation z-definition z-comment">      //</span><span class="z-comment"> 插入</span></span>
+<span class="giallo-l"><span>        }</span><span class="z-keyword"> else</span><span> {</span></span>
+<span class="giallo-l"><span class="z-entity z-name">            vec!</span><span>[</span><span class="z-variable z-other">l</span><span>]</span></span>
+<span class="giallo-l"><span>        }</span></span>
+<span class="giallo-l"><span>    }</span><span>)</span></span>
+<span class="giallo-l"><span class="z-keyword">    .</span><span class="z-entity z-name">collect</span><span class="z-keyword">::</span><span>&lt;</span><span class="z-entity z-name">Vec</span><span>&lt;</span><span class="z-variable z-other">_</span><span>&gt;</span><span>&gt;</span><span>(</span><span>)</span></span>
+<span class="giallo-l"><span class="z-keyword">    .</span><span class="z-entity z-name">join</span><span>(</span><span class="z-punctuation z-definition z-string">&quot;</span><span class="z-constant">\</span><span class="z-constant">n</span><span class="z-punctuation z-definition z-string">&quot;</span><span>)</span><span>;</span></span></code></pre>
+<p><code>flat_map</code> = <code>map</code> + 压平一层。每个元素返回数组，空数组相当于删除，多个元素相当于插入。</p>
+<hr />
+<h2 id="todo-bg-zhuo-mian-bi-zhi-gen-zhao-dai-ban-zou">todo-bg：桌面壁纸跟着待办走<a class="zola-anchor" href="#todo-bg-zhuo-mian-bi-zhi-gen-zhao-dai-ban-zou" aria-label="Anchor link for: todo-bg-zhuo-mian-bi-zhi-gen-zhao-dai-ban-zou" style="visibility: hidden;"></a>
+</h2>
+<p>每 60 秒读一次 <code>todo.md</code>，当前时间在某任务的时间段内就显示任务名，否则显示今日完整日程。用 ImageMagick 生成图片，AppleScript 设置壁纸。</p>
+<h3 id="jie-xi-bug">解析 bug<a class="zola-anchor" href="#jie-xi-bug" aria-label="Anchor link for: jie-xi-bug" style="visibility: hidden;"></a>
+</h3>
+<p>最初的解析逻辑写错了：</p>
+<pre class="giallo z-code"><code data-lang="rust"><span class="giallo-l"><span class="z-punctuation z-definition z-comment">//</span><span class="z-comment"> 原来的写法</span></span>
+<span class="giallo-l"><span class="z-storage z-type">let</span><span class="z-variable z-other"> parts</span><span class="z-keyword">:</span><span class="z-entity z-name"> Vec</span><span>&lt;</span><span class="z-keyword">&amp;</span><span class="z-entity z-name">str</span><span>&gt;</span><span class="z-keyword"> =</span><span class="z-variable z-other"> line</span><span class="z-keyword">.</span><span class="z-entity z-name">splitn</span><span>(</span><span class="z-constant">4</span><span>,</span><span class="z-string"> &#39;</span><span class="z-string"> &#39;</span><span>)</span><span class="z-keyword">.</span><span class="z-entity z-name">collect</span><span>(</span><span>)</span><span>;</span></span>
+<span class="giallo-l"><span class="z-punctuation z-definition z-comment">//</span><span class="z-comment"> 以为 parts[1] 是日期，实则：</span></span>
+<span class="giallo-l"><span class="z-punctuation z-definition z-comment">//</span><span class="z-comment"> &quot;- [ ] 2026-03-23 ...&quot; → [&quot;-&quot;, &quot;[&quot;, &quot;]&quot;, &quot;2026-03-23 ...&quot;]</span></span>
+<span class="giallo-l"><span class="z-punctuation z-definition z-comment">//</span><span class="z-comment"> parts[1] = &quot;[&quot;，不是日期，日期解析失败，所有任务都被跳过，返回 FREE</span></span></code></pre>
+<p><code>- [ ] </code> 里有空格，<code>splitn(4, ' ')</code> 前三个 slot 全被 <code>"-"</code> <code>"["</code> <code>"]"</code> 占掉了。</p>
+<p>修法：先用 <code>"] "</code> 切掉前缀，再对剩余部分解析：</p>
+<pre class="giallo z-code"><code data-lang="rust"><span class="giallo-l"><span class="z-storage z-type">let</span><span class="z-entity z-name"> Some</span><span>(</span><span class="z-variable z-other">rest</span><span>)</span><span class="z-keyword"> =</span><span class="z-variable z-other"> line</span><span class="z-keyword">.</span><span class="z-entity z-name">split_once</span><span>(</span><span class="z-punctuation z-definition z-string">&quot;</span><span class="z-string">] </span><span class="z-punctuation z-definition z-string">&quot;</span><span>)</span><span class="z-keyword">.</span><span class="z-entity z-name">map</span><span>(</span><span class="z-keyword">|</span><span>(</span><span class="z-variable z-other">_</span><span>,</span><span class="z-variable z-other"> r</span><span>)</span><span class="z-keyword">|</span><span class="z-variable z-other"> r</span><span>)</span><span class="z-keyword"> else</span><span> {</span><span class="z-keyword"> continue</span><span> }</span><span>;</span></span>
+<span class="giallo-l"><span class="z-storage z-type">let</span><span class="z-variable z-other"> parts</span><span class="z-keyword">:</span><span class="z-entity z-name"> Vec</span><span>&lt;</span><span class="z-keyword">&amp;</span><span class="z-entity z-name">str</span><span>&gt;</span><span class="z-keyword"> =</span><span class="z-variable z-other"> rest</span><span class="z-keyword">.</span><span class="z-entity z-name">splitn</span><span>(</span><span class="z-constant">3</span><span>,</span><span class="z-string"> &#39;</span><span class="z-string"> &#39;</span><span>)</span><span class="z-keyword">.</span><span class="z-entity z-name">collect</span><span>(</span><span>)</span><span>;</span></span>
+<span class="giallo-l"><span class="z-punctuation z-definition z-comment">//</span><span class="z-comment"> parts: [&quot;2026-03-23&quot;, &quot;09:00-10:00&quot;, &quot;内容&quot;]</span></span></code></pre><h3 id="mo-bo-li-bi-zhi">磨玻璃壁纸<a class="zola-anchor" href="#mo-bo-li-bi-zhi" aria-label="Anchor link for: mo-bo-li-bi-zhi" style="visibility: hidden;"></a>
+</h3>
+<p>纯黑背景太单调，改成深色渐变 + 磨玻璃面板。ImageMagick 的实现思路：</p>
+<ol>
+<li>深色渐变背景</li>
+<li>克隆背景 → 高斯模糊 → 用圆角矩形 mask 裁出面板区域</li>
+<li>叠加半透明白色面板 + 高亮描边</li>
+<li>文字居中绘制</li>
+</ol>
+<pre class="giallo z-code"><code data-lang="rust"><span class="giallo-l"><span class="z-punctuation z-definition z-comment">//</span><span class="z-comment"> 毛玻璃层：克隆背景 → 模糊 → mask 限定区域</span></span>
+<span class="giallo-l"><span class="z-punctuation z-definition z-string">&quot;</span><span class="z-string">(</span><span class="z-punctuation z-definition z-string">&quot;</span><span class="z-keyword">.</span><span class="z-entity z-name">into</span><span>(</span><span>)</span><span>,</span></span>
+<span class="giallo-l"><span class="z-punctuation z-definition z-string">    &quot;</span><span class="z-string">+clone</span><span class="z-punctuation z-definition z-string">&quot;</span><span class="z-keyword">.</span><span class="z-entity z-name">into</span><span>(</span><span>)</span><span>,</span><span class="z-punctuation z-definition z-string"> &quot;</span><span class="z-string">-blur</span><span class="z-punctuation z-definition z-string">&quot;</span><span class="z-keyword">.</span><span class="z-entity z-name">into</span><span>(</span><span>)</span><span>,</span><span class="z-punctuation z-definition z-string"> &quot;</span><span class="z-string">0x28</span><span class="z-punctuation z-definition z-string">&quot;</span><span class="z-keyword">.</span><span class="z-entity z-name">into</span><span>(</span><span>)</span><span>,</span></span>
+<span class="giallo-l"><span class="z-punctuation z-definition z-string">    &quot;</span><span class="z-string">-alpha</span><span class="z-punctuation z-definition z-string">&quot;</span><span class="z-keyword">.</span><span class="z-entity z-name">into</span><span>(</span><span>)</span><span>,</span><span class="z-punctuation z-definition z-string"> &quot;</span><span class="z-string">set</span><span class="z-punctuation z-definition z-string">&quot;</span><span class="z-keyword">.</span><span class="z-entity z-name">into</span><span>(</span><span>)</span><span>,</span></span>
+<span class="giallo-l"><span class="z-punctuation z-definition z-string">    &quot;</span><span class="z-string">(</span><span class="z-punctuation z-definition z-string">&quot;</span><span class="z-keyword">.</span><span class="z-entity z-name">into</span><span>(</span><span>)</span><span>,</span></span>
+<span class="giallo-l"><span class="z-punctuation z-definition z-string">        &quot;</span><span class="z-string">-size</span><span class="z-punctuation z-definition z-string">&quot;</span><span class="z-keyword">.</span><span class="z-entity z-name">into</span><span>(</span><span>)</span><span>,</span><span class="z-entity z-name"> format!</span><span>(</span><span class="z-punctuation z-definition z-string">&quot;</span><span class="z-string">{</span><span class="z-string">}</span><span class="z-string">x</span><span class="z-string">{</span><span class="z-string">}</span><span class="z-punctuation z-definition z-string">&quot;</span><span>,</span><span class="z-constant"> BG_W</span><span>,</span><span class="z-constant"> BG_H</span><span>)</span><span>,</span></span>
+<span class="giallo-l"><span class="z-punctuation z-definition z-string">        &quot;</span><span class="z-string">xc:black</span><span class="z-punctuation z-definition z-string">&quot;</span><span class="z-keyword">.</span><span class="z-entity z-name">into</span><span>(</span><span>)</span><span>,</span><span class="z-punctuation z-definition z-string"> &quot;</span><span class="z-string">-fill</span><span class="z-punctuation z-definition z-string">&quot;</span><span class="z-keyword">.</span><span class="z-entity z-name">into</span><span>(</span><span>)</span><span>,</span><span class="z-punctuation z-definition z-string"> &quot;</span><span class="z-string">white</span><span class="z-punctuation z-definition z-string">&quot;</span><span class="z-keyword">.</span><span class="z-entity z-name">into</span><span>(</span><span>)</span><span>,</span></span>
+<span class="giallo-l"><span class="z-punctuation z-definition z-string">        &quot;</span><span class="z-string">-draw</span><span class="z-punctuation z-definition z-string">&quot;</span><span class="z-keyword">.</span><span class="z-entity z-name">into</span><span>(</span><span>)</span><span>,</span><span class="z-variable z-other"> rect</span><span class="z-keyword">.</span><span class="z-entity z-name">clone</span><span>(</span><span>)</span><span>,</span><span class="z-punctuation z-definition z-comment">  //</span><span class="z-comment"> 圆角矩形</span></span>
+<span class="giallo-l"><span class="z-punctuation z-definition z-string">    &quot;</span><span class="z-string">)</span><span class="z-punctuation z-definition z-string">&quot;</span><span class="z-keyword">.</span><span class="z-entity z-name">into</span><span>(</span><span>)</span><span>,</span></span>
+<span class="giallo-l"><span class="z-punctuation z-definition z-string">    &quot;</span><span class="z-string">-compose</span><span class="z-punctuation z-definition z-string">&quot;</span><span class="z-keyword">.</span><span class="z-entity z-name">into</span><span>(</span><span>)</span><span>,</span><span class="z-punctuation z-definition z-string"> &quot;</span><span class="z-string">CopyOpacity</span><span class="z-punctuation z-definition z-string">&quot;</span><span class="z-keyword">.</span><span class="z-entity z-name">into</span><span>(</span><span>)</span><span>,</span><span class="z-punctuation z-definition z-string"> &quot;</span><span class="z-string">-composite</span><span class="z-punctuation z-definition z-string">&quot;</span><span class="z-keyword">.</span><span class="z-entity z-name">into</span><span>(</span><span>)</span><span>,</span></span>
+<span class="giallo-l"><span class="z-punctuation z-definition z-string">&quot;</span><span class="z-string">)</span><span class="z-punctuation z-definition z-string">&quot;</span><span class="z-keyword">.</span><span class="z-entity z-name">into</span><span>(</span><span>)</span><span>,</span></span>
+<span class="giallo-l"><span class="z-punctuation z-definition z-string">&quot;</span><span class="z-string">-composite</span><span class="z-punctuation z-definition z-string">&quot;</span><span class="z-keyword">.</span><span class="z-entity z-name">into</span><span>(</span><span>)</span><span>,</span></span></code></pre>
+<p>字体用思源黑体 Light（<code>SourceHanSansSC-Light.otf</code>），日程模式左对齐、单任务模式居中。</p>
+<hr />
+<h2 id="bu-shu">部署<a class="zola-anchor" href="#bu-shu" aria-label="Anchor link for: bu-shu" style="visibility: hidden;"></a>
+</h2>
+<h3 id="notes-xi-tong-ming-ling">notes → 系统命令<a class="zola-anchor" href="#notes-xi-tong-ming-ling" aria-label="Anchor link for: notes-xi-tong-ming-ling" style="visibility: hidden;"></a>
+</h3>
+<pre class="giallo z-code"><code data-lang="shellscript"><span class="giallo-l"><span class="z-entity z-name">cargo</span><span class="z-string"> build</span><span class="z-constant"> -</span><span class="z-constant">-release</span><span class="z-constant"> -</span><span class="z-constant">p</span><span class="z-string"> notes</span></span>
+<span class="giallo-l"><span class="z-entity z-name">cp</span><span class="z-string"> target/release/notes</span><span class="z-string"> /usr/local/bin/notes</span></span></code></pre>
+<p>之后在任意目录直接敲 <code>notes</code> 就能用。</p>
+<h3 id="todo-bg-kai-ji-zi-qi-launchd">todo-bg → 开机自启（launchd）<a class="zola-anchor" href="#todo-bg-kai-ji-zi-qi-launchd" aria-label="Anchor link for: todo-bg-kai-ji-zi-qi-launchd" style="visibility: hidden;"></a>
+</h3>
+<p>先编译 release 版本：</p>
+<pre class="giallo z-code"><code data-lang="shellscript"><span class="giallo-l"><span class="z-entity z-name">cargo</span><span class="z-string"> build</span><span class="z-constant"> -</span><span class="z-constant">-release</span><span class="z-constant"> -</span><span class="z-constant">p</span><span class="z-string"> todo-bg</span></span>
+<span class="giallo-l"><span class="z-entity z-name">cp</span><span class="z-string"> target/release/todo-bg</span><span class="z-string"> /usr/local/bin/todo-bg</span></span></code></pre>
+<p>创建 plist 文件 <code>~/Library/LaunchAgents/com.hamilton.todo-bg.plist</code>：</p>
+<pre class="giallo z-code"><code data-lang="xml"><span class="giallo-l"><span>&lt;?</span><span class="z-entity z-name z-tag">xml</span><span class="z-entity"> version</span><span>=</span><span class="z-punctuation z-definition z-string">&quot;</span><span class="z-string">1.0</span><span class="z-punctuation z-definition z-string">&quot;</span><span class="z-entity"> encoding</span><span>=</span><span class="z-punctuation z-definition z-string">&quot;</span><span class="z-string">UTF-8</span><span class="z-punctuation z-definition z-string">&quot;</span><span>?&gt;</span></span>
+<span class="giallo-l"><span>&lt;!</span><span class="z-keyword">DOCTYPE</span><span class="z-variable z-language"> plist</span><span> PUBLIC &quot;-//Apple//DTD PLIST 1.0//EN&quot;</span></span>
+<span class="giallo-l"><span>  &quot;http://www.apple.com/DTDs/PropertyList-1.0.dtd&quot;</span><span>&gt;</span></span>
+<span class="giallo-l"><span>&lt;</span><span class="z-entity z-name z-tag">plist</span><span class="z-entity"> version</span><span>=</span><span class="z-punctuation z-definition z-string">&quot;</span><span class="z-string">1.0</span><span class="z-punctuation z-definition z-string">&quot;</span><span>&gt;</span></span>
+<span class="giallo-l"><span>&lt;</span><span class="z-entity z-name z-tag">dict</span><span>&gt;</span></span>
+<span class="giallo-l"><span>    &lt;</span><span class="z-entity z-name z-tag">key</span><span>&gt;</span><span>Label</span><span>&lt;/</span><span class="z-entity z-name z-tag">key</span><span>&gt;</span></span>
+<span class="giallo-l"><span>    &lt;</span><span class="z-entity z-name z-tag">string</span><span>&gt;</span><span>com.hamilton.todo-bg</span><span>&lt;/</span><span class="z-entity z-name z-tag">string</span><span>&gt;</span></span>
+<span class="giallo-l"><span>    &lt;</span><span class="z-entity z-name z-tag">key</span><span>&gt;</span><span>ProgramArguments</span><span>&lt;/</span><span class="z-entity z-name z-tag">key</span><span>&gt;</span></span>
+<span class="giallo-l"><span>    &lt;</span><span class="z-entity z-name z-tag">array</span><span>&gt;</span></span>
+<span class="giallo-l"><span>        &lt;</span><span class="z-entity z-name z-tag">string</span><span>&gt;</span><span>/usr/local/bin/todo-bg</span><span>&lt;/</span><span class="z-entity z-name z-tag">string</span><span>&gt;</span></span>
+<span class="giallo-l"><span>    &lt;/</span><span class="z-entity z-name z-tag">array</span><span>&gt;</span></span>
+<span class="giallo-l"><span>    &lt;</span><span class="z-entity z-name z-tag">key</span><span>&gt;</span><span>RunAtLoad</span><span>&lt;/</span><span class="z-entity z-name z-tag">key</span><span>&gt;</span></span>
+<span class="giallo-l"><span>    &lt;</span><span class="z-entity z-name z-tag">true</span><span>/&gt;</span></span>
+<span class="giallo-l"><span>    &lt;</span><span class="z-entity z-name z-tag">key</span><span>&gt;</span><span>KeepAlive</span><span>&lt;/</span><span class="z-entity z-name z-tag">key</span><span>&gt;</span></span>
+<span class="giallo-l"><span>    &lt;</span><span class="z-entity z-name z-tag">true</span><span>/&gt;</span></span>
+<span class="giallo-l"><span>&lt;/</span><span class="z-entity z-name z-tag">dict</span><span>&gt;</span></span>
+<span class="giallo-l"><span>&lt;/</span><span class="z-entity z-name z-tag">plist</span><span>&gt;</span></span></code></pre>
+<p>加载并启动：</p>
+<pre class="giallo z-code"><code data-lang="shellscript"><span class="giallo-l"><span class="z-entity z-name">launchctl</span><span class="z-string"> load</span><span class="z-string"> ~/Library/LaunchAgents/com.hamilton.todo-bg.plist</span></span></code></pre>
+<p>之后开机自动运行，崩溃了也会自动重启（<code>KeepAlive: true</code>）。</p>
+
+      </article>
+
+      
+      
+
+      
+      
+    </div>
+
+    
+
+
+<footer>
+  <div class="left">
+    <div class="copyright">
+      © 2026 Cirray AI
+      
+      <span>|</span>
+      Built with <a href="https://www.getzola.org" rel="noreferrer" target="_blank">zola</a> and <a href="https://github.com/isunjn/serene" rel="noreferrer" target="_blank">serene</a>
+      
+    </div>
+  </div>
+
+  <div class="right">
+    
+    
+    
+    
+
+    
+    
+    
+    <button id="theme-toggle" aria-label="theme switch">
+      <span class="moon-icon"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="18" height="18"><path d="M10 7C10 10.866 13.134 14 17 14C18.9584 14 20.729 13.1957 21.9995 11.8995C22 11.933 22 11.9665 22 12C22 17.5228 17.5228 22 12 22C6.47715 22 2 17.5228 2 12C2 6.47715 6.47715 2 12 2C12.0335 2 12.067 2 12.1005 2.00049C10.8043 3.27098 10 5.04157 10 7ZM4 12C4 16.4183 7.58172 20 12 20C15.0583 20 17.7158 18.2839 19.062 15.7621C18.3945 15.9187 17.7035 16 17 16C12.0294 16 8 11.9706 8 7C8 6.29648 8.08133 5.60547 8.2379 4.938C5.71611 6.28423 4 8.9417 4 12Z" fill="currentColor"></path></svg>
+</span>
+      <span class="sun-icon"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="18" height="18"><path d="M12 18C8.68629 18 6 15.3137 6 12C6 8.68629 8.68629 6 12 6C15.3137 6 18 8.68629 18 12C18 15.3137 15.3137 18 12 18ZM12 16C14.2091 16 16 14.2091 16 12C16 9.79086 14.2091 8 12 8C9.79086 8 8 9.79086 8 12C8 14.2091 9.79086 16 12 16ZM11 1H13V4H11V1ZM11 20H13V23H11V20ZM3.51472 4.92893L4.92893 3.51472L7.05025 5.63604L5.63604 7.05025L3.51472 4.92893ZM16.9497 18.364L18.364 16.9497L20.4853 19.0711L19.0711 20.4853L16.9497 18.364ZM19.0711 3.51472L20.4853 4.92893L18.364 7.05025L16.9497 5.63604L19.0711 3.51472ZM5.63604 16.9497L7.05025 18.364L4.92893 20.4853L3.51472 19.0711L5.63604 16.9497ZM23 11V13H20V11H23ZM4 11V13H1V11H4Z" fill="currentColor"></path></svg>
+</span>
+    </button>
+    
+  </div>
+</footer>
+
+
+
+
+
+  </main>
+</div>
+
+  
+<script src="/js/lightense.min.js"></script>
+
+
+  <script src="https://blog.cirray.cn/js/main.js"></script>
+</body>
+
+</html>

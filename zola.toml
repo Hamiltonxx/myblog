@@ -1,6 +1,8 @@
 # Serene theme config
 # docs: https://github.com/isunjn/serene/blob/latest/USAGE.md
 
+ignored_content = ["notes/**"]
+
 base_url = "https://blog.cirray.cn"
 title = "Cirray's Blog"
 description = "A tech blog"
