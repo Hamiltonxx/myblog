@@ -1,0 +1,380 @@
+<!DOCTYPE html>
+
+<html lang="zh">
+
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="color-scheme" content="light dark">
+  
+  
+    
+  
+  <meta name="description" content="两周计划的第一天和第二天：4600 行 Python 变成 200 行 Rust，绕开官方 API 限制让代码真正跑起来，再把网站一路怼上 ECS。">
+
+  <title>用 Rust 学 AI Agent——Day 1 &amp; 2：第一次对话 + 网站上线</title>
+  <link rel="icon" type="image/png" sizes="32x32" href="https://blog.cirray.cn/img/favicon-32x32.png">
+  <link rel="icon" type="image/png" sizes="16x16" href="https://blog.cirray.cn/img/favicon-16x16.png">
+  <link rel="apple-touch-icon" sizes="180x180" href="https://blog.cirray.cn/img/apple-touch-icon.png">
+  
+  <style>
+
+  /* light mode colors */
+  body {
+    --primary-color: #5871a2;
+    --primary-pale-color: #5871a233;
+    --primary-decoration-color: #5871a210;
+    --bg-color: #ffffff;
+    --text-color: #2f3030;
+    --text-pale-color: #767676;
+    --text-decoration-color: #a9a9a9;
+    --highlight-mark-color: #5f75b020;
+
+    --callout-note-color: #5871a2;
+    --callout-tip-color: #268556;
+    --callout-important-color: #885fc9;
+    --callout-warning-color: #ab6632;
+    --callout-caution-color: #c64e4e;
+  }
+
+  /* dark mode colors */
+  body.dark {
+    --primary-color: #6f8fd1;
+    --primary-pale-color: #6f8fd166;
+    --primary-decoration-color: #6f8fd112;
+    --bg-color: #1c1c1c;
+    --text-color: #c1c1c1;
+    --text-pale-color: #848484;
+    --text-decoration-color: #5f5f5f;
+    --highlight-mark-color: #8296cb3b;
+
+    --callout-note-color: #6f8fd1;
+    --callout-tip-color: #47976f;
+    --callout-important-color: #9776cd;
+    --callout-warning-color: #ad7a52;
+    --callout-caution-color: #d06161;
+  }
+
+  /* typography */
+  body {
+    --main-font: ui-sans-serif, system-ui, sans-serif, 'Apple Color Emoji', 'Segoe UI Emoji', 'Segoe UI Symbol', 'Noto Color Emoji';
+    --code-font: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, 'Liberation Mono', 'Courier New', monospace;
+    --homepage-max-width: 768px;
+    --main-max-width: 768px;
+    --avatar-size: 60px;
+    --font-size: 16px;
+    --line-height: 1.75;
+    --img-border-radius: 0px;
+    --detail-border-radius: 0px;
+    --dark-mode-img-brightness: 0.75;
+    --dark-mode-chart-brightness: 0.75;
+    --inline-code-border-radius: 2px;
+    --inline-code-bg-color: var(--primary-decoration-color);
+    --block-code-border-radius: 0px;
+    --block-code-border-color: var(--primary-color);
+    --detail-border-color: var(--primary-color);
+  }
+
+</style>
+
+  <link rel="stylesheet" href="https://blog.cirray.cn/main.css">
+  
+
+<link id="hl" rel="stylesheet" type="text/css" href="/giallo-light.css" />
+
+
+
+  
+</head>
+
+<body class="post">
+  
+  <script>
+    const theme = sessionStorage.getItem('theme');
+    const match = window.matchMedia("(prefers-color-scheme: dark)").matches;
+    if ((theme && theme == 'dark') || (!theme && match)) {
+      document.body.classList.add('dark');
+      const hl = document.querySelector('link#hl');
+      if (hl) hl.href = 'https://blog.cirray.cn/giallo-dark.css';
+    }
+  </script>
+  
+  
+<div id="wrapper">
+  <div id="blank"></div>
+  <aside>
+    
+    
+    <nav>
+      <ul>
+        
+        <li>
+          <a class="h2" href="#day-1-ba-4600-xing-python-bian-cheng-200-xing-rust">Day 1：把 4600 行 Python 变成 200 行 Rust</a>
+          
+          <ul>
+            
+            <li>
+              <a class="h3" href="#di-yi-bu-da-sao-chu">第一步：大扫除</a>
+            </li>
+            
+            <li>
+              <a class="h3" href="#di-er-bu-zai-lib-rs-li-ba-di-ji-da-hao">第二步：在 lib.rs 里把地基打好</a>
+            </li>
+            
+            <li>
+              <a class="h3" href="#di-san-bu-s01-agent-loop-pao-qi-lai">第三步：S01——agent loop 跑起来</a>
+            </li>
+            
+            <li>
+              <a class="h3" href="#yi-ge-rao-bu-kai-de-xian-shi-wen-ti">一个绕不开的现实问题</a>
+            </li>
+            
+          </ul>
+          
+        </li>
+        
+        <li>
+          <a class="h2" href="#day-2-ba-wang-zhan-dui-shang-ecs">Day 2：把网站怼上 ECS</a>
+          
+          <ul>
+            
+            <li>
+              <a class="h3" href="#keng-yi-pm2-qi-dong-jin-cheng-xian-shi-online-curl-yi-zhi-kong">坑一：pm2 启动进程显示 online，curl 一直空</a>
+            </li>
+            
+            <li>
+              <a class="h3" href="#keng-er-serve-qi-dong-man-yi-wei-you-beng-liao">坑二：serve 启动慢，以为又崩了</a>
+            </li>
+            
+            <li>
+              <a class="h3" href="#shou-wei-nginx-https-dns">收尾：Nginx + HTTPS + DNS</a>
+            </li>
+            
+          </ul>
+          
+        </li>
+        
+        <li>
+          <a class="h2" href="#xiao-jie">小结</a>
+          
+        </li>
+        
+      </ul>
+    </nav>
+    
+    
+    <button id="back-to-top" aria-label="back to top">
+      
+      <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="feather feather-arrow-up"><line x1="12" y1="19" x2="12" y2="5"></line><polyline points="5 12 12 5 19 12"></polyline></svg>
+
+    </button>
+    
+  </aside>
+  <main>
+    
+<header>
+  <nav>
+    <a id="back-link" href="https:&#x2F;&#x2F;blog.cirray.cn&#x2F;posts">← Back</a>
+  </nav>
+</header>
+
+
+    <div>
+      
+      
+      
+      
+      <div id="copy-cfg" style="display: none;" data-copy-icon="&lt;svg xmlns=&quot;http:&#x2F;&#x2F;www.w3.org&#x2F;2000&#x2F;svg&quot; viewBox=&quot;0 0 24 24&quot; width=&quot;18&quot; height=&quot;18&quot;&gt;&lt;path d=&quot;M6.9998 6V3C6.9998 2.44772 7.44752 2 7.9998 2H19.9998C20.5521 2 20.9998 2.44772 20.9998 3V17C20.9998 17.5523 20.5521 18 19.9998 18H16.9998V20.9991C16.9998 21.5519 16.5499 22 15.993 22H4.00666C3.45059 22 3 21.5554 3 20.9991L3.0026 7.00087C3.0027 6.44811 3.45264 6 4.00942 6H6.9998ZM5.00242 8L5.00019 20H14.9998V8H5.00242ZM8.9998 6H16.9998V16H18.9998V4H8.9998V6Z&quot; fill=&quot;currentColor&quot;&gt;&lt;&#x2F;path&gt;&lt;&#x2F;svg&gt;
+" data-check-icon="&lt;svg xmlns=&quot;http:&#x2F;&#x2F;www.w3.org&#x2F;2000&#x2F;svg&quot; viewBox=&quot;0 0 24 24&quot; width=&quot;18&quot; height=&quot;18&quot;&gt;&lt;path d=&quot;M10.0007 15.1709L19.1931 5.97852L20.6073 7.39273L10.0007 17.9993L3.63672 11.6354L5.05093 10.2212L10.0007 15.1709Z&quot; fill=&quot;currentColor&quot;&gt;&lt;&#x2F;path&gt;&lt;&#x2F;svg&gt;
+"></div>
+      
+      <article class="prose">
+        <h1>用 Rust 学 AI Agent——Day 1 &amp; 2：第一次对话 + 网站上线</h1>
+        <div id="post-info">
+          <div id="date">
+            <span id="publish">2026-03-25</span>
+            </div>
+
+          
+          <div id="tags">
+            <a class="instant" href="https://blog.cirray.cn/tags/rust"><span>#</span>rust</a><a class="instant" href="https://blog.cirray.cn/tags/ai"><span>#</span>ai</a><a class="instant" href="https://blog.cirray.cn/tags/claude"><span>#</span>claude</a><a class="instant" href="https://blog.cirray.cn/tags/agent"><span>#</span>agent</a><a class="instant" href="https://blog.cirray.cn/tags/learn-agent-rust"><span>#</span>learn-agent-rust</a><a class="instant" href="https://blog.cirray.cn/tags/bu-shu"><span>#</span>部署</a><a class="instant" href="https://blog.cirray.cn/tags/nginx"><span>#</span>nginx</a>
+          </div>
+          
+        </div>
+
+        
+        
+
+        
+
+        <blockquote>
+<p>两周计划的第一天，结果把第二天也顺带干完了。
+比预期顺利——除了两个坑，一个在代码里，一个在服务器上。</p>
+</blockquote>
+<hr />
+<h2 id="day-1-ba-4600-xing-python-bian-cheng-200-xing-rust">Day 1：把 4600 行 Python 变成 200 行 Rust<a class="zola-anchor" href="#day-1-ba-4600-xing-python-bian-cheng-200-xing-rust" aria-label="Anchor link for: day-1-ba-4600-xing-python-bian-cheng-200-xing-rust" style="visibility: hidden;"></a>
+</h2>
+<h3 id="di-yi-bu-da-sao-chu">第一步：大扫除<a class="zola-anchor" href="#di-yi-bu-da-sao-chu" aria-label="Anchor link for: di-yi-bu-da-sao-chu" style="visibility: hidden;"></a>
+</h3>
+<p>原始仓库是 Python 写的，12 个 session 文件 + <code>s_full.py</code>，4600 多行。今天的第一个 commit 是：全部删掉。</p>
+<p><code>cargo init</code>，<code>Cargo.toml</code> 加上依赖，项目重新从零开始。删完之后仓库清爽多了。</p>
+<h3 id="di-er-bu-zai-lib-rs-li-ba-di-ji-da-hao">第二步：在 <code>lib.rs</code> 里把地基打好<a class="zola-anchor" href="#di-er-bu-zai-lib-rs-li-ba-di-ji-da-hao" aria-label="Anchor link for: di-er-bu-zai-lib-rs-li-ba-di-ji-da-hao" style="visibility: hidden;"></a>
+</h3>
+<p>每个 session 都要和 Anthropic API 通信，先把核心数据结构定义好放进 <code>lib.rs</code>，后续直接 <code>use</code>：</p>
+<pre class="giallo z-code"><code data-lang="rust"><span class="giallo-l"><span class="z-punctuation z-definition z-comment">//</span><span class="z-comment"> 对话消息——content 可以是字符串，也可以是 block 数组，用 Value 统一</span></span>
+<span class="giallo-l"><span class="z-keyword">pub</span><span class="z-storage z-type"> struct</span><span class="z-entity z-name"> Message</span><span> {</span></span>
+<span class="giallo-l"><span class="z-keyword">    pub</span><span class="z-variable z-other"> role</span><span class="z-keyword">:</span><span class="z-entity z-name"> String</span><span>,</span></span>
+<span class="giallo-l"><span class="z-keyword">    pub</span><span class="z-variable z-other"> content</span><span class="z-keyword">:</span><span class="z-entity z-name"> Value</span><span>,</span></span>
+<span class="giallo-l"><span>}</span></span>
+<span class="giallo-l"></span>
+<span class="giallo-l"><span class="z-punctuation z-definition z-comment">//</span><span class="z-comment"> content block 枚举，serde 的 tag = &quot;type&quot; 对应 API 返回的 &quot;type&quot; 字段</span></span>
+<span class="giallo-l"><span>#</span><span>[</span><span>serde</span><span>(</span><span>tag </span><span class="z-keyword">=</span><span class="z-punctuation z-definition z-string"> &quot;</span><span class="z-string">type</span><span class="z-punctuation z-definition z-string">&quot;</span><span>,</span><span> rename_all </span><span class="z-keyword">=</span><span class="z-punctuation z-definition z-string"> &quot;</span><span class="z-string">snake_case</span><span class="z-punctuation z-definition z-string">&quot;</span><span>)</span><span>]</span></span>
+<span class="giallo-l"><span class="z-keyword">pub</span><span class="z-storage z-type"> enum</span><span class="z-entity z-name"> ContentBlock</span><span> {</span></span>
+<span class="giallo-l"><span class="z-entity z-name">    Text</span><span> {</span><span class="z-variable z-other"> text</span><span class="z-keyword">:</span><span class="z-entity z-name"> String</span><span> }</span><span>,</span></span>
+<span class="giallo-l"><span class="z-entity z-name">    ToolUse</span><span> {</span><span class="z-variable z-other"> id</span><span class="z-keyword">:</span><span class="z-entity z-name"> String</span><span>,</span><span class="z-variable z-other"> name</span><span class="z-keyword">:</span><span class="z-entity z-name"> String</span><span>,</span><span class="z-variable z-other"> input</span><span class="z-keyword">:</span><span class="z-entity z-name"> Value</span><span> }</span><span>,</span></span>
+<span class="giallo-l"><span class="z-entity z-name">    ToolResult</span><span> {</span><span class="z-variable z-other"> tool_use_id</span><span class="z-keyword">:</span><span class="z-entity z-name"> String</span><span>,</span><span class="z-variable z-other"> content</span><span class="z-keyword">:</span><span class="z-entity z-name"> String</span><span> }</span><span>,</span></span>
+<span class="giallo-l"><span>}</span></span></code></pre>
+<p>这里最值得记一下的是 <code>ContentBlock</code>：Anthropic API 返回的 content 是一个数组，每个元素都有 <code>"type"</code> 字段，<code>serde</code> 的 <code>tag</code> 属性正好对上，反序列化直接搞定，不用手动 match 字符串。</p>
+<h3 id="di-san-bu-s01-agent-loop-pao-qi-lai">第三步：S01——agent loop 跑起来<a class="zola-anchor" href="#di-san-bu-s01-agent-loop-pao-qi-lai" aria-label="Anchor link for: di-san-bu-s01-agent-loop-pao-qi-lai" style="visibility: hidden;"></a>
+</h3>
+<p>S01 是最基础的 session，目标只有一个：让 Claude <strong>记住上下文</strong>。</p>
+<p>没有上下文，每次对话都是全新开始，Claude 不知道你刚才说了什么。有了上下文，它才真正成为一个能连续工作的 agent。</p>
+<p>实现很简单——维护一个 <code>Vec&lt;Message&gt;</code>，每轮的用户输入和 Claude 回复都追加进去，下次请求把完整历史带上：</p>
+<pre class="giallo z-code"><code data-lang="rust"><span class="giallo-l"><span class="z-storage z-type">let</span><span class="z-storage"> mut</span><span class="z-variable z-other"> messages</span><span class="z-keyword">:</span><span class="z-entity z-name"> Vec</span><span>&lt;</span><span class="z-entity z-name">Message</span><span>&gt;</span><span class="z-keyword"> =</span><span class="z-entity z-name"> vec!</span><span>[</span><span>]</span><span>;</span></span>
+<span class="giallo-l"></span>
+<span class="giallo-l"><span class="z-keyword">loop</span><span> {</span></span>
+<span class="giallo-l"><span class="z-storage z-type">    let</span><span class="z-variable z-other"> input</span><span class="z-keyword"> =</span><span class="z-entity z-name"> read_user_input</span><span>(</span><span>)</span><span>;</span></span>
+<span class="giallo-l"><span class="z-variable z-other">    messages</span><span class="z-keyword">.</span><span class="z-entity z-name">push</span><span>(</span><span class="z-entity z-name">Message</span><span> {</span><span class="z-variable z-other"> role</span><span class="z-keyword">:</span><span class="z-punctuation z-definition z-string"> &quot;</span><span class="z-string">user</span><span class="z-punctuation z-definition z-string">&quot;</span><span class="z-keyword">.</span><span class="z-entity z-name">into</span><span>(</span><span>)</span><span>,</span><span class="z-variable z-other"> content</span><span class="z-keyword">:</span><span class="z-entity z-name"> json!</span><span>(</span><span class="z-variable z-other">input</span><span>)</span><span> }</span><span>)</span><span>;</span></span>
+<span class="giallo-l"></span>
+<span class="giallo-l"><span class="z-storage z-type">    let</span><span class="z-variable z-other"> response</span><span class="z-keyword"> =</span><span class="z-entity z-name"> call_api</span><span>(</span><span class="z-keyword">&amp;</span><span class="z-variable z-other">client</span><span>,</span><span class="z-keyword"> &amp;</span><span class="z-variable z-other">api_key</span><span>,</span><span class="z-keyword"> &amp;</span><span class="z-variable z-other">messages</span><span>)</span><span class="z-keyword">.</span><span class="z-keyword">await</span><span>;</span></span>
+<span class="giallo-l"><span class="z-storage z-type">    let</span><span class="z-variable z-other"> reply</span><span class="z-keyword"> =</span><span class="z-entity z-name"> extract_text</span><span>(</span><span class="z-keyword">&amp;</span><span class="z-variable z-other">response</span><span>)</span><span>;</span></span>
+<span class="giallo-l"></span>
+<span class="giallo-l"><span class="z-entity z-name">    println!</span><span>(</span><span class="z-punctuation z-definition z-string">&quot;</span><span class="z-string">Claude: </span><span class="z-string">{</span><span class="z-string">}</span><span class="z-punctuation z-definition z-string">&quot;</span><span>,</span><span class="z-variable z-other"> reply</span><span>)</span><span>;</span></span>
+<span class="giallo-l"><span class="z-variable z-other">    messages</span><span class="z-keyword">.</span><span class="z-entity z-name">push</span><span>(</span><span class="z-entity z-name">Message</span><span> {</span><span class="z-variable z-other"> role</span><span class="z-keyword">:</span><span class="z-punctuation z-definition z-string"> &quot;</span><span class="z-string">assistant</span><span class="z-punctuation z-definition z-string">&quot;</span><span class="z-keyword">.</span><span class="z-entity z-name">into</span><span>(</span><span>)</span><span>,</span><span class="z-variable z-other"> content</span><span class="z-keyword">:</span><span class="z-entity z-name"> json!</span><span>(</span><span class="z-variable z-other">reply</span><span>)</span><span> }</span><span>)</span><span>;</span></span>
+<span class="giallo-l"><span>}</span></span></code></pre>
+<p>读输入 → 调 API → 输出 → 存回历史 → 循环。这就是 agent loop 的全部。</p>
+<h3 id="yi-ge-rao-bu-kai-de-xian-shi-wen-ti">一个绕不开的现实问题<a class="zola-anchor" href="#yi-ge-rao-bu-kai-de-xian-shi-wen-ti" aria-label="Anchor link for: yi-ge-rao-bu-kai-de-xian-shi-wen-ti" style="visibility: hidden;"></a>
+</h3>
+<p>代码写完，跑起来——沉默。</p>
+<p>API 没有响应。原因很简单：国内直连 <code>api.anthropic.com</code> 不通。</p>
+<p>解法：换一个代理端点，同时注意认证头格式也不一样——官方用 <code>x-api-key</code>，代理用标准的 <code>Authorization: Bearer</code>：</p>
+<pre class="giallo z-code"><code data-lang="rust"><span class="giallo-l"><span class="z-punctuation z-definition z-comment">//</span><span class="z-comment"> 注释掉的是官方写法</span></span>
+<span class="giallo-l"><span class="z-comment">/*</span><span class="z-comment"> .post(&quot;https://api.anthropic.com/v1/messages&quot;) </span><span class="z-comment">*/</span></span>
+<span class="giallo-l"><span class="z-comment">/*</span><span class="z-comment"> .header(&quot;x-api-key&quot;, api_key) </span><span class="z-comment">*/</span></span>
+<span class="giallo-l"></span>
+<span class="giallo-l"><span class="z-punctuation z-definition z-comment">//</span><span class="z-comment"> 实际用的</span></span>
+<span class="giallo-l"><span class="z-keyword">.</span><span class="z-entity z-name">post</span><span>(</span><span class="z-punctuation z-definition z-string">&quot;</span><span class="z-string">https://api.ofox.ai/anthropic/v1/messages</span><span class="z-punctuation z-definition z-string">&quot;</span><span>)</span></span>
+<span class="giallo-l"><span class="z-keyword">.</span><span class="z-entity z-name">header</span><span>(</span><span class="z-punctuation z-definition z-string">&quot;</span><span class="z-string">Authorization</span><span class="z-punctuation z-definition z-string">&quot;</span><span>,</span><span class="z-entity z-name"> format!</span><span>(</span><span class="z-punctuation z-definition z-string">&quot;</span><span class="z-string">Bearer </span><span class="z-string">{</span><span class="z-string">}</span><span class="z-punctuation z-definition z-string">&quot;</span><span>,</span><span class="z-variable z-other"> api_key</span><span>)</span><span>)</span></span></code></pre>
+<p>换完之后，第一次对话：</p>
+<pre class="giallo z-code"><code data-lang="plain"><span class="giallo-l"><span>&gt; 你好，我叫 Hamilton</span></span>
+<span class="giallo-l"><span>Claude: 你好，Hamilton！有什么我可以帮助你的吗？</span></span>
+<span class="giallo-l"></span>
+<span class="giallo-l"><span>&gt; 我刚才说我叫什么？</span></span>
+<span class="giallo-l"><span>Claude: 你刚才说你叫 Hamilton。</span></span></code></pre>
+<p>上下文记忆正常。S01 完成。</p>
+<hr />
+<h2 id="day-2-ba-wang-zhan-dui-shang-ecs">Day 2：把网站怼上 ECS<a class="zola-anchor" href="#day-2-ba-wang-zhan-dui-shang-ecs" aria-label="Anchor link for: day-2-ba-wang-zhan-dui-shang-ecs" style="visibility: hidden;"></a>
+</h2>
+<p>Day 1 收工的时候，Day 2 的任务是部署项目网站，让别人能通过链接看到进展。环境：阿里云 ECS（Ubuntu），目标域名 <code>learncc.cirray.cn</code>。</p>
+<h3 id="keng-yi-pm2-qi-dong-jin-cheng-xian-shi-online-curl-yi-zhi-kong">坑一：pm2 启动进程显示 online，curl 一直空<a class="zola-anchor" href="#keng-yi-pm2-qi-dong-jin-cheng-xian-shi-online-curl-yi-zhi-kong" aria-label="Anchor link for: keng-yi-pm2-qi-dong-jin-cheng-xian-shi-online-curl-yi-zhi-kong" style="visibility: hidden;"></a>
+</h3>
+<p>Node.js、Nginx、certbot 都在，只缺 pm2，装好直接启动：</p>
+<pre class="giallo z-code"><code data-lang="shellscript"><span class="giallo-l"><span class="z-entity z-name">pm2</span><span class="z-string"> start</span><span class="z-string"> npm</span><span class="z-constant"> -</span><span class="z-constant">-name</span><span class="z-punctuation z-definition z-string"> &quot;</span><span class="z-string">learn-site</span><span class="z-punctuation z-definition z-string">&quot;</span><span class="z-constant"> -</span><span class="z-constant">-</span><span class="z-string"> start</span><span class="z-constant"> -</span><span class="z-constant">-</span><span class="z-constant"> -</span><span class="z-constant">p</span><span class="z-constant"> 3000</span></span></code></pre>
+<p><code>pm2 list</code> 显示 <code>online</code>，内存也有了，但 <code>curl http://localhost:3000</code> 一直返回空。</p>
+<p>看日志：</p>
+<pre class="giallo z-code"><code data-lang="plain"><span class="giallo-l"><span>Error: &quot;next start&quot; does not work with &quot;output: export&quot; configuration.</span></span>
+<span class="giallo-l"><span>Use &quot;npx serve@latest out&quot; instead.</span></span></code></pre>
+<p>这个 Next.js 项目配置了 <code>output: export</code>，构建产物是 <code>out/</code> 目录下的纯静态文件，<code>next start</code> 根本不适用，进程实际上一直在崩溃重启——所以 <code>pm2 list</code> 显示 online 只是在骗人（pm2 的自动重启让它看起来活着）。</p>
+<h3 id="keng-er-serve-qi-dong-man-yi-wei-you-beng-liao">坑二：serve 启动慢，以为又崩了<a class="zola-anchor" href="#keng-er-serve-qi-dong-man-yi-wei-you-beng-liao" aria-label="Anchor link for: keng-er-serve-qi-dong-man-yi-wei-you-beng-liao" style="visibility: hidden;"></a>
+</h3>
+<p>换用 serve 托管静态文件：</p>
+<pre class="giallo z-code"><code data-lang="shellscript"><span class="giallo-l"><span class="z-entity z-name">pm2</span><span class="z-string"> delete</span><span class="z-string"> learn-site</span></span>
+<span class="giallo-l"><span class="z-entity z-name">pm2</span><span class="z-string"> start</span><span class="z-string"> npx</span><span class="z-constant"> -</span><span class="z-constant">-name</span><span class="z-punctuation z-definition z-string"> &quot;</span><span class="z-string">learn-site</span><span class="z-punctuation z-definition z-string">&quot;</span><span class="z-constant"> -</span><span class="z-constant">-</span><span class="z-string"> serve</span><span class="z-string"> out</span><span class="z-constant"> -</span><span class="z-constant">p</span><span class="z-constant"> 3000</span></span></code></pre>
+<p>换完之后 curl 还是空。<code>ss -tlnp | grep 3000</code> 显示端口在监听，但就是没响应。</p>
+<p>差点又去翻日志排查——其实只是 serve 要先下载（<code>npm warn exec ... serve@14.2.6</code>），启动比较慢，等几秒就好了。</p>
+<p>等了一下，再 curl，HTML 哗哗出来了。</p>
+<h3 id="shou-wei-nginx-https-dns">收尾：Nginx + HTTPS + DNS<a class="zola-anchor" href="#shou-wei-nginx-https-dns" aria-label="Anchor link for: shou-wei-nginx-https-dns" style="visibility: hidden;"></a>
+</h3>
+<p>Nginx 反代配置写好：</p>
+<pre class="giallo z-code"><code data-lang="nginx"><span class="giallo-l"><span class="z-storage z-type">server</span><span> {</span></span>
+<span class="giallo-l"><span class="z-keyword">    listen</span><span class="z-constant"> 80</span><span>;</span></span>
+<span class="giallo-l"><span class="z-keyword">    server_</span><span class="z-keyword">name</span><span> learncc.cirray.cn</span><span>;</span></span>
+<span class="giallo-l"></span>
+<span class="giallo-l"><span class="z-storage z-type">    location</span><span class="z-entity z-name"> / </span><span>{</span></span>
+<span class="giallo-l"><span class="z-keyword">        proxy_</span><span class="z-keyword">pass</span><span> http://localhost:3000</span><span>;</span></span>
+<span class="giallo-l"><span class="z-keyword">        proxy_</span><span class="z-keyword">http_version</span><span class="z-constant"> 1.1</span><span>;</span></span>
+<span class="giallo-l"><span class="z-keyword">        proxy_</span><span class="z-keyword">set_header</span><span> Host </span><span>$</span><span class="z-variable z-other">host</span><span>;</span></span>
+<span class="giallo-l"><span class="z-keyword">        proxy_</span><span class="z-keyword">set_header</span><span> X-Real-IP </span><span>$</span><span class="z-variable z-other">remote_addr</span><span>;</span></span>
+<span class="giallo-l"><span>    }</span></span>
+<span class="giallo-l"><span>}</span></span></code></pre>
+<p><code>certbot --nginx</code> 配 HTTPS，阿里云控制台加 DNS A 记录。</p>
+<p>上线后 <code>https://learncc.cirray.cn</code> 根路径返回 404，一度以为出问题了。<code>/en/</code> 完全正常。查了一下：Next.js 静态导出的根路径重定向是靠 JS 做的，浏览器里正常跳 <code>/en/</code>，curl 看到的是 404。不是 bug，是特性。</p>
+<hr />
+<h2 id="xiao-jie">小结<a class="zola-anchor" href="#xiao-jie" aria-label="Anchor link for: xiao-jie" style="visibility: hidden;"></a>
+</h2>
+<p>今天完成的事：</p>
+<ul>
+<li>4600 行 Python 换成 200 行 Rust，骨架清晰</li>
+<li><code>lib.rs</code> 公共类型定义好，后续 12 个 session 直接复用</li>
+<li>S01 agent loop 跑通，上下文记忆正常——绕开国内 API 访问限制是关键一步</li>
+<li>网站上线：<code>https://learncc.cirray.cn</code>，HTTPS，能访问</li>
+</ul>
+<p>明天 Day 3：<code>s02_tool_use.rs</code>，让 agent 从"只会聊天"变成"能执行工具"。</p>
+
+      </article>
+
+      
+      
+
+      
+      
+    </div>
+
+    
+
+
+<footer>
+  <div class="left">
+    <div class="copyright">
+      © 2026 Cirray AI
+      
+      <span>|</span>
+      Built with <a href="https://www.getzola.org" rel="noreferrer" target="_blank">zola</a> and <a href="https://github.com/isunjn/serene" rel="noreferrer" target="_blank">serene</a>
+      
+    </div>
+  </div>
+
+  <div class="right">
+    
+    
+    
+    
+
+    
+    
+    
+    <button id="theme-toggle" aria-label="theme switch">
+      <span class="moon-icon"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="18" height="18"><path d="M10 7C10 10.866 13.134 14 17 14C18.9584 14 20.729 13.1957 21.9995 11.8995C22 11.933 22 11.9665 22 12C22 17.5228 17.5228 22 12 22C6.47715 22 2 17.5228 2 12C2 6.47715 6.47715 2 12 2C12.0335 2 12.067 2 12.1005 2.00049C10.8043 3.27098 10 5.04157 10 7ZM4 12C4 16.4183 7.58172 20 12 20C15.0583 20 17.7158 18.2839 19.062 15.7621C18.3945 15.9187 17.7035 16 17 16C12.0294 16 8 11.9706 8 7C8 6.29648 8.08133 5.60547 8.2379 4.938C5.71611 6.28423 4 8.9417 4 12Z" fill="currentColor"></path></svg>
+</span>
+      <span class="sun-icon"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="18" height="18"><path d="M12 18C8.68629 18 6 15.3137 6 12C6 8.68629 8.68629 6 12 6C15.3137 6 18 8.68629 18 12C18 15.3137 15.3137 18 12 18ZM12 16C14.2091 16 16 14.2091 16 12C16 9.79086 14.2091 8 12 8C9.79086 8 8 9.79086 8 12C8 14.2091 9.79086 16 12 16ZM11 1H13V4H11V1ZM11 20H13V23H11V20ZM3.51472 4.92893L4.92893 3.51472L7.05025 5.63604L5.63604 7.05025L3.51472 4.92893ZM16.9497 18.364L18.364 16.9497L20.4853 19.0711L19.0711 20.4853L16.9497 18.364ZM19.0711 3.51472L20.4853 4.92893L18.364 7.05025L16.9497 5.63604L19.0711 3.51472ZM5.63604 16.9497L7.05025 18.364L4.92893 20.4853L3.51472 19.0711L5.63604 16.9497ZM23 11V13H20V11H23ZM4 11V13H1V11H4Z" fill="currentColor"></path></svg>
+</span>
+    </button>
+    
+  </div>
+</footer>
+
+
+
+
+
+  </main>
+</div>
+
+  
+<script src="/js/lightense.min.js"></script>
+
+
+  <script src="https://blog.cirray.cn/js/main.js"></script>
+</body>
+
+</html>

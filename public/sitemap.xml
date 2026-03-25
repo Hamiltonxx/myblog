@@ -32,6 +32,10 @@
         <lastmod>2026-03-21</lastmod>
     </url>
     <url>
+        <loc>https://blog.cirray.cn/posts/learn-agent-rust-day1-day2/</loc>
+        <lastmod>2026-03-25</lastmod>
+    </url>
+    <url>
         <loc>https://blog.cirray.cn/posts/learn-agent-rust-two-week-plan/</loc>
         <lastmod>2026-03-25</lastmod>
     </url>
@@ -51,6 +55,9 @@
     </url>
     <url>
         <loc>https://blog.cirray.cn/tags/ai/</loc>
+    </url>
+    <url>
+        <loc>https://blog.cirray.cn/tags/bu-shu/</loc>
     </url>
     <url>
         <loc>https://blog.cirray.cn/tags/claude-code/</loc>
@@ -74,7 +81,13 @@
         <loc>https://blog.cirray.cn/tags/kai-fa-gong-ju/</loc>
     </url>
     <url>
+        <loc>https://blog.cirray.cn/tags/learn-agent-rust/</loc>
+    </url>
+    <url>
         <loc>https://blog.cirray.cn/tags/mcp/</loc>
+    </url>
+    <url>
+        <loc>https://blog.cirray.cn/tags/nginx/</loc>
     </url>
     <url>
         <loc>https://blog.cirray.cn/tags/qdrant/</loc>
