@@ -69,7 +69,9 @@ toc = true
 - [ ] git push
 
 **交付物：** GitHub 上能看到 Rust 项目，s01 能跑
+
 **Agent 原理：** 理解最基础的 agent loop：用户输入 → 模型回复 → 执行 tool → 把结果还给模型
+
 **Rust 能力：** Cargo 项目结构、serde derive、enum with tag
 
 ---
@@ -107,14 +109,16 @@ toc = true
 上午：读 learn-claude-code 的 s02 文档，理解核心变化：loop 不变，加 tool 只需加一行 handler
 
 - [ ] 定义 Tool trait：
-      ```rust
-      #[async_trait]
-      pub trait Tool: Send + Sync {
-          fn name(&self) -> &str;
-          fn definition(&self) -> Value;  // JSON schema
-          async fn execute(&self, input: Value) -> String;
-      }
-      ```
+
+  ```rust
+  #[async_trait]
+  pub trait Tool: Send + Sync {
+      fn name(&self) -> &str;
+      fn definition(&self) -> Value;  // JSON schema
+      async fn execute(&self, input: Value) -> String;
+  }
+  ```
+
 - [ ] 实现 BashTool, ReadFileTool, WriteFileTool, EditFileTool（4 个 tool）
 - [ ] 用 HashMap<String, Box<dyn Tool>> 做 dispatch
 
@@ -125,7 +129,9 @@ toc = true
 - [ ] git push
 
 **交付物：** s02 能跑，4 个工具
+
 **Agent 原理：** tool 的本质是"把模型的意图映射到真实的系统操作"
+
 **Rust 能力：** trait object, Box<dyn Trait>, async_trait, HashMap
 
 ---
@@ -149,7 +155,9 @@ toc = true
 - [ ] git push
 
 **交付物：** s03 + s04 能跑
+
 **Agent 原理：** planning 是 agent 可靠性的核心；subagent 是隔离复杂度的关键手段
+
 **Rust 能力：** struct 方法、Vec 操作、函数递归/嵌套 async
 
 ---
@@ -174,7 +182,9 @@ toc = true
 - [ ] git push
 
 **交付物：** s05 + s06 能跑，前 6 个 session 全部完成
+
 **Agent 原理：** context window 是有限资源，compression 是长对话的生命线
+
 **Rust 能力：** 文件 I/O (std::fs)、字符串处理、Vec 切片操作
 
 ---
@@ -210,6 +220,7 @@ toc = true
 - [ ] git push
 
 **Agent 原理：** 任务图让 agent 从"执行者"升级为"项目管理者"
+
 **Rust 能力：** serde 序列化到文件、图的拓扑排序、Result 错误处理
 
 ---
@@ -225,6 +236,7 @@ toc = true
 - [ ] git push
 
 **Agent 原理：** 并发是 agent 效率的关键，不能让一个慢任务堵死整个系统
+
 **Rust 能力：** tokio::spawn、mpsc channel、Arc<Mutex<T>>
 
 ---
@@ -241,6 +253,7 @@ toc = true
 - [ ] git push
 
 **Agent 原理：** 单个 agent 有认知边界，团队协作能突破这个边界
+
 **Rust 能力：** 多个 tokio task 并发、channel 通信、struct 组合
 
 ---
@@ -261,6 +274,7 @@ toc = true
 - [ ] git push
 
 **Agent 原理：** 自主性是 agent 团队从"工具"变成"系统"的关键跃迁
+
 **Rust 能力：** enum 状态机、loop + select!、模式匹配
 
 ---

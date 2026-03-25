@@ -316,9 +316,9 @@ cargo build 通过</li>
 <li><input disabled="" type="checkbox"/>
 git push</li>
 </ul>
-<p><strong>交付物：</strong> GitHub 上能看到 Rust 项目，s01 能跑
-<strong>Agent 原理：</strong> 理解最基础的 agent loop：用户输入 → 模型回复 → 执行 tool → 把结果还给模型
-<strong>Rust 能力：</strong> Cargo 项目结构、serde derive、enum with tag</p>
+<p><strong>交付物：</strong> GitHub 上能看到 Rust 项目，s01 能跑</p>
+<p><strong>Agent 原理：</strong> 理解最基础的 agent loop：用户输入 → 模型回复 → 执行 tool → 把结果还给模型</p>
+<p><strong>Rust 能力：</strong> Cargo 项目结构、serde derive、enum with tag</p>
 <hr />
 <h3 id="day-2-zhou-er-wang-zhan-bu-shu">Day 2（周二）—— 网站部署<a class="zola-anchor" href="#day-2-zhou-er-wang-zhan-bu-shu" aria-label="Anchor link for: day-2-zhou-er-wang-zhan-bu-shu" style="visibility: hidden;"></a>
 </h3>
@@ -363,13 +363,23 @@ certbot --nginx -d learn.cirray.cn 配 HTTPS</li>
 <p><strong>目标：从硬编码 match 变成 HashMap 动态分发</strong></p>
 <p>上午：读 learn-claude-code 的 s02 文档，理解核心变化：loop 不变，加 tool 只需加一行 handler</p>
 <ul>
-<li><input disabled="" type="checkbox"/>
-定义 Tool trait：
-<code>rust     #[async_trait]     pub trait Tool: Send + Sync {         fn name(&amp;self) -&gt; &amp;str;         fn definition(&amp;self) -&gt; Value;  // JSON schema         async fn execute(&amp;self, input: Value) -&gt; String;     }     </code></li>
-<li><input disabled="" type="checkbox"/>
-实现 BashTool, ReadFileTool, WriteFileTool, EditFileTool（4 个 tool）</li>
-<li><input disabled="" type="checkbox"/>
-用 HashMap&lt;String, Box<dyn Tool>&gt; 做 dispatch</li>
+<li>
+<p><input disabled="" type="checkbox"/>
+定义 Tool trait：</p>
+<pre class="giallo z-code"><code data-lang="rust"><span class="giallo-l"><span>#</span><span>[</span><span>async_trait</span><span>]</span></span>
+<span class="giallo-l"><span class="z-keyword">pub</span><span class="z-storage z-type"> trait</span><span class="z-entity z-name"> Tool</span><span class="z-keyword">:</span><span class="z-entity z-name"> Send</span><span class="z-keyword"> +</span><span class="z-entity z-name"> Sync</span><span> {</span></span>
+<span class="giallo-l"><span class="z-keyword">    fn</span><span class="z-entity z-name"> name</span><span>(</span><span class="z-keyword">&amp;</span><span class="z-variable z-language">self</span><span>)</span><span class="z-keyword"> -&gt;</span><span class="z-keyword"> &amp;</span><span class="z-entity z-name">str</span><span>;</span></span>
+<span class="giallo-l"><span class="z-keyword">    fn</span><span class="z-entity z-name"> definition</span><span>(</span><span class="z-keyword">&amp;</span><span class="z-variable z-language">self</span><span>)</span><span class="z-keyword"> -&gt;</span><span class="z-entity z-name"> Value</span><span>;</span><span class="z-punctuation z-definition z-comment">  //</span><span class="z-comment"> JSON schema</span></span>
+<span class="giallo-l"><span class="z-keyword">    async</span><span class="z-keyword"> fn</span><span class="z-entity z-name"> execute</span><span>(</span><span class="z-keyword">&amp;</span><span class="z-variable z-language">self</span><span>,</span><span class="z-variable z-other"> input</span><span class="z-keyword">:</span><span class="z-entity z-name"> Value</span><span>)</span><span class="z-keyword"> -&gt;</span><span class="z-entity z-name"> String</span><span>;</span></span>
+<span class="giallo-l"><span>}</span></span></code></pre></li>
+<li>
+<p><input disabled="" type="checkbox"/>
+实现 BashTool, ReadFileTool, WriteFileTool, EditFileTool（4 个 tool）</p>
+</li>
+<li>
+<p><input disabled="" type="checkbox"/>
+用 HashMap&lt;String, Box<dyn Tool>&gt; 做 dispatch</p>
+</li>
 </ul>
 <p>下午：</p>
 <ul>
@@ -382,9 +392,9 @@ cargo run --bin s02 测试</li>
 <li><input disabled="" type="checkbox"/>
 git push</li>
 </ul>
-<p><strong>交付物：</strong> s02 能跑，4 个工具
-<strong>Agent 原理：</strong> tool 的本质是"把模型的意图映射到真实的系统操作"
-<strong>Rust 能力：</strong> trait object, Box<dyn Trait>, async_trait, HashMap</p>
+<p><strong>交付物：</strong> s02 能跑，4 个工具</p>
+<p><strong>Agent 原理：</strong> tool 的本质是"把模型的意图映射到真实的系统操作"</p>
+<p><strong>Rust 能力：</strong> trait object, Box<dyn Trait>, async_trait, HashMap</p>
 <hr />
 <h3 id="day-4-zhou-si-s03-todowrite-s04-subagent">Day 4（周四）—— s03 TodoWrite + s04 Subagent<a class="zola-anchor" href="#day-4-zhou-si-s03-todowrite-s04-subagent" aria-label="Anchor link for: day-4-zhou-si-s03-todowrite-s04-subagent" style="visibility: hidden;"></a>
 </h3>
@@ -414,9 +424,9 @@ git push</li>
 <li><input disabled="" type="checkbox"/>
 git push</li>
 </ul>
-<p><strong>交付物：</strong> s03 + s04 能跑
-<strong>Agent 原理：</strong> planning 是 agent 可靠性的核心；subagent 是隔离复杂度的关键手段
-<strong>Rust 能力：</strong> struct 方法、Vec 操作、函数递归/嵌套 async</p>
+<p><strong>交付物：</strong> s03 + s04 能跑</p>
+<p><strong>Agent 原理：</strong> planning 是 agent 可靠性的核心；subagent 是隔离复杂度的关键手段</p>
+<p><strong>Rust 能力：</strong> struct 方法、Vec 操作、函数递归/嵌套 async</p>
 <hr />
 <h3 id="day-5-zhou-wu-s05-skill-loading-s06-context-compact">Day 5（周五）—— s05 Skill Loading + s06 Context Compact<a class="zola-anchor" href="#day-5-zhou-wu-s05-skill-loading-s06-context-compact" aria-label="Anchor link for: day-5-zhou-wu-s05-skill-loading-s06-context-compact" style="visibility: hidden;"></a>
 </h3>
@@ -446,9 +456,9 @@ git push</li>
 <li><input disabled="" type="checkbox"/>
 git push</li>
 </ul>
-<p><strong>交付物：</strong> s05 + s06 能跑，前 6 个 session 全部完成
-<strong>Agent 原理：</strong> context window 是有限资源，compression 是长对话的生命线
-<strong>Rust 能力：</strong> 文件 I/O (std::fs)、字符串处理、Vec 切片操作</p>
+<p><strong>交付物：</strong> s05 + s06 能跑，前 6 个 session 全部完成</p>
+<p><strong>Agent 原理：</strong> context window 是有限资源，compression 是长对话的生命线</p>
+<p><strong>Rust 能力：</strong> 文件 I/O (std::fs)、字符串处理、Vec 切片操作</p>
 <hr />
 <h3 id="day-6-7-zhou-mo-huan-chong-bu-zhai-wen-dang">Day 6-7（周末）—— 缓冲 + 补债 + 文档<a class="zola-anchor" href="#day-6-7-zhou-mo-huan-chong-bu-zhai-wen-dang" aria-label="Anchor link for: day-6-7-zhou-mo-huan-chong-bu-zhai-wen-dang" style="visibility: hidden;"></a>
 </h3>
@@ -489,8 +499,8 @@ git push</li>
 <li><input disabled="" type="checkbox"/>
 git push</li>
 </ul>
-<p><strong>Agent 原理：</strong> 任务图让 agent 从"执行者"升级为"项目管理者"
-<strong>Rust 能力：</strong> serde 序列化到文件、图的拓扑排序、Result 错误处理</p>
+<p><strong>Agent 原理：</strong> 任务图让 agent 从"执行者"升级为"项目管理者"</p>
+<p><strong>Rust 能力：</strong> serde 序列化到文件、图的拓扑排序、Result 错误处理</p>
 <hr />
 <h3 id="day-9-zhou-er-s08-background-tasks">Day 9（周二）—— s08 Background Tasks<a class="zola-anchor" href="#day-9-zhou-er-s08-background-tasks" aria-label="Anchor link for: day-9-zhou-er-s08-background-tasks" style="visibility: hidden;"></a>
 </h3>
@@ -507,8 +517,8 @@ agent 不用阻塞等待，可以继续处理其他事情</li>
 <li><input disabled="" type="checkbox"/>
 git push</li>
 </ul>
-<p><strong>Agent 原理：</strong> 并发是 agent 效率的关键，不能让一个慢任务堵死整个系统
-<strong>Rust 能力：</strong> tokio::spawn、mpsc channel、Arc&lt;Mutex<T>&gt;</p>
+<p><strong>Agent 原理：</strong> 并发是 agent 效率的关键，不能让一个慢任务堵死整个系统</p>
+<p><strong>Rust 能力：</strong> tokio::spawn、mpsc channel、Arc&lt;Mutex<T>&gt;</p>
 <hr />
 <h3 id="day-10-zhou-san-s09-agent-teams">Day 10（周三）—— s09 Agent Teams<a class="zola-anchor" href="#day-10-zhou-san-s09-agent-teams" aria-label="Anchor link for: day-10-zhou-san-s09-agent-teams" style="visibility: hidden;"></a>
 </h3>
@@ -527,8 +537,8 @@ teammate 收到消息后独立运行自己的 agent_loop</li>
 <li><input disabled="" type="checkbox"/>
 git push</li>
 </ul>
-<p><strong>Agent 原理：</strong> 单个 agent 有认知边界，团队协作能突破这个边界
-<strong>Rust 能力：</strong> 多个 tokio task 并发、channel 通信、struct 组合</p>
+<p><strong>Agent 原理：</strong> 单个 agent 有认知边界，团队协作能突破这个边界</p>
+<p><strong>Rust 能力：</strong> 多个 tokio task 并发、channel 通信、struct 组合</p>
 <hr />
 <h3 id="day-11-zhou-si-s10-s11-protocols-autonomous">Day 11（周四）—— s10 + s11 Protocols + Autonomous<a class="zola-anchor" href="#day-11-zhou-si-s10-s11-protocols-autonomous" aria-label="Anchor link for: day-11-zhou-si-s10-s11-protocols-autonomous" style="visibility: hidden;"></a>
 </h3>
@@ -553,8 +563,8 @@ git push</li>
 <li><input disabled="" type="checkbox"/>
 git push</li>
 </ul>
-<p><strong>Agent 原理：</strong> 自主性是 agent 团队从"工具"变成"系统"的关键跃迁
-<strong>Rust 能力：</strong> enum 状态机、loop + select!、模式匹配</p>
+<p><strong>Agent 原理：</strong> 自主性是 agent 团队从"工具"变成"系统"的关键跃迁</p>
+<p><strong>Rust 能力：</strong> enum 状态机、loop + select!、模式匹配</p>
 <hr />
 <h3 id="day-12-zhou-wu-s12-worktree-isolation-ji-cheng">Day 12（周五）—— s12 Worktree Isolation + 集成<a class="zola-anchor" href="#day-12-zhou-wu-s12-worktree-isolation-ji-cheng" aria-label="Anchor link for: day-12-zhou-wu-s12-worktree-isolation-ji-cheng" style="visibility: hidden;"></a>
 </h3>
