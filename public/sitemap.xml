@@ -10,6 +10,9 @@
         <loc>https://blog.cirray.cn/categories/gong-ju/</loc>
     </url>
     <url>
+        <loc>https://blog.cirray.cn/categories/xiang-mu/</loc>
+    </url>
+    <url>
         <loc>https://blog.cirray.cn/posts/</loc>
     </url>
     <url>
@@ -29,6 +32,10 @@
         <lastmod>2026-03-21</lastmod>
     </url>
     <url>
+        <loc>https://blog.cirray.cn/posts/learn-agent-rust-two-week-plan/</loc>
+        <lastmod>2026-03-25</lastmod>
+    </url>
+    <url>
         <loc>https://blog.cirray.cn/posts/notes-cli-rust/</loc>
         <lastmod>2026-03-23</lastmod>
     </url>
@@ -38,6 +45,9 @@
     </url>
     <url>
         <loc>https://blog.cirray.cn/tags/</loc>
+    </url>
+    <url>
+        <loc>https://blog.cirray.cn/tags/agent/</loc>
     </url>
     <url>
         <loc>https://blog.cirray.cn/tags/ai/</loc>
@@ -80,5 +90,8 @@
     </url>
     <url>
         <loc>https://blog.cirray.cn/tags/xiao-lu/</loc>
+    </url>
+    <url>
+        <loc>https://blog.cirray.cn/tags/xue-xi-ji-hua/</loc>
     </url>
 </urlset>
