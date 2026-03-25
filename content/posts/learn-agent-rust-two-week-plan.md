@@ -13,7 +13,7 @@ toc = true
 +++
 
 > 有时候，最好的学习方式不是跟着教程走，而是选一个你有点怕的目标，然后逼自己完成它。
-> 这个计划就是这样来的：用 Rust 重写 [learn-claude-code](https://github.com/anthropics/learn-claude-code) 的全部 12 个 session，
+> 这个计划就是这样来的：用 Rust 重写 [learn-claude-code](https://github.com/shareAI-lab/learn-claude-code) 的全部 12 个 session，
 > 边做边深入理解 AI Agent 的工作原理，同时把 Rust 编码能力提升到一个新的台阶。
 
 ---
