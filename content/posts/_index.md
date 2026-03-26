@@ -18,7 +18,7 @@ date_format = "%Y-%m-%d"
 categorized = false
 back_to_top = true
 toc = true
-comment = false
+comment = true
 copy = true
 
 outdate_alert = false
