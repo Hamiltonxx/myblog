@@ -32,6 +32,10 @@
         <lastmod>2026-03-21</lastmod>
     </url>
     <url>
+        <loc>https://blog.cirray.cn/posts/comment-system-rust/</loc>
+        <lastmod>2026-03-26</lastmod>
+    </url>
+    <url>
         <loc>https://blog.cirray.cn/posts/learn-agent-rust-day1-day2/</loc>
         <lastmod>2026-03-25</lastmod>
     </url>
@@ -62,6 +66,9 @@
     </url>
     <url>
         <loc>https://blog.cirray.cn/tags/async/</loc>
+    </url>
+    <url>
+        <loc>https://blog.cirray.cn/tags/blog/</loc>
     </url>
     <url>
         <loc>https://blog.cirray.cn/tags/bu-shu/</loc>
