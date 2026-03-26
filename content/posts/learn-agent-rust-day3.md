@@ -297,4 +297,4 @@ Day 4：`TodoWriteTool`（先列计划再执行）+ Subagent（派生独立 agen
 
 这两个加起来，agent 就从"被动响应"变成"主动规划"了。感兴趣的话，去 [learncc.cirray.cn](https://learncc.cirray.cn) 看 s02 的代码——现在已经是 Rust 版本了。
 
-代码在：[github.com/Hamiltonxx/learn-claude-code-rust](https://github.com/Hamiltonxx/learn-claude-code-rust)
+代码在：[https://github.com/Hamiltonxx/learn-claude-code-rust](https://github.com/Hamiltonxx/learn-claude-code-rust)
