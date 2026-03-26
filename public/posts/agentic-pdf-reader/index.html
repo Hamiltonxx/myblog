@@ -1,0 +1,696 @@
+<!DOCTYPE html>
+
+<html lang="zh">
+
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="color-scheme" content="light dark">
+  
+  
+    
+  
+  <meta name="description" content="记录如何通过引导 Claude Code，在一天内完成一个具备 AI 阅读助手功能的 PDF 朗读工具。重点不在于代码本身，而在于如何与 Claude Code 协作——什么时候该推进，什么时候该质疑，什么时候该纠正。">
+
+  <title>引导Claude Code构建Agentic PDF Reader：从&#x2F;init到V0.1</title>
+  <link rel="icon" type="image/png" sizes="32x32" href="https://blog.cirray.cn/img/favicon-32x32.png">
+  <link rel="icon" type="image/png" sizes="16x16" href="https://blog.cirray.cn/img/favicon-16x16.png">
+  <link rel="apple-touch-icon" sizes="180x180" href="https://blog.cirray.cn/img/apple-touch-icon.png">
+  
+  <style>
+
+  /* light mode colors */
+  body {
+    --primary-color: #5871a2;
+    --primary-pale-color: #5871a233;
+    --primary-decoration-color: #5871a210;
+    --bg-color: #ffffff;
+    --text-color: #2f3030;
+    --text-pale-color: #767676;
+    --text-decoration-color: #a9a9a9;
+    --highlight-mark-color: #5f75b020;
+
+    --callout-note-color: #5871a2;
+    --callout-tip-color: #268556;
+    --callout-important-color: #885fc9;
+    --callout-warning-color: #ab6632;
+    --callout-caution-color: #c64e4e;
+  }
+
+  /* dark mode colors */
+  body.dark {
+    --primary-color: #6f8fd1;
+    --primary-pale-color: #6f8fd166;
+    --primary-decoration-color: #6f8fd112;
+    --bg-color: #1c1c1c;
+    --text-color: #c1c1c1;
+    --text-pale-color: #848484;
+    --text-decoration-color: #5f5f5f;
+    --highlight-mark-color: #8296cb3b;
+
+    --callout-note-color: #6f8fd1;
+    --callout-tip-color: #47976f;
+    --callout-important-color: #9776cd;
+    --callout-warning-color: #ad7a52;
+    --callout-caution-color: #d06161;
+  }
+
+  /* typography */
+  body {
+    --main-font: ui-sans-serif, system-ui, sans-serif, 'Apple Color Emoji', 'Segoe UI Emoji', 'Segoe UI Symbol', 'Noto Color Emoji';
+    --code-font: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, 'Liberation Mono', 'Courier New', monospace;
+    --homepage-max-width: 768px;
+    --main-max-width: 768px;
+    --avatar-size: 60px;
+    --font-size: 16px;
+    --line-height: 1.75;
+    --img-border-radius: 0px;
+    --detail-border-radius: 0px;
+    --dark-mode-img-brightness: 0.75;
+    --dark-mode-chart-brightness: 0.75;
+    --inline-code-border-radius: 2px;
+    --inline-code-bg-color: var(--primary-decoration-color);
+    --block-code-border-radius: 0px;
+    --block-code-border-color: var(--primary-color);
+    --detail-border-color: var(--primary-color);
+  }
+
+</style>
+
+  <link rel="stylesheet" href="https://blog.cirray.cn/main.css">
+  
+
+<link id="hl" rel="stylesheet" type="text/css" href="/giallo-light.css" />
+
+
+
+  
+</head>
+
+<body class="post">
+  
+  <script>
+    const theme = sessionStorage.getItem('theme');
+    const match = window.matchMedia("(prefers-color-scheme: dark)").matches;
+    if ((theme && theme == 'dark') || (!theme && match)) {
+      document.body.classList.add('dark');
+      const hl = document.querySelector('link#hl');
+      if (hl) hl.href = 'https://blog.cirray.cn/giallo-dark.css';
+    }
+  </script>
+  
+  
+<div id="wrapper">
+  <div id="blank"></div>
+  <aside>
+    
+    
+    <nav>
+      <ul>
+        
+        <li>
+          <a class="h2" href="#yi-xiang-mu-bei-jing">一、项目背景</a>
+          
+        </li>
+        
+        <li>
+          <a class="h2" href="#er-di-yi-jie-duan-chu-shi-hua-xiang-mu-jie-gou">二、第一阶段：初始化项目结构</a>
+          
+          <ul>
+            
+            <li>
+              <a class="h3" href="#2-1-yong-init-jian-li-qi-dian">2.1 用 &#x2F;init 建立起点</a>
+            </li>
+            
+            <li>
+              <a class="h3" href="#2-2-yi-ci-xing-gei-chu-wan-zheng-shang-xia-wen">2.2 一次性给出完整上下文</a>
+            </li>
+            
+            <li>
+              <a class="h3" href="#2-3-shen-pi-ji-hua-zai-dong-shou">2.3 审批计划，再动手</a>
+            </li>
+            
+            <li>
+              <a class="h3" href="#2-4-fa-xian-bing-jiu-zheng-pei-zhi-cuo-wu">2.4 发现并纠正配置错误</a>
+            </li>
+            
+          </ul>
+          
+        </li>
+        
+        <li>
+          <a class="h2" href="#san-di-er-jie-duan-shou-dong-ce-shi-li-jie-dai-ma">三、第二阶段：手动测试，理解代码</a>
+          
+          <ul>
+            
+            <li>
+              <a class="h3" href="#3-1-ce-shi-huan-jing-da-jian">3.1 测试环境搭建</a>
+            </li>
+            
+            <li>
+              <a class="h3" href="#3-2-python-c-de-wen-ti">3.2 python -c 的问题</a>
+            </li>
+            
+            <li>
+              <a class="h3" href="#3-3-li-jie-vocabstore-she-ji">3.3 理解 VocabStore 设计</a>
+            </li>
+            
+            <li>
+              <a class="h3" href="#3-4-li-jie-agent-jue-ce-ji-zhi">3.4 理解 Agent 决策机制</a>
+            </li>
+            
+          </ul>
+          
+        </li>
+        
+        <li>
+          <a class="h2" href="#si-di-san-jie-duan-cong-gui-gai-wei-cli">四、第三阶段：从 GUI 改为 CLI</a>
+          
+          <ul>
+            
+            <li>
+              <a class="h3" href="#4-1-zhi-yi-gui-de-bi-yao-xing">4.1 质疑 GUI 的必要性</a>
+            </li>
+            
+            <li>
+              <a class="h3" href="#4-2-cli-de-jia-gou-she-ji">4.2 CLI 的架构设计</a>
+            </li>
+            
+          </ul>
+          
+        </li>
+        
+        <li>
+          <a class="h2" href="#wu-di-si-jie-duan-tts-wen-ti-pai-cha">五、第四阶段：TTS 问题排查</a>
+          
+          <ul>
+            
+            <li>
+              <a class="h3" href="#5-1-suo-you-ju-zi-shun-jian-da-yin-wan-bi">5.1 所有句子瞬间打印完毕</a>
+            </li>
+            
+            <li>
+              <a class="h3" href="#5-2-n-jian-tiao-liang-ju">5.2 n 键跳两句</a>
+            </li>
+            
+          </ul>
+          
+        </li>
+        
+        <li>
+          <a class="h2" href="#liu-di-wu-jie-duan-ci-hui-xi-tong-you-hua">六、第五阶段：词汇系统优化</a>
+          
+          <ul>
+            
+            <li>
+              <a class="h3" href="#6-1-agent-de-bu-ke-kong-xing">6.1 Agent 的不可控性</a>
+            </li>
+            
+            <li>
+              <a class="h3" href="#6-2-ci-pin-yu-zhi-ke-pei-zhi">6.2 词频阈值可配置</a>
+            </li>
+            
+            <li>
+              <a class="h3" href="#6-3-claude-de-zhu-guan-pan-duan-bu-ke-kao">6.3 Claude 的主观判断不可靠</a>
+            </li>
+            
+            <li>
+              <a class="h3" href="#6-4-yi-ge-zhong-yao-de-gai-nian-jiu-zheng">6.4 一个重要的概念纠正</a>
+            </li>
+            
+          </ul>
+          
+        </li>
+        
+        <li>
+          <a class="h2" href="#qi-fa-bu-dao-github">七、发布到 GitHub</a>
+          
+          <ul>
+            
+            <li>
+              <a class="h3" href="#7-1-fa-bu-qian-de-jian-cha-qing-dan">7.1 发布前的检查清单</a>
+            </li>
+            
+            <li>
+              <a class="h3" href="#7-2-gong-ju-que-shi-shi-de-chu-li">7.2 工具缺失时的处理</a>
+            </li>
+            
+          </ul>
+          
+        </li>
+        
+        <li>
+          <a class="h2" href="#ba-jing-yan-zong-jie-ru-he-yin-dao-claude-code">八、经验总结：如何引导 Claude Code</a>
+          
+          <ul>
+            
+            <li>
+              <a class="h3" href="#8-1-xian-li-jie-zai-xiu-gai">8.1 先理解，再修改</a>
+            </li>
+            
+            <li>
+              <a class="h3" href="#8-2-zhi-yi-she-ji-jue-ce">8.2 质疑设计决策</a>
+            </li>
+            
+            <li>
+              <a class="h3" href="#8-3-jiu-zheng-gai-nian-cuo-wu-yao-guo-duan">8.3 纠正概念错误要果断</a>
+            </li>
+            
+            <li>
+              <a class="h3" href="#8-4-cong-di-ceng-mo-kuai-kai-shi-ce-shi">8.4 从底层模块开始测试</a>
+            </li>
+            
+            <li>
+              <a class="h3" href="#8-5-bug-yao-miao-shu-xian-xiang-bu-yao-cai-yuan-yin">8.5 Bug 要描述现象，不要猜原因</a>
+            </li>
+            
+            <li>
+              <a class="h3" href="#8-6-gong-ju-lian-wen-ti-rang-claude-yi-qi-jie-jue">8.6 工具链问题让 Claude 一起解决</a>
+            </li>
+            
+          </ul>
+          
+        </li>
+        
+        <li>
+          <a class="h2" href="#jiu-xiang-mu-xian-zhuang-v0-1">九、项目现状（v0.1）</a>
+          
+        </li>
+        
+      </ul>
+    </nav>
+    
+    
+    <button id="back-to-top" aria-label="back to top">
+      
+      <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="feather feather-arrow-up"><line x1="12" y1="19" x2="12" y2="5"></line><polyline points="5 12 12 5 19 12"></polyline></svg>
+
+    </button>
+    
+  </aside>
+  <main>
+    
+<header>
+  <nav>
+    <a id="back-link" href="https:&#x2F;&#x2F;blog.cirray.cn&#x2F;posts">← Back</a>
+  </nav>
+</header>
+
+
+    <div>
+      
+      
+      
+      
+      <div id="copy-cfg" style="display: none;" data-copy-icon="&lt;svg xmlns=&quot;http:&#x2F;&#x2F;www.w3.org&#x2F;2000&#x2F;svg&quot; viewBox=&quot;0 0 24 24&quot; width=&quot;18&quot; height=&quot;18&quot;&gt;&lt;path d=&quot;M6.9998 6V3C6.9998 2.44772 7.44752 2 7.9998 2H19.9998C20.5521 2 20.9998 2.44772 20.9998 3V17C20.9998 17.5523 20.5521 18 19.9998 18H16.9998V20.9991C16.9998 21.5519 16.5499 22 15.993 22H4.00666C3.45059 22 3 21.5554 3 20.9991L3.0026 7.00087C3.0027 6.44811 3.45264 6 4.00942 6H6.9998ZM5.00242 8L5.00019 20H14.9998V8H5.00242ZM8.9998 6H16.9998V16H18.9998V4H8.9998V6Z&quot; fill=&quot;currentColor&quot;&gt;&lt;&#x2F;path&gt;&lt;&#x2F;svg&gt;
+" data-check-icon="&lt;svg xmlns=&quot;http:&#x2F;&#x2F;www.w3.org&#x2F;2000&#x2F;svg&quot; viewBox=&quot;0 0 24 24&quot; width=&quot;18&quot; height=&quot;18&quot;&gt;&lt;path d=&quot;M10.0007 15.1709L19.1931 5.97852L20.6073 7.39273L10.0007 17.9993L3.63672 11.6354L5.05093 10.2212L10.0007 15.1709Z&quot; fill=&quot;currentColor&quot;&gt;&lt;&#x2F;path&gt;&lt;&#x2F;svg&gt;
+"></div>
+      
+      <article class="prose">
+        <h1>引导Claude Code构建Agentic PDF Reader：从&#x2F;init到V0.1</h1>
+        <div id="post-info">
+          <div id="date">
+            <span id="publish">2026-03-22</span>
+            </div>
+
+          
+          <div id="tags">
+            <a class="instant" href="https://blog.cirray.cn/tags/claude"><span>#</span>claude</a><a class="instant" href="https://blog.cirray.cn/tags/ai"><span>#</span>ai</a><a class="instant" href="https://blog.cirray.cn/tags/jiao-cheng"><span>#</span>教程</a><a class="instant" href="https://blog.cirray.cn/tags/kai-fa-gong-ju"><span>#</span>开发工具</a>
+          </div>
+          
+        </div>
+
+        
+        
+
+        
+
+        <blockquote>
+<p>本文记录了如何通过引导 Claude Code，在一天内完成一个具备 AI 阅读助手功能的 PDF 朗读工具。重点不在于代码本身，而在于<strong>如何与 Claude Code 协作</strong>——什么时候该推进，什么时候该质疑，什么时候该纠正。</p>
+</blockquote>
+<hr />
+<h2 id="yi-xiang-mu-bei-jing">一、项目背景<a class="zola-anchor" href="#yi-xiang-mu-bei-jing" aria-label="Anchor link for: yi-xiang-mu-bei-jing" style="visibility: hidden;"></a>
+</h2>
+<p><strong>Agentic PDF Reader</strong> 是一个命令行 PDF 朗读工具，核心特点是：</p>
+<ul>
+<li>用 TTS 逐句朗读 PDF 内容</li>
+<li>每读完一句，AI agent（Claude Haiku）自动判断：继续、降速、标记生词、或发起测验</li>
+<li>生词根据真实词频库过滤，只收录超出用户词汇量的词</li>
+<li>进度和词汇持久化到 SQLite</li>
+</ul>
+<p>技术栈：Python 3.14 + pymupdf + pyttsx3 + tkinter + anthropic SDK + sqlite3 + wordfreq</p>
+<hr />
+<h2 id="er-di-yi-jie-duan-chu-shi-hua-xiang-mu-jie-gou">二、第一阶段：初始化项目结构<a class="zola-anchor" href="#er-di-yi-jie-duan-chu-shi-hua-xiang-mu-jie-gou" aria-label="Anchor link for: er-di-yi-jie-duan-chu-shi-hua-xiang-mu-jie-gou" style="visibility: hidden;"></a>
+</h2>
+<h3 id="2-1-yong-init-jian-li-qi-dian">2.1 用 /init 建立起点<a class="zola-anchor" href="#2-1-yong-init-jian-li-qi-dian" aria-label="Anchor link for: 2-1-yong-init-jian-li-qi-dian" style="visibility: hidden;"></a>
+</h3>
+<p>在空目录里运行 <code>/init</code>，Claude 探索后发现没有代码可分析，直接说：</p>
+<blockquote>
+<p>"Once you add code, run /init again and I'll generate an accurate CLAUDE.md."</p>
+</blockquote>
+<p>这时不要等 Claude 猜你要做什么，直接给出完整的约束。</p>
+<h3 id="2-2-yi-ci-xing-gei-chu-wan-zheng-shang-xia-wen">2.2 一次性给出完整上下文<a class="zola-anchor" href="#2-2-yi-ci-xing-gei-chu-wan-zheng-shang-xia-wen" aria-label="Anchor link for: 2-2-yi-ci-xing-gei-chu-wan-zheng-shang-xia-wen" style="visibility: hidden;"></a>
+</h3>
+<p>这是初始化最重要的一步——用一个结构化的 prompt 告诉 Claude 所有约束，而不是边走边说：</p>
+<pre class="giallo z-code"><code data-lang="plain"><span class="giallo-l"><span>Before writing any code, do the following in order:</span></span>
+<span class="giallo-l"></span>
+<span class="giallo-l"><span>1. Rewrite CLAUDE.md with this content:</span></span>
+<span class="giallo-l"><span>   - Stack: Python 3.14, pymupdf, pyttsx3, tkinter, anthropic SDK, sqlite3</span></span>
+<span class="giallo-l"><span>   - Architecture: src/agent.py / pdf_parser.py / tts.py / vocab_store.py / gui.py</span></span>
+<span class="giallo-l"><span>   - Never hardcode ANTHROPIC_API_KEY</span></span>
+<span class="giallo-l"></span>
+<span class="giallo-l"><span>2. Create docs/PLAN.md with 3 phases:</span></span>
+<span class="giallo-l"><span>   - Phase 1 MVP: PDF load + TTS + sentence highlight (no API needed)</span></span>
+<span class="giallo-l"><span>   - Phase 2 Agent: Claude agent decides pace/alerts/quiz</span></span>
+<span class="giallo-l"><span>   - Phase 3 Memory: vocab SQLite + Anki export</span></span>
+<span class="giallo-l"><span>   Each phase must list acceptance criteria and test cases.</span></span>
+<span class="giallo-l"></span>
+<span class="giallo-l"><span>3. Create the directory structure (empty files with docstrings only).</span></span>
+<span class="giallo-l"><span>4. Show me PLAN.md and wait for my approval before writing any logic.</span></span></code></pre>
+<p>几个关键设计：</p>
+<ul>
+<li><strong>先写 CLAUDE.md</strong>，让后续所有操作都在正确的上下文里进行</li>
+<li><strong>分阶段计划 + 验收标准</strong>，每个阶段有明确的 test case</li>
+<li><strong>先创建骨架，不写逻辑</strong>，避免一上来就陷入细节</li>
+<li><strong>等待审批</strong>，在写真正的代码前给自己一个确认机会</li>
+</ul>
+<h3 id="2-3-shen-pi-ji-hua-zai-dong-shou">2.3 审批计划，再动手<a class="zola-anchor" href="#2-3-shen-pi-ji-hua-zai-dong-shou" aria-label="Anchor link for: 2-3-shen-pi-ji-hua-zai-dong-shou" style="visibility: hidden;"></a>
+</h3>
+<p>Claude 展示了 PLAN.md（包含三个阶段、18 个 test case 的完整表格），确认无误后说：</p>
+<blockquote>
+<p>"Good. Do it."</p>
+</blockquote>
+<p>Claude 随即并行写完了所有模块，含完整实现和 26 个测试用例。</p>
+<h3 id="2-4-fa-xian-bing-jiu-zheng-pei-zhi-cuo-wu">2.4 发现并纠正配置错误<a class="zola-anchor" href="#2-4-fa-xian-bing-jiu-zheng-pei-zhi-cuo-wu" aria-label="Anchor link for: 2-4-fa-xian-bing-jiu-zheng-pei-zhi-cuo-wu" style="visibility: hidden;"></a>
+</h3>
+<p>代码生成后，立刻发现两个问题：</p>
+<p><strong>问题一</strong>：<code>pyproject.toml</code> 里 <code>requires-python = "&gt;=3.11"</code>，明明指定了 3.14。</p>
+<p><strong>问题二</strong>：所有文件都有 <code>from __future__ import annotations</code>，这在 Python 3.14 里是多余的——PEP 649 已经让注解默认惰性求值，不再需要这个 backport。</p>
+<p>直接指出：</p>
+<blockquote>
+<p>"我在 init 时说了 Python 用 3.14，你的配置文件里还是 3.11。而且 <code>from __future__ import annotations</code> 这个没用的吧？"</p>
+</blockquote>
+<p>Claude 承认错误，同时修复了 <code>pyproject.toml</code> 的三处配置（<code>requires-python</code>、<code>target-version</code>、<code>python_version</code>），并删除了 9 个文件里的多余导入，还在 <code>CLAUDE.md</code> 里补充了说明。</p>
+<p><strong>经验</strong>：生成完代码后要扫一遍配置文件。Claude 很容易在版本号上用默认值，而不是你指定的值。</p>
+<p>初始化完成后，项目骨架如下：</p>
+<pre class="giallo z-code"><code data-lang="plain"><span class="giallo-l"><span>src/agent.py        LLM agent 决策循环</span></span>
+<span class="giallo-l"><span>src/pdf_parser.py   PDF 解析，提取句子</span></span>
+<span class="giallo-l"><span>src/tts.py          TTS 封装（pyttsx3 daemon 线程）</span></span>
+<span class="giallo-l"><span>src/vocab_store.py  SQLite 词汇与进度</span></span>
+<span class="giallo-l"><span>src/gui.py          tkinter 图形界面</span></span>
+<span class="giallo-l"><span>tests/              26 个测试用例，覆盖三个阶段</span></span></code></pre>
+<hr />
+<h2 id="san-di-er-jie-duan-shou-dong-ce-shi-li-jie-dai-ma">三、第二阶段：手动测试，理解代码<a class="zola-anchor" href="#san-di-er-jie-duan-shou-dong-ce-shi-li-jie-dai-ma" aria-label="Anchor link for: san-di-er-jie-duan-shou-dong-ce-shi-li-jie-dai-ma" style="visibility: hidden;"></a>
+</h2>
+<p>新会话开始时，我告诉 Claude Code：<strong>"我想自己手动测试来加深对代码的理解，该怎么开始"</strong>。</p>
+<p>Claude 给出了从底层到顶层的测试路径：</p>
+<ol>
+<li><code>VocabStore</code>（零依赖，最好验证）</li>
+<li><code>pdf_parser</code>（需要一个 PDF）</li>
+<li><code>ReadingAgent</code>（需要 API Key）</li>
+<li>完整 GUI</li>
+</ol>
+<h3 id="3-1-ce-shi-huan-jing-da-jian">3.1 测试环境搭建<a class="zola-anchor" href="#3-1-ce-shi-huan-jing-da-jian" aria-label="Anchor link for: 3-1-ce-shi-huan-jing-da-jian" style="visibility: hidden;"></a>
+</h3>
+<p>这里有个重要细节：<strong>先建 venv</strong>。</p>
+<pre class="giallo z-code"><code data-lang="shellscript"><span class="giallo-l"><span class="z-entity z-name">python3</span><span class="z-constant"> -</span><span class="z-constant">m</span><span class="z-string"> venv</span><span class="z-string"> .venv</span></span>
+<span class="giallo-l"><span class="z-support">source</span><span class="z-string"> .venv/bin/activate</span></span>
+<span class="giallo-l"><span class="z-entity z-name">pip</span><span class="z-string"> install</span><span class="z-constant"> -</span><span class="z-constant">r</span><span class="z-string"> requirements.txt</span></span></code></pre>
+<p>安装过程中出现了大量 <code>pyobjc-*</code> 包，Claude 解释这是 <code>pyttsx3</code> 在 macOS 上调用原生语音引擎（<code>NSSpeechSynthesizer</code>）的必要桥接层，是正常现象。</p>
+<h3 id="3-2-python-c-de-wen-ti">3.2 <code>python -c</code> 的问题<a class="zola-anchor" href="#3-2-python-c-de-wen-ti" aria-label="Anchor link for: 3-2-python-c-de-wen-ti" style="visibility: hidden;"></a>
+</h3>
+<p>最初 Claude 给出的测试代码用了 <code>python -c "..."</code> 的形式。我问：<strong>"为什么不把测试代码放另一个文件夹"</strong>。</p>
+<p>Claude 承认放文件里更好，于是建了 <code>scratch/</code> 目录专门放探索性代码。</p>
+<pre class="giallo z-code"><code data-lang="plain"><span class="giallo-l"><span>scratch/</span></span>
+<span class="giallo-l"><span>  test_vocab.py</span></span>
+<span class="giallo-l"><span>  test_parser.py</span></span>
+<span class="giallo-l"><span>  test_agent.py</span></span></code></pre>
+<p>运行时遇到了模块找不到的问题：</p>
+<pre class="giallo z-code"><code data-lang="plain"><span class="giallo-l"><span>ModuleNotFoundError: No module named &#39;src&#39;</span></span></code></pre>
+<p>原因：<code>python scratch/test_vocab.py</code> 会把 <code>scratch/</code> 加入搜索路径，而不是项目根目录。修法：</p>
+<pre class="giallo z-code"><code data-lang="shellscript"><span class="giallo-l"><span class="z-variable z-other">PYTHONPATH</span><span class="z-keyword">=</span><span class="z-string">.</span><span class="z-entity z-name"> python</span><span class="z-string"> scratch/test_vocab.py</span></span></code></pre><h3 id="3-3-li-jie-vocabstore-she-ji">3.3 理解 VocabStore 设计<a class="zola-anchor" href="#3-3-li-jie-vocabstore-she-ji" aria-label="Anchor link for: 3-3-li-jie-vocabstore-she-ji" style="visibility: hidden;"></a>
+</h3>
+<p>测试过程中，我问了一个设计问题：<strong>"为什么需要同时一个 correct 字段和一个 incorrect 字段"</strong>。</p>
+<p>Claude 解释：两个字段独立记录才能算正确率和测验次数，缺一不可。这类问题虽然简单，但对理解数据模型很重要——不要跳过。</p>
+<h3 id="3-4-li-jie-agent-jue-ce-ji-zhi">3.4 理解 Agent 决策机制<a class="zola-anchor" href="#3-4-li-jie-agent-jue-ce-ji-zhi" aria-label="Anchor link for: 3-4-li-jie-agent-jue-ce-ji-zhi" style="visibility: hidden;"></a>
+</h3>
+<p>我逐一问了 <code>CONTEXT_WINDOW</code>、<code>_TOOLS</code>、<code>AgentAction</code>、<code>decide()</code> 的作用，得到了清晰的数据流说明：</p>
+<pre class="giallo z-code"><code data-lang="plain"><span class="giallo-l"><span>PDF 句子</span></span>
+<span class="giallo-l"><span>  → decide(current_sentence, context[-5:])</span></span>
+<span class="giallo-l"><span>      → Claude API（带 _TOOLS）</span></span>
+<span class="giallo-l"><span>      → AgentAction</span></span>
+<span class="giallo-l"><span>  → CLI 根据 action.name 执行：</span></span>
+<span class="giallo-l"><span>       ├── continue_reading → 播放下一句</span></span>
+<span class="giallo-l"><span>       ├── slow_down        → 降低 TTS 速度</span></span>
+<span class="giallo-l"><span>       ├── flag_vocab       → 调用 VocabStore.flag_word()</span></span>
+<span class="giallo-l"><span>       └── quiz             → 弹出问题</span></span></code></pre>
+<hr />
+<h2 id="si-di-san-jie-duan-cong-gui-gai-wei-cli">四、第三阶段：从 GUI 改为 CLI<a class="zola-anchor" href="#si-di-san-jie-duan-cong-gui-gai-wei-cli" aria-label="Anchor link for: si-di-san-jie-duan-cong-gui-gai-wei-cli" style="visibility: hidden;"></a>
+</h2>
+<h3 id="4-1-zhi-yi-gui-de-bi-yao-xing">4.1 质疑 GUI 的必要性<a class="zola-anchor" href="#4-1-zhi-yi-gui-de-bi-yao-xing" aria-label="Anchor link for: 4-1-zhi-yi-gui-de-bi-yao-xing" style="visibility: hidden;"></a>
+</h3>
+<p>我直接问：<strong>"为什么还要用 GUI，现在大家都喜欢用 CLI"</strong>。</p>
+<p>Claude 解释了 GUI 在 TTS 场景下的合理性（播放控制、进度显示），但也承认如果不在意 TTS，CLI 更方便调试。</p>
+<p>然后我说：<strong>"不要用 GUI，用 CLI，终端控制"</strong>。</p>
+<p>这是一个关键的方向性决策。Claude 没有反驳，而是读完 <code>gui.py</code> 和 <code>tts.py</code> 后，重新写了 <code>src/cli.py</code>。</p>
+<h3 id="4-2-cli-de-jia-gou-she-ji">4.2 CLI 的架构设计<a class="zola-anchor" href="#4-2-cli-de-jia-gou-she-ji" aria-label="Anchor link for: 4-2-cli-de-jia-gou-she-ji" style="visibility: hidden;"></a>
+</h3>
+<p>Claude 给出的 CLI 架构核心思路：</p>
+<ul>
+<li><strong>raw mode</strong>：用 <code>tty.setraw()</code> 让终端逐字符响应，不需要回车</li>
+<li><strong>双线程</strong>：主线程做 playback，后台线程读按键</li>
+<li><strong>Quiz 时还原终端</strong>：切回普通模式输入答案，完成后再回 raw mode</li>
+</ul>
+<p>控制键：<code>space</code> 暂停/恢复，<code>n</code> 跳句，<code>v</code> 查词汇，<code>q</code> 退出</p>
+<hr />
+<h2 id="wu-di-si-jie-duan-tts-wen-ti-pai-cha">五、第四阶段：TTS 问题排查<a class="zola-anchor" href="#wu-di-si-jie-duan-tts-wen-ti-pai-cha" aria-label="Anchor link for: wu-di-si-jie-duan-tts-wen-ti-pai-cha" style="visibility: hidden;"></a>
+</h2>
+<h3 id="5-1-suo-you-ju-zi-shun-jian-da-yin-wan-bi">5.1 所有句子瞬间打印完毕<a class="zola-anchor" href="#5-1-suo-you-ju-zi-shun-jian-da-yin-wan-bi" aria-label="Anchor link for: 5-1-suo-you-ju-zi-shun-jian-da-yin-wan-bi" style="visibility: hidden;"></a>
+</h3>
+<p>第一次运行时，152 句话一下子全部打印出来，没有声音。</p>
+<p>Claude 分析原因：<strong>pyttsx3 在 macOS 上必须在主线程运行</strong>，但原来的 <code>TTSEngine</code> 把它放在 worker 线程，导致 <code>engine.runAndWait()</code> 立刻返回。</p>
+<p><strong>修法</strong>：放弃 <code>TTSEngine</code>，改用 macOS 自带的 <code>say</code> 命令：</p>
+<pre class="giallo z-code"><code data-lang="python"><span class="giallo-l"><span class="z-storage z-type">def</span><span class="z-entity z-name"> _speak</span><span>(</span><span class="z-variable z-parameter z-function">self</span><span>,</span><span class="z-variable z-parameter z-function"> text</span><span>:</span><span class="z-support"> str</span><span>)</span><span> -&gt;</span><span class="z-constant"> None</span><span>:</span></span>
+<span class="giallo-l"><span class="z-variable z-language">    self</span><span>.</span><span>_proc</span><span class="z-keyword"> =</span><span> subprocess</span><span>.</span><span>Popen</span><span>(</span><span>[</span><span class="z-punctuation z-definition z-string">&quot;</span><span class="z-string">say</span><span class="z-punctuation z-definition z-string">&quot;</span><span>,</span><span class="z-punctuation z-definition z-string"> &quot;</span><span class="z-string">-r</span><span class="z-punctuation z-definition z-string">&quot;</span><span>,</span><span class="z-support"> str</span><span>(</span><span class="z-variable z-language">self</span><span>.</span><span>_rate</span><span>)</span><span>,</span><span> text</span><span>]</span><span>)</span></span>
+<span class="giallo-l"><span class="z-variable z-language">    self</span><span>.</span><span>_proc</span><span>.</span><span>wait</span><span>(</span><span>)</span></span>
+<span class="giallo-l"><span class="z-variable z-language">    self</span><span>.</span><span>_proc</span><span class="z-keyword"> =</span><span class="z-constant"> None</span></span></code></pre>
+<p><code>subprocess.Popen</code> 的优势：阻塞、可中断（<code>terminate()</code>）、不依赖 pyttsx3 的线程问题。</p>
+<h3 id="5-2-n-jian-tiao-liang-ju">5.2 <code>n</code> 键跳两句<a class="zola-anchor" href="#5-2-n-jian-tiao-liang-ju" aria-label="Anchor link for: 5-2-n-jian-tiao-liang-ju" style="visibility: hidden;"></a>
+</h3>
+<p>按 <code>n</code> 时发现总是跳两句（44→46→48）。</p>
+<p>原因：按 <code>n</code> 时 input 线程加了一次 <code>_current</code>，<code>_speak()</code> 返回后主线程又加了一次。</p>
+<p>修法：引入 <code>_interrupted</code> 标志位：</p>
+<pre class="giallo z-code"><code data-lang="python"><span class="giallo-l"><span class="z-punctuation z-definition z-comment">#</span><span class="z-comment"> input 线程按 n：</span></span>
+<span class="giallo-l"><span class="z-variable z-language">self</span><span>.</span><span>_interrupted</span><span class="z-keyword"> =</span><span class="z-constant"> True</span></span>
+<span class="giallo-l"><span class="z-variable z-language">self</span><span>.</span><span>_current</span><span class="z-keyword"> +=</span><span class="z-constant"> 1</span></span>
+<span class="giallo-l"><span class="z-variable z-language">self</span><span>.</span><span>_interrupt_speech</span><span>(</span><span>)</span></span>
+<span class="giallo-l"></span>
+<span class="giallo-l"><span class="z-punctuation z-definition z-comment">#</span><span class="z-comment"> 主线程 speak 返回后：</span></span>
+<span class="giallo-l"><span class="z-keyword">if</span><span class="z-variable z-language"> self</span><span>.</span><span>_playing</span><span class="z-keyword"> and</span><span class="z-keyword"> not</span><span class="z-variable z-language"> self</span><span>.</span><span>_interrupted</span><span>:</span></span>
+<span class="giallo-l"><span class="z-variable z-language">    self</span><span>.</span><span>_current</span><span class="z-keyword"> +=</span><span class="z-constant"> 1</span></span>
+<span class="giallo-l"><span class="z-variable z-language">self</span><span>.</span><span>_interrupted</span><span class="z-keyword"> =</span><span class="z-constant"> False</span></span></code></pre>
+<p>这是一个典型的<strong>多线程状态同步问题</strong>，通过标志位而不是锁来解决，够用且简单。</p>
+<hr />
+<h2 id="liu-di-wu-jie-duan-ci-hui-xi-tong-you-hua">六、第五阶段：词汇系统优化<a class="zola-anchor" href="#liu-di-wu-jie-duan-ci-hui-xi-tong-you-hua" aria-label="Anchor link for: liu-di-wu-jie-duan-ci-hui-xi-tong-you-hua" style="visibility: hidden;"></a>
+</h2>
+<h3 id="6-1-agent-de-bu-ke-kong-xing">6.1 Agent 的不可控性<a class="zola-anchor" href="#6-1-agent-de-bu-ke-kong-xing" aria-label="Anchor link for: 6-1-agent-de-bu-ke-kong-xing" style="visibility: hidden;"></a>
+</h3>
+<p>测试中发现：同一句话反复运行，agent 有时返回 <code>flag_vocab</code>，有时返回 <code>continue_reading</code>，不稳定。</p>
+<p>原因：LLM 有随机性（temperature 默认不为 0）。</p>
+<p><strong>第一步修复</strong>：将 temperature 设为 0：</p>
+<pre class="giallo z-code"><code data-lang="python"><span class="giallo-l"><span>response</span><span class="z-keyword"> =</span><span class="z-variable z-language"> self</span><span>.</span><span>_client</span><span>.</span><span>messages</span><span>.</span><span>create</span><span>(</span></span>
+<span class="giallo-l"><span class="z-variable">    model</span><span class="z-keyword">=</span><span class="z-constant">MODEL</span><span>,</span></span>
+<span class="giallo-l"><span class="z-variable">    max_tokens</span><span class="z-keyword">=</span><span class="z-constant">256</span><span>,</span></span>
+<span class="giallo-l"><span class="z-variable">    temperature</span><span class="z-keyword">=</span><span class="z-constant">0</span><span>,</span></span>
+<span class="giallo-l"><span class="z-constant">    ...</span></span>
+<span class="giallo-l"><span>)</span></span></code></pre><h3 id="6-2-ci-pin-yu-zhi-ke-pei-zhi">6.2 词频阈值可配置<a class="zola-anchor" href="#6-2-ci-pin-yu-zhi-ke-pei-zhi" aria-label="Anchor link for: 6-2-ci-pin-yu-zhi-ke-pei-zhi" style="visibility: hidden;"></a>
+</h3>
+<p>我提出：<strong>"每个用户的词汇量不一样，我想把词频 &gt; 多少这个条件做成可以配置"</strong>。</p>
+<p>Claude 在 <code>ReadingAgent.__init__</code> 加了 <code>vocab_threshold</code> 参数，CLI 加了 <code>--vocab-threshold</code> 选项：</p>
+<pre class="giallo z-code"><code data-lang="shellscript"><span class="giallo-l"><span class="z-entity z-name">python</span><span class="z-string"> main.py</span><span class="z-string"> book.pdf</span><span class="z-constant"> -</span><span class="z-constant">-vocab-threshold</span><span class="z-constant"> 3000</span></span></code></pre><h3 id="6-3-claude-de-zhu-guan-pan-duan-bu-ke-kao">6.3 Claude 的主观判断不可靠<a class="zola-anchor" href="#6-3-claude-de-zhu-guan-pan-duan-bu-ke-kao" aria-label="Anchor link for: 6-3-claude-de-zhu-guan-pan-duan-bu-ke-kao" style="visibility: hidden;"></a>
+</h3>
+<p>测试中发现：即使设了 <code>--vocab-threshold 2000</code>，像 <code>spectacles</code> 这样的词也没有进入词汇表。</p>
+<p>原因：<strong>system prompt 里要求 Claude 判断词是否在前 N 个常用词中，但 Claude 只是凭感觉，没有真实词频数据</strong>。</p>
+<p>我直接点出这个问题，Claude 建议引入 <code>wordfreq</code> 库——它基于真实语料库，有精确的词频数据。</p>
+<pre class="giallo z-code"><code data-lang="python"><span class="giallo-l"><span class="z-keyword">from</span><span> wordfreq</span><span class="z-keyword"> import</span><span> top_n_list</span></span>
+<span class="giallo-l"></span>
+<span class="giallo-l"><span class="z-punctuation z-definition z-comment">#</span><span class="z-comment"> 初始化时建立常用词集合</span></span>
+<span class="giallo-l"><span class="z-variable z-language">self</span><span>.</span><span>_common_words</span><span class="z-keyword"> =</span><span class="z-support"> set</span><span>(</span><span>top_n_list</span><span>(</span><span class="z-punctuation z-definition z-string">&quot;</span><span class="z-string">en</span><span class="z-punctuation z-definition z-string">&quot;</span><span>,</span><span> vocab_threshold</span><span>)</span><span>)</span></span>
+<span class="giallo-l"></span>
+<span class="giallo-l"><span class="z-punctuation z-definition z-comment">#</span><span class="z-comment"> 判断时直接查集合</span></span>
+<span class="giallo-l"><span class="z-keyword">if</span><span> word</span><span class="z-keyword"> not</span><span class="z-keyword"> in</span><span class="z-variable z-language"> self</span><span>.</span><span>_common_words</span><span>:</span></span>
+<span class="giallo-l"><span class="z-keyword">    return</span><span> action</span><span class="z-punctuation z-definition z-comment">  #</span><span class="z-comment"> 超出阈值，保留</span></span></code></pre><h3 id="6-4-yi-ge-zhong-yao-de-gai-nian-jiu-zheng">6.4 一个重要的概念纠正<a class="zola-anchor" href="#6-4-yi-ge-zhong-yao-de-gai-nian-jiu-zheng" aria-label="Anchor link for: 6-4-yi-ge-zhong-yao-de-gai-nian-jiu-zheng" style="visibility: hidden;"></a>
+</h3>
+<p>Claude 最初用 <code>1/freq</code> 来近似 rank，我指出：<strong>"rank 和 freq 不是同一个事情，我们通常说的词汇量是四千、六千，哪有几十万的"</strong>。</p>
+<p>这是一个关键纠正。<code>word_frequency()</code> 返回的是 0~1 的概率值，<code>1/freq</code> 得到的数字在几万到几百万之间，和"词汇量 4000"完全不是一个概念。</p>
+<p>正确做法是用 <code>top_n_list('en', N)</code> 直接取前 N 个词，这才对应"词汇量 N"的直觉。</p>
+<p><strong>经验</strong>：Claude 给出的方案要理解其含义，数字是否合理、概念是否对应，需要自己判断。</p>
+<hr />
+<h2 id="qi-fa-bu-dao-github">七、发布到 GitHub<a class="zola-anchor" href="#qi-fa-bu-dao-github" aria-label="Anchor link for: qi-fa-bu-dao-github" style="visibility: hidden;"></a>
+</h2>
+<h3 id="7-1-fa-bu-qian-de-jian-cha-qing-dan">7.1 发布前的检查清单<a class="zola-anchor" href="#7-1-fa-bu-qian-de-jian-cha-qing-dan" aria-label="Anchor link for: 7-1-fa-bu-qian-de-jian-cha-qing-dan" style="visibility: hidden;"></a>
+</h3>
+<ul>
+<li><code>pyproject.toml</code> 补全新依赖（<code>wordfreq</code>）</li>
+<li>创建 <code>.gitignore</code>（排除 <code>.venv/</code>、<code>*.pdf</code>、<code>vocab.db</code>、<code>scratch/</code>）</li>
+<li>写双语 README</li>
+</ul>
+<h3 id="7-2-gong-ju-que-shi-shi-de-chu-li">7.2 工具缺失时的处理<a class="zola-anchor" href="#7-2-gong-ju-que-shi-shi-de-chu-li" aria-label="Anchor link for: 7-2-gong-ju-que-shi-shi-de-chu-li" style="visibility: hidden;"></a>
+</h3>
+<p>推送时发现 <code>gh</code> 没有安装，直接让 Claude 处理：</p>
+<pre class="giallo z-code"><code data-lang="shellscript"><span class="giallo-l"><span class="z-entity z-name">brew</span><span class="z-string"> install</span><span class="z-string"> gh</span></span>
+<span class="giallo-l"><span class="z-entity z-name">gh</span><span class="z-string"> auth</span><span class="z-string"> login</span></span>
+<span class="giallo-l"><span class="z-entity z-name">gh</span><span class="z-string"> repo</span><span class="z-string"> create</span><span class="z-string"> agentic-pdf-reader</span><span class="z-constant"> -</span><span class="z-constant">-public</span><span class="z-constant"> -</span><span class="z-constant">-source=.</span><span class="z-constant"> -</span><span class="z-constant">-remote=origin</span><span class="z-constant"> -</span><span class="z-constant">-push</span></span></code></pre>
+<hr />
+<h2 id="ba-jing-yan-zong-jie-ru-he-yin-dao-claude-code">八、经验总结：如何引导 Claude Code<a class="zola-anchor" href="#ba-jing-yan-zong-jie-ru-he-yin-dao-claude-code" aria-label="Anchor link for: ba-jing-yan-zong-jie-ru-he-yin-dao-claude-code" style="visibility: hidden;"></a>
+</h2>
+<h3 id="8-1-xian-li-jie-zai-xiu-gai">8.1 先理解，再修改<a class="zola-anchor" href="#8-1-xian-li-jie-zai-xiu-gai" aria-label="Anchor link for: 8-1-xian-li-jie-zai-xiu-gai" style="visibility: hidden;"></a>
+</h3>
+<p>不要让 Claude 直接改代码。先让它解释模块的作用、数据流、设计决策，理解之后再决定是否修改，以及如何修改。</p>
+<h3 id="8-2-zhi-yi-she-ji-jue-ce">8.2 质疑设计决策<a class="zola-anchor" href="#8-2-zhi-yi-she-ji-jue-ce" aria-label="Anchor link for: 8-2-zhi-yi-she-ji-jue-ce" style="visibility: hidden;"></a>
+</h3>
+<p>Claude 给出的方案不一定是最适合你场景的。本项目中的例子：</p>
+<ul>
+<li>质疑 GUI 的必要性 → 换成 CLI</li>
+<li>质疑词频判断的可靠性 → 引入 wordfreq</li>
+</ul>
+<h3 id="8-3-jiu-zheng-gai-nian-cuo-wu-yao-guo-duan">8.3 纠正概念错误要果断<a class="zola-anchor" href="#8-3-jiu-zheng-gai-nian-cuo-wu-yao-guo-duan" aria-label="Anchor link for: 8-3-jiu-zheng-gai-nian-cuo-wu-yao-guo-duan" style="visibility: hidden;"></a>
+</h3>
+<p>Claude 有时会用近似手段绕过问题（如用 <code>1/freq</code> 近似 rank）。发现概念不对要直接指出，不要将就。</p>
+<h3 id="8-4-cong-di-ceng-mo-kuai-kai-shi-ce-shi">8.4 从底层模块开始测试<a class="zola-anchor" href="#8-4-cong-di-ceng-mo-kuai-kai-shi-ce-shi" aria-label="Anchor link for: 8-4-cong-di-ceng-mo-kuai-kai-shi-ce-shi" style="visibility: hidden;"></a>
+</h3>
+<p>测试顺序：最独立的模块 → 有依赖的模块 → 完整系统。每一层测通了再往上走，问题容易定位。</p>
+<h3 id="8-5-bug-yao-miao-shu-xian-xiang-bu-yao-cai-yuan-yin">8.5 Bug 要描述现象，不要猜原因<a class="zola-anchor" href="#8-5-bug-yao-miao-shu-xian-xiang-bu-yao-cai-yuan-yin" aria-label="Anchor link for: 8-5-bug-yao-miao-shu-xian-xiang-bu-yao-cai-yuan-yin" style="visibility: hidden;"></a>
+</h3>
+<p>"n 键隔着跳"比"n 键有 bug"更有用。描述你观察到的现象，让 Claude 去分析原因。</p>
+<h3 id="8-6-gong-ju-lian-wen-ti-rang-claude-yi-qi-jie-jue">8.6 工具链问题让 Claude 一起解决<a class="zola-anchor" href="#8-6-gong-ju-lian-wen-ti-rang-claude-yi-qi-jie-jue" aria-label="Anchor link for: 8-6-gong-ju-lian-wen-ti-rang-claude-yi-qi-jie-jue" style="visibility: hidden;"></a>
+</h3>
+<p>venv、PYTHONPATH、缺少 <code>gh</code>——这些环境问题可以直接扔给 Claude 处理，不用自己查文档。</p>
+<hr />
+<h2 id="jiu-xiang-mu-xian-zhuang-v0-1">九、项目现状（v0.1）<a class="zola-anchor" href="#jiu-xiang-mu-xian-zhuang-v0-1" aria-label="Anchor link for: jiu-xiang-mu-xian-zhuang-v0-1" style="visibility: hidden;"></a>
+</h2>
+<p>项目地址: <a rel="nofollow noreferrer external" href="https://github.com/Hamiltonxx/agentic-pdf-reader">https://github.com/Hamiltonxx/agentic-pdf-reader</a> , 来个star鞭笞我吧。</p>
+<pre class="giallo z-code"><code data-lang="shellscript"><span class="giallo-l"><span class="z-entity z-name">git</span><span class="z-string"> clone</span><span class="z-string"> https://github.com/Hamiltonxx/agentic-pdf-reader.git</span></span>
+<span class="giallo-l"><span class="z-support">cd</span><span class="z-string"> agentic-pdf-reader</span></span>
+<span class="giallo-l"><span class="z-entity z-name">python3</span><span class="z-constant"> -</span><span class="z-constant">m</span><span class="z-string"> venv</span><span class="z-string"> .venv</span><span> &amp;&amp;</span><span class="z-support"> source</span><span class="z-string"> .venv/bin/activate</span></span>
+<span class="giallo-l"><span class="z-entity z-name">pip</span><span class="z-string"> install</span><span class="z-constant"> -</span><span class="z-constant">r</span><span class="z-string"> requirements.txt</span></span>
+<span class="giallo-l"><span class="z-storage">export</span><span class="z-variable z-other"> ANTHROPIC_API_KEY</span><span class="z-keyword">=</span><span class="z-variable z-other">your_key</span></span>
+<span class="giallo-l"><span class="z-entity z-name">python</span><span class="z-string"> main.py</span><span class="z-string"> your_book.pdf</span><span class="z-constant"> -</span><span class="z-constant">-vocab-threshold</span><span class="z-constant"> 4000</span></span></code></pre>
+<p>当前版本实现了核心功能闭环。后续可以考虑：</p>
+<ul>
+<li>支持 Linux/Windows TTS</li>
+<li>词汇复习模式（间隔重复）</li>
+<li>多语言支持</li>
+</ul>
+<hr />
+<p><em>本文由作者与 Claude Code 协作整理。</em></p>
+
+      </article>
+
+      
+      
+
+      
+      
+      <div class="giscus"></div>
+      <style>
+#comments { margin-top: 3rem; }
+.c-item { margin: 1.2rem 0; }
+.c-reply { margin-left: 1.5rem; padding-left: 1rem; border-left: 2px solid var(--text-decoration-color); }
+.c-meta { display: flex; align-items: center; gap: 0.6rem; margin-bottom: 0.3rem; font-size: 0.85em; }
+.c-name { font-weight: bold; color: var(--text-color); }
+.c-time { color: var(--text-pale-color); }
+.c-reply-btn {
+  background: none; border: none; padding: 0;
+  color: var(--primary-color); cursor: pointer;
+  font-size: 0.85em; opacity: 0;
+  transition: opacity 0.15s;
+}
+.c-item:hover .c-reply-btn { opacity: 1; }
+.c-body { color: var(--text-color); line-height: var(--line-height); white-space: pre-wrap; word-break: break-word; }
+.c-loading, .c-empty { color: var(--text-pale-color); font-size: 0.9em; padding: 1rem 0; }
+.c-form { margin-top: 2rem; display: flex; flex-direction: column; gap: 0.6rem; }
+.c-form-row { display: flex; gap: 0.6rem; }
+.c-input {
+  width: 100%; padding: 0.5rem 0.7rem;
+  border: 1.5px solid var(--text-decoration-color);
+  border-radius: 4px;
+  background: var(--bg-color); color: var(--text-color);
+  font-size: 0.9em; font-family: var(--main-font);
+  outline: none; transition: border-color 0.15s;
+}
+.c-input:focus { border-color: var(--primary-color); }
+.c-input-content { resize: vertical; min-height: 100px; }
+.c-reply-tip {
+  font-size: 0.85em; color: var(--primary-color);
+  padding: 0.2rem 0.5rem;
+  background: var(--inline-code-bg-color);
+  border-radius: 4px; align-self: flex-start;
+}
+.c-reply-tip::after { content: " ✕"; opacity: 0.5; }
+.c-form-actions { display: flex; justify-content: flex-end; }
+.c-submit {
+  padding: 0.4rem 1.2rem;
+  background: var(--primary-color); color: var(--bg-color);
+  border: none; border-radius: 4px;
+  cursor: pointer; font-size: 0.9em;
+  transition: opacity 0.15s;
+}
+.c-submit:hover { opacity: 0.85; }
+.c-submit:disabled { opacity: 0.5; cursor: not-allowed; }
+</style>
+<div id="comments" data-page="&#x2F;posts&#x2F;agentic-pdf-reader&#x2F;"></div>
+<script src="/comments.js"></script>
+
+
+      
+    </div>
+
+    
+
+
+<footer>
+  <div class="left">
+    <div class="copyright">
+      © 2026 Cirray AI
+      
+      <span>|</span>
+      Built with <a href="https://www.getzola.org" rel="noreferrer" target="_blank">zola</a> and <a href="https://github.com/isunjn/serene" rel="noreferrer" target="_blank">serene</a>
+      
+    </div>
+  </div>
+
+  <div class="right">
+    
+    
+    
+    
+
+    
+    
+    
+    <button id="theme-toggle" aria-label="theme switch">
+      <span class="moon-icon"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="18" height="18"><path d="M10 7C10 10.866 13.134 14 17 14C18.9584 14 20.729 13.1957 21.9995 11.8995C22 11.933 22 11.9665 22 12C22 17.5228 17.5228 22 12 22C6.47715 22 2 17.5228 2 12C2 6.47715 6.47715 2 12 2C12.0335 2 12.067 2 12.1005 2.00049C10.8043 3.27098 10 5.04157 10 7ZM4 12C4 16.4183 7.58172 20 12 20C15.0583 20 17.7158 18.2839 19.062 15.7621C18.3945 15.9187 17.7035 16 17 16C12.0294 16 8 11.9706 8 7C8 6.29648 8.08133 5.60547 8.2379 4.938C5.71611 6.28423 4 8.9417 4 12Z" fill="currentColor"></path></svg>
+</span>
+      <span class="sun-icon"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="18" height="18"><path d="M12 18C8.68629 18 6 15.3137 6 12C6 8.68629 8.68629 6 12 6C15.3137 6 18 8.68629 18 12C18 15.3137 15.3137 18 12 18ZM12 16C14.2091 16 16 14.2091 16 12C16 9.79086 14.2091 8 12 8C9.79086 8 8 9.79086 8 12C8 14.2091 9.79086 16 12 16ZM11 1H13V4H11V1ZM11 20H13V23H11V20ZM3.51472 4.92893L4.92893 3.51472L7.05025 5.63604L5.63604 7.05025L3.51472 4.92893ZM16.9497 18.364L18.364 16.9497L20.4853 19.0711L19.0711 20.4853L16.9497 18.364ZM19.0711 3.51472L20.4853 4.92893L18.364 7.05025L16.9497 5.63604L19.0711 3.51472ZM5.63604 16.9497L7.05025 18.364L4.92893 20.4853L3.51472 19.0711L5.63604 16.9497ZM23 11V13H20V11H23ZM4 11V13H1V11H4Z" fill="currentColor"></path></svg>
+</span>
+    </button>
+    
+  </div>
+</footer>
+
+
+
+
+
+  </main>
+</div>
+
+  
+<script src="/js/lightense.min.js"></script>
+
+
+  <script src="https://blog.cirray.cn/js/main.js"></script>
+</body>
+
+</html>
