@@ -10,9 +10,9 @@
   
     
   
-  <meta name="description" content="两个让 agent 更可控的机制：强制规划的 TodoWriteTool，和消息完全隔离的子 agent。">
+  <meta name="description" content="两个机制让 agent 从「能干活」变成「有条理地干活」：TodoWrite 强制规划，Subagent 隔离执行——关键都在 Rust 的所有权设计上。">
 
-  <title>让 AI Agent 先列计划再干活——用 Rust 实现 TodoWrite 和 Subagent</title>
+  <title>用 Rust 学 AI Agent——Day 4：让 Agent 先想后做，还能分身</title>
   <link rel="icon" type="image/png" sizes="32x32" href="https://blog.cirray.cn/img/favicon-32x32.png">
   <link rel="icon" type="image/png" sizes="16x16" href="https://blog.cirray.cn/img/favicon-16x16.png">
   <link rel="apple-touch-icon" sizes="180x180" href="https://blog.cirray.cn/img/apple-touch-icon.png">
@@ -109,17 +109,58 @@
       <ul>
         
         <li>
-          <a class="h2" href="#s03-todowrite-yong-system-prompt-yue-shu-xing-wei">S03：TodoWrite——用 system prompt 约束行为</a>
+          <a class="h2" href="#s03-system-prompt-jiu-shi-dai-ma">S03：system prompt 就是代码</a>
+          
+          <ul>
+            
+            <li>
+              <a class="h3" href="#xian-li-jie-wen-ti">先理解问题</a>
+            </li>
+            
+            <li>
+              <a class="h3" href="#rust-shi-xian-de-guan-jian-arc-mutex">Rust 实现的关键：Arc&lt;Mutex&gt;</a>
+            </li>
+            
+            <li>
+              <a class="h3" href="#pao-qi-lai-kan-xiao-guo">跑起来看效果</a>
+            </li>
+            
+          </ul>
           
         </li>
         
         <li>
-          <a class="h2" href="#s04-subagent-xiao-xi-wan-quan-ge-chi-de-zi-agent">S04：Subagent——消息完全隔离的子 agent</a>
+          <a class="h2" href="#s04-ge-chi-ju-bu-bian-liang">S04：隔离 = 局部变量</a>
+          
+          <ul>
+            
+            <li>
+              <a class="h3" href="#xian-li-jie-wen-ti-1">先理解问题</a>
+            </li>
+            
+            <li>
+              <a class="h3" href="#he-xin-shi-xian-agent-loop-han-shu">核心实现：agent_loop 函数</a>
+            </li>
+            
+            <li>
+              <a class="h3" href="#dispatchagenttool-rang-zhu-agent-neng-pai-huo">DispatchAgentTool：让主 agent 能派活</a>
+            </li>
+            
+            <li>
+              <a class="h3" href="#pao-qi-lai-kan-xiao-guo-1">跑起来看效果</a>
+            </li>
+            
+          </ul>
           
         </li>
         
         <li>
           <a class="h2" href="#jin-tian-de-rust-shou-huo">今天的 Rust 收获</a>
+          
+        </li>
+        
+        <li>
+          <a class="h2" href="#xia-yi-bu">下一步</a>
           
         </li>
         
@@ -153,7 +194,7 @@
 "></div>
       
       <article class="prose">
-        <h1>让 AI Agent 先列计划再干活——用 Rust 实现 TodoWrite 和 Subagent</h1>
+        <h1>用 Rust 学 AI Agent——Day 4：让 Agent 先想后做，还能分身</h1>
         <div id="post-info">
           <div id="date">
             <span id="publish">2026-03-27</span>
@@ -161,7 +202,7 @@
 
           
           <div id="tags">
-            <a class="instant" href="https://blog.cirray.cn/tags/rust"><span>#</span>rust</a><a class="instant" href="https://blog.cirray.cn/tags/ai-agent"><span>#</span>ai-agent</a><a class="instant" href="https://blog.cirray.cn/tags/async"><span>#</span>async</a><a class="instant" href="https://blog.cirray.cn/tags/tokio"><span>#</span>tokio</a><a class="instant" href="https://blog.cirray.cn/tags/anthropic"><span>#</span>anthropic</a>
+            <a class="instant" href="https://blog.cirray.cn/tags/rust"><span>#</span>rust</a><a class="instant" href="https://blog.cirray.cn/tags/ai"><span>#</span>ai</a><a class="instant" href="https://blog.cirray.cn/tags/claude"><span>#</span>claude</a><a class="instant" href="https://blog.cirray.cn/tags/agent"><span>#</span>agent</a><a class="instant" href="https://blog.cirray.cn/tags/learn-agent-rust"><span>#</span>learn-agent-rust</a><a class="instant" href="https://blog.cirray.cn/tags/async"><span>#</span>async</a><a class="instant" href="https://blog.cirray.cn/tags/arc-mutex"><span>#</span>arc-mutex</a>
           </div>
           
         </div>
@@ -171,71 +212,161 @@
 
         
 
-        <p>今天实现了 learn-agent-rust 的 S03 和 S04，一个让 agent 强制先规划再执行，另一个让主 agent 能派生独立的子 agent。</p>
+        <blockquote>
+<p>Day 3 之后，agent 能读文件、跑命令、改代码了。</p>
+<p>但它是个急性子——任务一来直接上手，没有规划，没有进度，出了问题不知道卡在哪。</p>
+<p>今天解决两件事：<strong>让它先想再做</strong>（S03），<strong>让它能分身派活</strong>（S04）。</p>
+</blockquote>
 <hr />
-<h2 id="s03-todowrite-yong-system-prompt-yue-shu-xing-wei">S03：TodoWrite——用 system prompt 约束行为<a class="zola-anchor" href="#s03-todowrite-yong-system-prompt-yue-shu-xing-wei" aria-label="Anchor link for: s03-todowrite-yong-system-prompt-yue-shu-xing-wei" style="visibility: hidden;"></a>
+<h2 id="s03-system-prompt-jiu-shi-dai-ma">S03：system prompt 就是代码<a class="zola-anchor" href="#s03-system-prompt-jiu-shi-dai-ma" aria-label="Anchor link for: s03-system-prompt-jiu-shi-dai-ma" style="visibility: hidden;"></a>
 </h2>
-<p>核心思路很简单：实现一个 <code>TodoWriteTool</code>，然后在 system prompt 里写死规则——不列计划不许动手。</p>
-<p>数据结构就是一个带状态的任务列表：</p>
+<h3 id="xian-li-jie-wen-ti">先理解问题<a class="zola-anchor" href="#xian-li-jie-wen-ti" aria-label="Anchor link for: xian-li-jie-wen-ti" style="visibility: hidden;"></a>
+</h3>
+<p>Day 3 的 agent 拿到任务会直接调工具。你问它"帮我创建一个 Rust 项目并运行"，它可能直接跑 <code>cargo new</code>，跑完告诉你"好了"——中间过程你完全看不到，也不知道它做了几步、哪步失败了。</p>
+<p>S03 要解决的是：<strong>给 agent 装上规划意识</strong>。</p>
+<p>做法很直接——给它一个 <code>TodoWriteTool</code>，然后在 system prompt 里写死规则：</p>
+<pre class="giallo z-code"><code data-lang="plain"><span class="giallo-l"><span>执行任何多步骤任务时必须：</span></span>
+<span class="giallo-l"><span>1. 先用 todo_write(add) 把所有子任务列出</span></span>
+<span class="giallo-l"><span>2. 开始某步前 update -&gt; in_progress</span></span>
+<span class="giallo-l"><span>3. 完成后 update -&gt; done</span></span></code></pre>
+<p>这是 S03 最重要的洞察：<strong>system prompt 本身就是约束代码</strong>，不需要任何 if/else，用自然语言写规则，模型会遵守。</p>
+<h3 id="rust-shi-xian-de-guan-jian-arc-mutex">Rust 实现的关键：Arc&lt;Mutex<T>&gt;<a class="zola-anchor" href="#rust-shi-xian-de-guan-jian-arc-mutex" aria-label="Anchor link for: rust-shi-xian-de-guan-jian-arc-mutex" style="visibility: hidden;"></a>
+</h3>
+<p>数据结构很简单：</p>
 <pre class="giallo z-code"><code data-lang="rust"><span class="giallo-l"><span class="z-storage z-type">struct</span><span class="z-entity z-name"> TodoItem</span><span> {</span></span>
 <span class="giallo-l"><span class="z-variable z-other">    id</span><span class="z-keyword">:</span><span class="z-entity z-name"> u32</span><span>,</span></span>
 <span class="giallo-l"><span class="z-variable z-other">    title</span><span class="z-keyword">:</span><span class="z-entity z-name"> String</span><span>,</span></span>
 <span class="giallo-l"><span class="z-variable z-other">    status</span><span class="z-keyword">:</span><span class="z-entity z-name"> String</span><span>,</span><span class="z-punctuation z-definition z-comment">  //</span><span class="z-comment"> &quot;pending&quot; | &quot;in_progress&quot; | &quot;done&quot;</span></span>
+<span class="giallo-l"><span>}</span></span>
+<span class="giallo-l"></span>
+<span class="giallo-l"><span class="z-storage z-type">struct</span><span class="z-entity z-name"> TodoManager</span><span> {</span></span>
+<span class="giallo-l"><span class="z-variable z-other">    todos</span><span class="z-keyword">:</span><span class="z-entity z-name"> Vec</span><span>&lt;</span><span class="z-entity z-name">TodoItem</span><span>&gt;</span><span>,</span></span>
+<span class="giallo-l"><span class="z-variable z-other">    next_id</span><span class="z-keyword">:</span><span class="z-entity z-name"> u32</span><span>,</span></span>
 <span class="giallo-l"><span>}</span></span></code></pre>
-<p><code>TodoWriteTool</code> 支持 <code>add / list / update / delete</code> 四个操作，通过 <code>input["action"]</code> 分发。</p>
-<p>这里遇到一个 Rust 特有的问题：<code>Tool</code> trait 的 <code>execute</code> 是 <code>async fn</code>，但 <code>TodoManager</code> 需要可变引用。直接 <code>&amp;mut self</code> 行不通，得用 <code>Arc&lt;Mutex&lt;T&gt;&gt;</code>：</p>
+<p>麻烦在 <code>TodoWriteTool</code>。<code>Tool</code> trait 的 <code>execute</code> 是 <code>async fn</code>，但 <code>TodoManager</code> 需要可变访问——在 async 环境里，你没办法直接持有 <code>&amp;mut TodoManager</code>（借用生命周期和 async 不兼容）。</p>
+<p>解法是 <code>Arc&lt;Mutex&lt;T&gt;&gt;</code>：</p>
 <pre class="giallo z-code"><code data-lang="rust"><span class="giallo-l"><span class="z-storage z-type">struct</span><span class="z-entity z-name"> TodoWriteTool</span><span> {</span></span>
 <span class="giallo-l"><span class="z-variable z-other">    manager</span><span class="z-keyword">:</span><span class="z-entity z-name"> Arc</span><span>&lt;</span><span class="z-entity z-name">Mutex</span><span>&lt;</span><span class="z-entity z-name">TodoManager</span><span>&gt;</span><span>&gt;</span><span>,</span></span>
 <span class="giallo-l"><span>}</span></span>
 <span class="giallo-l"></span>
 <span class="giallo-l"><span class="z-punctuation z-definition z-comment">//</span><span class="z-comment"> execute 里：</span></span>
-<span class="giallo-l"><span class="z-storage z-type">let</span><span class="z-storage"> mut</span><span class="z-variable z-other"> mgr</span><span class="z-keyword"> =</span><span class="z-variable z-language"> self</span><span class="z-keyword">.</span><span>manager</span><span class="z-keyword">.</span><span class="z-entity z-name">lock</span><span>(</span><span>)</span><span class="z-keyword">.</span><span class="z-entity z-name">unwrap</span><span>(</span><span>)</span><span>;</span></span></code></pre>
-<p><code>lock()</code> 拿到 <code>MutexGuard</code>，函数结束自动释放，简洁。</p>
-<p>system prompt 的规则：</p>
-<pre class="giallo z-code"><code data-lang="plain"><span class="giallo-l"><span>执行任何多步骤任务时必须：</span></span>
-<span class="giallo-l"><span>1. 先用 todo_write(add) 把所有子任务列出</span></span>
-<span class="giallo-l"><span>2. 开始某步前 update -&gt; in_progress</span></span>
-<span class="giallo-l"><span>3. 完成后 update -&gt; done</span></span></code></pre>
-<p>测试："帮我创建一个 hello world Rust 项目并运行"，agent 乖乖先 add 了 4 个任务，再逐步执行，输出清晰可读：</p>
-<pre class="giallo z-code"><code data-lang="plain"><span class="giallo-l"><span>⬜ [1] 创建项目目录结构</span></span>
-<span class="giallo-l"><span>⬜ [2] 创建 Cargo.toml</span></span>
-<span class="giallo-l"><span>⬜ [3] 创建 main.rs</span></span>
-<span class="giallo-l"><span>⬜ [4] 运行项目</span></span></code></pre>
+<span class="giallo-l"><span class="z-keyword">async</span><span class="z-keyword"> fn</span><span class="z-entity z-name"> execute</span><span>(</span><span class="z-keyword">&amp;</span><span class="z-variable z-language">self</span><span>,</span><span class="z-variable z-other"> input</span><span class="z-keyword">:</span><span class="z-entity z-name"> Value</span><span>)</span><span class="z-keyword"> -&gt;</span><span class="z-entity z-name"> String</span><span> {</span></span>
+<span class="giallo-l"><span class="z-storage z-type">    let</span><span class="z-storage"> mut</span><span class="z-variable z-other"> mgr</span><span class="z-keyword"> =</span><span class="z-variable z-language"> self</span><span class="z-keyword">.</span><span>manager</span><span class="z-keyword">.</span><span class="z-entity z-name">lock</span><span>(</span><span>)</span><span class="z-keyword">.</span><span class="z-entity z-name">unwrap</span><span>(</span><span>)</span><span>;</span><span class="z-punctuation z-definition z-comment"> //</span><span class="z-comment"> 拿到 MutexGuard</span></span>
+<span class="giallo-l"><span class="z-punctuation z-definition z-comment">    //</span><span class="z-comment"> ... 操作 mgr</span></span>
+<span class="giallo-l"><span class="z-punctuation z-definition z-comment">    //</span><span class="z-comment"> 函数结束，MutexGuard 自动 drop，锁自动释放</span></span>
+<span class="giallo-l"><span>}</span></span></code></pre>
+<ul>
+<li><code>Arc</code>：引用计数，允许多处持有同一个 manager</li>
+<li><code>Mutex</code>：保证同一时刻只有一个 async 任务在改数据</li>
+<li><code>lock().unwrap()</code>：拿到独占访问权，作用域结束自动归还</li>
+</ul>
+<p><code>execute</code> 里按 <code>input["action"]</code> 分发四个操作：</p>
+<pre class="giallo z-code"><code data-lang="rust"><span class="giallo-l"><span class="z-keyword">match</span><span class="z-variable z-other"> input</span><span>[</span><span class="z-punctuation z-definition z-string">&quot;</span><span class="z-string">action</span><span class="z-punctuation z-definition z-string">&quot;</span><span>]</span><span class="z-keyword">.</span><span class="z-entity z-name">as_str</span><span>(</span><span>)</span><span class="z-keyword">.</span><span class="z-entity z-name">unwrap_or</span><span>(</span><span class="z-punctuation z-definition z-string">&quot;</span><span class="z-punctuation z-definition z-string">&quot;</span><span>)</span><span> {</span></span>
+<span class="giallo-l"><span class="z-punctuation z-definition z-string">    &quot;</span><span class="z-string">add</span><span class="z-punctuation z-definition z-string">&quot;</span><span class="z-keyword">    =&gt;</span><span> {</span><span class="z-storage z-type"> let</span><span class="z-variable z-other"> id</span><span class="z-keyword"> =</span><span class="z-variable z-other"> mgr</span><span class="z-keyword">.</span><span class="z-entity z-name">add</span><span>(</span><span class="z-variable z-other">title</span><span>)</span><span>;</span><span class="z-entity z-name"> format!</span><span>(</span><span class="z-punctuation z-definition z-string">&quot;</span><span class="z-string">已添加 #</span><span class="z-string">{</span><span class="z-string">}</span><span class="z-string">: </span><span class="z-string">{</span><span class="z-string">}</span><span class="z-punctuation z-definition z-string">&quot;</span><span>,</span><span class="z-variable z-other"> id</span><span>,</span><span class="z-variable z-other"> title</span><span>)</span><span> }</span></span>
+<span class="giallo-l"><span class="z-punctuation z-definition z-string">    &quot;</span><span class="z-string">list</span><span class="z-punctuation z-definition z-string">&quot;</span><span class="z-keyword">   =&gt;</span><span class="z-variable z-other"> mgr</span><span class="z-keyword">.</span><span class="z-entity z-name">list</span><span>(</span><span>)</span><span>,</span></span>
+<span class="giallo-l"><span class="z-punctuation z-definition z-string">    &quot;</span><span class="z-string">update</span><span class="z-punctuation z-definition z-string">&quot;</span><span class="z-keyword"> =&gt;</span><span class="z-variable z-other"> mgr</span><span class="z-keyword">.</span><span class="z-entity z-name">update</span><span>(</span><span class="z-variable z-other">id</span><span>,</span><span class="z-variable z-other"> status</span><span>)</span><span>,</span></span>
+<span class="giallo-l"><span class="z-punctuation z-definition z-string">    &quot;</span><span class="z-string">delete</span><span class="z-punctuation z-definition z-string">&quot;</span><span class="z-keyword"> =&gt;</span><span class="z-variable z-other"> mgr</span><span class="z-keyword">.</span><span class="z-entity z-name">delete</span><span>(</span><span class="z-variable z-other">id</span><span>)</span><span>,</span></span>
+<span class="giallo-l"><span class="z-variable z-other">    other</span><span class="z-keyword">    =&gt;</span><span class="z-entity z-name"> format!</span><span>(</span><span class="z-punctuation z-definition z-string">&quot;</span><span class="z-string">未知操作: </span><span class="z-string">{</span><span class="z-string">}</span><span class="z-punctuation z-definition z-string">&quot;</span><span>,</span><span class="z-variable z-other"> other</span><span>)</span><span>,</span></span>
+<span class="giallo-l"><span>}</span></span></code></pre><h3 id="pao-qi-lai-kan-xiao-guo">跑起来看效果<a class="zola-anchor" href="#pao-qi-lai-kan-xiao-guo" aria-label="Anchor link for: pao-qi-lai-kan-xiao-guo" style="visibility: hidden;"></a>
+</h3>
+<p>输入："帮我创建一个 hello world Rust 项目并运行"</p>
+<pre class="giallo z-code"><code data-lang="plain"><span class="giallo-l"><span>[工具] todo_write  {&quot;action&quot;:&quot;add&quot;,&quot;title&quot;:&quot;创建 Rust 项目目录结构&quot;}</span></span>
+<span class="giallo-l"><span>[工具] todo_write  {&quot;action&quot;:&quot;add&quot;,&quot;title&quot;:&quot;创建 Cargo.toml 文件&quot;}</span></span>
+<span class="giallo-l"><span>[工具] todo_write  {&quot;action&quot;:&quot;add&quot;,&quot;title&quot;:&quot;创建 main.rs 文件&quot;}</span></span>
+<span class="giallo-l"><span>[工具] todo_write  {&quot;action&quot;:&quot;add&quot;,&quot;title&quot;:&quot;运行项目&quot;}</span></span>
+<span class="giallo-l"><span>[工具] todo_write  {&quot;action&quot;:&quot;update&quot;,&quot;id&quot;:1,&quot;status&quot;:&quot;in_progress&quot;}</span></span>
+<span class="giallo-l"><span>[工具] bash        {&quot;command&quot;:&quot;mkdir -p hello_world/src&quot;}</span></span>
+<span class="giallo-l"><span>[工具] todo_write  {&quot;action&quot;:&quot;update&quot;,&quot;id&quot;:1,&quot;status&quot;:&quot;done&quot;}</span></span>
+<span class="giallo-l"><span>...</span></span>
+<span class="giallo-l"><span>[工具] bash        {&quot;command&quot;:&quot;cd hello_world &amp;&amp; cargo run&quot;}</span></span>
+<span class="giallo-l"><span>[结果] Hello, World!</span></span></code></pre>
+<p>agent 严格遵守了规则——没有 if/else 强制，纯靠 system prompt。</p>
 <hr />
-<h2 id="s04-subagent-xiao-xi-wan-quan-ge-chi-de-zi-agent">S04：Subagent——消息完全隔离的子 agent<a class="zola-anchor" href="#s04-subagent-xiao-xi-wan-quan-ge-chi-de-zi-agent" aria-label="Anchor link for: s04-subagent-xiao-xi-wan-quan-ge-chi-de-zi-agent" style="visibility: hidden;"></a>
+<h2 id="s04-ge-chi-ju-bu-bian-liang">S04：隔离 = 局部变量<a class="zola-anchor" href="#s04-ge-chi-ju-bu-bian-liang" aria-label="Anchor link for: s04-ge-chi-ju-bu-bian-liang" style="visibility: hidden;"></a>
 </h2>
-<p>主 agent 有一个 <code>dispatch_agent</code> 工具，调用时会启动一个全新的 agent loop：</p>
+<h3 id="xian-li-jie-wen-ti-1">先理解问题<a class="zola-anchor" href="#xian-li-jie-wen-ti-1" aria-label="Anchor link for: xian-li-jie-wen-ti-1" style="visibility: hidden;"></a>
+</h3>
+<p>有时候一个任务可以拆成几个完全独立的子任务并行处理。比如"写三个模块"，没必要串行——派三个 agent 各干各的效率更高。</p>
+<p>更重要的是<strong>隔离</strong>：子任务不应该看到主任务的对话历史，主任务也不应该被子任务的中间步骤污染。</p>
+<h3 id="he-xin-shi-xian-agent-loop-han-shu">核心实现：agent_loop 函数<a class="zola-anchor" href="#he-xin-shi-xian-agent-loop-han-shu" aria-label="Anchor link for: he-xin-shi-xian-agent-loop-han-shu" style="visibility: hidden;"></a>
+</h3>
+<p>S04 的关键洞察：<strong>子 agent 的消息历史天然就是局部变量</strong>。</p>
+<p>把 agent loop 抽成一个函数：</p>
 <pre class="giallo z-code"><code data-lang="rust"><span class="giallo-l"><span class="z-keyword">async</span><span class="z-keyword"> fn</span><span class="z-entity z-name"> agent_loop</span><span>(</span></span>
 <span class="giallo-l"><span class="z-variable z-other">    client</span><span class="z-keyword">:</span><span class="z-keyword"> &amp;</span><span class="z-entity z-name">reqwest</span><span class="z-keyword">::</span><span class="z-entity z-name">Client</span><span>,</span></span>
 <span class="giallo-l"><span class="z-variable z-other">    api_key</span><span class="z-keyword">:</span><span class="z-keyword"> &amp;</span><span class="z-entity z-name">str</span><span>,</span></span>
 <span class="giallo-l"><span class="z-variable z-other">    task</span><span class="z-keyword">:</span><span class="z-keyword"> &amp;</span><span class="z-entity z-name">str</span><span>,</span></span>
 <span class="giallo-l"><span class="z-variable z-other">    tools</span><span class="z-keyword">:</span><span class="z-keyword"> &amp;</span><span class="z-entity z-name">HashMap</span><span>&lt;</span><span class="z-entity z-name">String</span><span>,</span><span class="z-entity z-name"> Box</span><span>&lt;</span><span class="z-keyword">dyn</span><span class="z-entity z-name"> Tool</span><span>&gt;</span><span>&gt;</span><span>,</span></span>
 <span class="giallo-l"><span class="z-variable z-other">    tool_defs</span><span class="z-keyword">:</span><span class="z-keyword"> &amp;</span><span>[</span><span class="z-entity z-name">Value</span><span>]</span><span>,</span></span>
-<span class="giallo-l"><span>)</span><span class="z-keyword"> -&gt;</span><span class="z-entity z-name"> String</span></span></code></pre>
-<p>关键在于 <code>messages</code> 是这个函数的局部变量，从 <code>vec![user: task]</code> 开始，跑完整个 tool loop，最后把文本结果 return 给主 agent。主 agent 完全看不到子 agent 的中间过程，只收到最终结果。</p>
-<p><code>DispatchAgentTool</code> 持有 <code>client</code> 和 <code>api_key</code> 的 <code>Arc</code> 引用，<code>execute</code> 里创建子 agent 自己的工具集，然后调用 <code>agent_loop</code>：</p>
+<span class="giallo-l"><span>)</span><span class="z-keyword"> -&gt;</span><span class="z-entity z-name"> String</span><span> {</span></span>
+<span class="giallo-l"><span class="z-punctuation z-definition z-comment">    //</span><span class="z-comment"> messages 是局部变量——和调用方完全无关</span></span>
+<span class="giallo-l"><span class="z-storage z-type">    let</span><span class="z-storage"> mut</span><span class="z-variable z-other"> messages</span><span class="z-keyword"> =</span><span class="z-entity z-name"> vec!</span><span>[</span><span class="z-entity z-name">Message</span><span> {</span></span>
+<span class="giallo-l"><span class="z-variable z-other">        role</span><span class="z-keyword">:</span><span class="z-punctuation z-definition z-string"> &quot;</span><span class="z-string">user</span><span class="z-punctuation z-definition z-string">&quot;</span><span class="z-keyword">.</span><span class="z-entity z-name">to_string</span><span>(</span><span>)</span><span>,</span></span>
+<span class="giallo-l"><span class="z-variable z-other">        content</span><span class="z-keyword">:</span><span class="z-entity z-name"> json!</span><span>(</span><span class="z-variable z-other">task</span><span>)</span><span>,</span></span>
+<span class="giallo-l"><span>    }</span><span>]</span><span>;</span></span>
+<span class="giallo-l"></span>
+<span class="giallo-l"><span class="z-keyword">    loop</span><span> {</span></span>
+<span class="giallo-l"><span class="z-storage z-type">        let</span><span class="z-variable z-other"> response</span><span class="z-keyword"> =</span><span class="z-entity z-name"> call_api</span><span>(</span><span class="z-variable z-other">client</span><span>,</span><span class="z-variable z-other"> api_key</span><span>,</span><span class="z-keyword"> &amp;</span><span class="z-variable z-other">messages</span><span>,</span><span class="z-variable z-other"> tool_defs</span><span>,</span><span class="z-punctuation z-definition z-string"> &quot;</span><span class="z-string">你是一个能干的助手。</span><span class="z-punctuation z-definition z-string">&quot;</span><span>)</span><span class="z-keyword">.</span><span class="z-keyword">await</span><span>;</span></span>
+<span class="giallo-l"></span>
+<span class="giallo-l"><span class="z-keyword">        if</span><span class="z-variable z-other"> response</span><span class="z-keyword">.</span><span>stop_reason</span><span class="z-keyword">.</span><span class="z-entity z-name">as_deref</span><span>(</span><span>)</span><span class="z-keyword"> ==</span><span class="z-entity z-name"> Some</span><span>(</span><span class="z-punctuation z-definition z-string">&quot;</span><span class="z-string">tool_use</span><span class="z-punctuation z-definition z-string">&quot;</span><span>)</span><span> {</span></span>
+<span class="giallo-l"><span class="z-punctuation z-definition z-comment">            //</span><span class="z-comment"> ... 执行工具，追加历史</span></span>
+<span class="giallo-l"><span>        }</span><span class="z-keyword"> else</span><span> {</span></span>
+<span class="giallo-l"><span class="z-punctuation z-definition z-comment">            //</span><span class="z-comment"> 返回子 agent 的最终文本</span></span>
+<span class="giallo-l"><span class="z-keyword">            return</span><span class="z-entity z-name"> collect_text</span><span>(</span><span class="z-keyword">&amp;</span><span class="z-variable z-other">response</span><span class="z-keyword">.</span><span>content</span><span>)</span><span>;</span></span>
+<span class="giallo-l"><span>        }</span></span>
+<span class="giallo-l"><span>    }</span></span>
+<span class="giallo-l"><span>}</span></span></code></pre>
+<p><code>messages</code> 在函数栈帧上，函数返回就消失。主 agent 只看到 <code>String</code> 类型的最终结果，子 agent 的全部中间步骤对它不可见——隔离是 Rust 的默认行为，不需要特殊设计。</p>
+<h3 id="dispatchagenttool-rang-zhu-agent-neng-pai-huo">DispatchAgentTool：让主 agent 能派活<a class="zola-anchor" href="#dispatchagenttool-rang-zhu-agent-neng-pai-huo" aria-label="Anchor link for: dispatchagenttool-rang-zhu-agent-neng-pai-huo" style="visibility: hidden;"></a>
+</h3>
 <pre class="giallo z-code"><code data-lang="rust"><span class="giallo-l"><span class="z-storage z-type">struct</span><span class="z-entity z-name"> DispatchAgentTool</span><span> {</span></span>
-<span class="giallo-l"><span class="z-variable z-other">    client</span><span class="z-keyword">:</span><span class="z-entity z-name"> Arc</span><span>&lt;</span><span class="z-variable z-other">reqwest</span><span class="z-keyword">::</span><span class="z-entity z-name">Client</span><span>&gt;</span><span>,</span></span>
+<span class="giallo-l"><span class="z-variable z-other">    client</span><span class="z-keyword">:</span><span class="z-entity z-name"> Arc</span><span>&lt;</span><span class="z-variable z-other">reqwest</span><span class="z-keyword">::</span><span class="z-entity z-name">Client</span><span>&gt;</span><span>,</span><span class="z-punctuation z-definition z-comment">  //</span><span class="z-comment"> Arc 共享，避免重复创建</span></span>
 <span class="giallo-l"><span class="z-variable z-other">    api_key</span><span class="z-keyword">:</span><span class="z-entity z-name"> Arc</span><span>&lt;</span><span class="z-entity z-name">String</span><span>&gt;</span><span>,</span></span>
 <span class="giallo-l"><span>}</span></span></code></pre>
-<p>测试："帮我写两个文件，hello.txt 内容 hello，world.txt 内容 world"，主 agent 派发了两个子 agent 分别执行，互不干扰：</p>
+<p><code>execute</code> 里：创建子 agent 自己的工具集，调用 <code>agent_loop</code>：</p>
+<pre class="giallo z-code"><code data-lang="rust"><span class="giallo-l"><span class="z-keyword">async</span><span class="z-keyword"> fn</span><span class="z-entity z-name"> execute</span><span>(</span><span class="z-keyword">&amp;</span><span class="z-variable z-language">self</span><span>,</span><span class="z-variable z-other"> input</span><span class="z-keyword">:</span><span class="z-entity z-name"> Value</span><span>)</span><span class="z-keyword"> -&gt;</span><span class="z-entity z-name"> String</span><span> {</span></span>
+<span class="giallo-l"><span class="z-storage z-type">    let</span><span class="z-variable z-other"> task</span><span class="z-keyword"> =</span><span class="z-variable z-other"> input</span><span>[</span><span class="z-punctuation z-definition z-string">&quot;</span><span class="z-string">task</span><span class="z-punctuation z-definition z-string">&quot;</span><span>]</span><span class="z-keyword">.</span><span class="z-entity z-name">as_str</span><span>(</span><span>)</span><span class="z-keyword">.</span><span class="z-entity z-name">unwrap_or</span><span>(</span><span class="z-punctuation z-definition z-string">&quot;</span><span class="z-punctuation z-definition z-string">&quot;</span><span>)</span><span class="z-keyword">.</span><span class="z-entity z-name">to_string</span><span>(</span><span>)</span><span>;</span></span>
+<span class="giallo-l"></span>
+<span class="giallo-l"><span class="z-storage z-type">    let</span><span class="z-storage"> mut</span><span class="z-variable z-other"> sub_tools</span><span class="z-keyword">:</span><span class="z-entity z-name"> HashMap</span><span>&lt;</span><span class="z-entity z-name">String</span><span>,</span><span class="z-entity z-name"> Box</span><span>&lt;</span><span class="z-keyword">dyn</span><span class="z-entity z-name"> Tool</span><span>&gt;</span><span>&gt;</span><span class="z-keyword"> =</span><span class="z-entity z-name"> HashMap</span><span class="z-keyword">::</span><span class="z-entity z-name">new</span><span>(</span><span>)</span><span>;</span></span>
+<span class="giallo-l"><span class="z-variable z-other">    sub_tools</span><span class="z-keyword">.</span><span class="z-entity z-name">insert</span><span>(</span><span class="z-punctuation z-definition z-string">&quot;</span><span class="z-string">bash</span><span class="z-punctuation z-definition z-string">&quot;</span><span class="z-keyword">.</span><span class="z-entity z-name">to_string</span><span>(</span><span>)</span><span>,</span><span class="z-entity z-name">       Box</span><span class="z-keyword">::</span><span class="z-entity z-name">new</span><span>(</span><span class="z-entity z-name">BashTool</span><span>)</span><span>)</span><span>;</span></span>
+<span class="giallo-l"><span class="z-variable z-other">    sub_tools</span><span class="z-keyword">.</span><span class="z-entity z-name">insert</span><span>(</span><span class="z-punctuation z-definition z-string">&quot;</span><span class="z-string">write_file</span><span class="z-punctuation z-definition z-string">&quot;</span><span class="z-keyword">.</span><span class="z-entity z-name">to_string</span><span>(</span><span>)</span><span>,</span><span class="z-entity z-name"> Box</span><span class="z-keyword">::</span><span class="z-entity z-name">new</span><span>(</span><span class="z-entity z-name">WriteFileTool</span><span>)</span><span>)</span><span>;</span></span>
+<span class="giallo-l"><span class="z-punctuation z-definition z-comment">    //</span><span class="z-comment"> ...</span></span>
+<span class="giallo-l"></span>
+<span class="giallo-l"><span class="z-storage z-type">    let</span><span class="z-variable z-other"> sub_tool_defs</span><span class="z-keyword">:</span><span class="z-entity z-name"> Vec</span><span>&lt;</span><span class="z-entity z-name">Value</span><span>&gt;</span><span class="z-keyword"> =</span><span class="z-variable z-other"> sub_tools</span><span class="z-keyword">.</span><span class="z-entity z-name">values</span><span>(</span><span>)</span><span class="z-keyword">.</span><span class="z-entity z-name">map</span><span>(</span><span class="z-keyword">|</span><span class="z-variable z-other">t</span><span class="z-keyword">|</span><span class="z-variable z-other"> t</span><span class="z-keyword">.</span><span class="z-entity z-name">definition</span><span>(</span><span>)</span><span>)</span><span class="z-keyword">.</span><span class="z-entity z-name">collect</span><span>(</span><span>)</span><span>;</span></span>
+<span class="giallo-l"></span>
+<span class="giallo-l"><span class="z-punctuation z-definition z-comment">    //</span><span class="z-comment"> 调用独立 loop，阻塞等待结果</span></span>
+<span class="giallo-l"><span class="z-entity z-name">    agent_loop</span><span>(</span><span class="z-keyword">&amp;</span><span class="z-variable z-language">self</span><span class="z-keyword">.</span><span>client</span><span>,</span><span class="z-keyword"> &amp;</span><span class="z-variable z-language">self</span><span class="z-keyword">.</span><span>api_key</span><span>,</span><span class="z-keyword"> &amp;</span><span class="z-variable z-other">task</span><span>,</span><span class="z-keyword"> &amp;</span><span class="z-variable z-other">sub_tools</span><span>,</span><span class="z-keyword"> &amp;</span><span class="z-variable z-other">sub_tool_defs</span><span>)</span><span class="z-keyword">.</span><span class="z-keyword">await</span></span>
+<span class="giallo-l"><span>}</span></span></code></pre>
+<p>注意 <code>client</code> 和 <code>api_key</code> 用 <code>Arc</code> 共享——因为主 agent 和所有子 agent 都要用，但不需要各自持有一份拷贝。</p>
+<h3 id="pao-qi-lai-kan-xiao-guo-1">跑起来看效果<a class="zola-anchor" href="#pao-qi-lai-kan-xiao-guo-1" aria-label="Anchor link for: pao-qi-lai-kan-xiao-guo-1" style="visibility: hidden;"></a>
+</h3>
+<p>输入："帮我写两个文件：hello.txt 内容 hello，world.txt 内容 world"</p>
 <pre class="giallo z-code"><code data-lang="plain"><span class="giallo-l"><span>[主agent工具] dispatch_agent</span></span>
 <span class="giallo-l"><span>[派生子agent] 任务: 创建 hello.txt，内容为 hello</span></span>
 <span class="giallo-l"><span>  [子agent工具] write_file</span></span>
 <span class="giallo-l"><span>[子agent完成]</span></span>
+<span class="giallo-l"></span>
 <span class="giallo-l"><span>[主agent工具] dispatch_agent</span></span>
 <span class="giallo-l"><span>[派生子agent] 任务: 创建 world.txt，内容为 world</span></span>
 <span class="giallo-l"><span>  [子agent工具] write_file</span></span>
-<span class="giallo-l"><span>[子agent完成]</span></span></code></pre>
+<span class="giallo-l"><span>[子agent完成]</span></span>
+<span class="giallo-l"></span>
+<span class="giallo-l"><span>Claude: 两个文件都已创建完成。</span></span></code></pre>
+<p>主 agent 只看到两次 <code>dispatch_agent</code> 的结果，子 agent 的内部过程完全封装在 <code>agent_loop</code> 里。</p>
 <hr />
 <h2 id="jin-tian-de-rust-shou-huo">今天的 Rust 收获<a class="zola-anchor" href="#jin-tian-de-rust-shou-huo" aria-label="Anchor link for: jin-tian-de-rust-shou-huo" style="visibility: hidden;"></a>
 </h2>
-<ul>
-<li><code>Arc&lt;Mutex&lt;T&gt;&gt;</code>：async 环境下共享可变状态的标准做法</li>
-<li>trait object (<code>Box&lt;dyn Tool&gt;</code>) + <code>HashMap</code> 做动态分发，到这一步已经很顺手了</li>
-<li>函数式隔离就是最简单的"进程隔离"——子 agent 的状态天然封闭在栈帧里</li>
-</ul>
-<p>下一步是 S05 Skill Loading + S06 Context Compact，处理知识注入和上下文超长的问题。</p>
+<table><thead><tr><th>机制</th><th>用在哪</th><th>解决什么问题</th></tr></thead><tbody>
+<tr><td><code>Arc&lt;Mutex&lt;T&gt;&gt;</code></td><td>TodoWriteTool</td><td>async 环境下共享可变状态</td></tr>
+<tr><td>函数局部变量</td><td>agent_loop 的 messages</td><td>子 agent 天然隔离</td></tr>
+<tr><td><code>Arc&lt;Client&gt;</code></td><td>DispatchAgentTool</td><td>多 agent 共享 HTTP 客户端</td></tr>
+</tbody></table>
+<p>S03 让我意识到：<strong>system prompt 的约束力不亚于代码里的 if/else</strong>，而且更灵活——改规则不用重新编译。</p>
+<hr />
+<h2 id="xia-yi-bu">下一步<a class="zola-anchor" href="#xia-yi-bu" aria-label="Anchor link for: xia-yi-bu" style="visibility: hidden;"></a>
+</h2>
+<p>Day 5：S05 Skill Loading（按需注入知识，不把所有 prompt 塞进 system）+ S06 Context Compact（消息超过 20 条时自动压缩，防止上下文爆炸）。</p>
+<p>代码在：<a rel="nofollow noreferrer external" href="https://github.com/Hamiltonxx/learn-claude-code-rust">https://github.com/Hamiltonxx/learn-claude-code-rust</a></p>
 
       </article>
 

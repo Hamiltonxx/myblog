@@ -76,16 +76,13 @@
         <loc>https://blog.cirray.cn/tags/agent/</loc>
     </url>
     <url>
-        <loc>https://blog.cirray.cn/tags/ai-agent/</loc>
-    </url>
-    <url>
         <loc>https://blog.cirray.cn/tags/ai/</loc>
     </url>
     <url>
         <loc>https://blog.cirray.cn/tags/android/</loc>
     </url>
     <url>
-        <loc>https://blog.cirray.cn/tags/anthropic/</loc>
+        <loc>https://blog.cirray.cn/tags/arc-mutex/</loc>
     </url>
     <url>
         <loc>https://blog.cirray.cn/tags/async/</loc>
@@ -137,9 +134,6 @@
     </url>
     <url>
         <loc>https://blog.cirray.cn/tags/rust/</loc>
-    </url>
-    <url>
-        <loc>https://blog.cirray.cn/tags/tokio/</loc>
     </url>
     <url>
         <loc>https://blog.cirray.cn/tags/trait/</loc>
