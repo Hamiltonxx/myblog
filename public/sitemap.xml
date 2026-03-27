@@ -63,6 +63,10 @@
         <lastmod>2026-03-27</lastmod>
     </url>
     <url>
+        <loc>https://blog.cirray.cn/posts/rust-agent-todo-subagent-2026-03-27/</loc>
+        <lastmod>2026-03-27</lastmod>
+    </url>
+    <url>
         <loc>https://blog.cirray.cn/tags/</loc>
     </url>
     <url>
@@ -72,10 +76,16 @@
         <loc>https://blog.cirray.cn/tags/agent/</loc>
     </url>
     <url>
+        <loc>https://blog.cirray.cn/tags/ai-agent/</loc>
+    </url>
+    <url>
         <loc>https://blog.cirray.cn/tags/ai/</loc>
     </url>
     <url>
         <loc>https://blog.cirray.cn/tags/android/</loc>
+    </url>
+    <url>
+        <loc>https://blog.cirray.cn/tags/anthropic/</loc>
     </url>
     <url>
         <loc>https://blog.cirray.cn/tags/async/</loc>
@@ -127,6 +137,9 @@
     </url>
     <url>
         <loc>https://blog.cirray.cn/tags/rust/</loc>
+    </url>
+    <url>
+        <loc>https://blog.cirray.cn/tags/tokio/</loc>
     </url>
     <url>
         <loc>https://blog.cirray.cn/tags/trait/</loc>
