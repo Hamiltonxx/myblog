@@ -39,6 +39,10 @@
         <lastmod>2026-03-26</lastmod>
     </url>
     <url>
+        <loc>https://blog.cirray.cn/posts/elderplay-android-agent-first-run-2026-03-27/</loc>
+        <lastmod>2026-03-27</lastmod>
+    </url>
+    <url>
         <loc>https://blog.cirray.cn/posts/learn-agent-rust-day1-day2/</loc>
         <lastmod>2026-03-25</lastmod>
     </url>
@@ -109,10 +113,16 @@
         <loc>https://blog.cirray.cn/tags/gong-ju/</loc>
     </url>
     <url>
+        <loc>https://blog.cirray.cn/tags/harmonyos/</loc>
+    </url>
+    <url>
         <loc>https://blog.cirray.cn/tags/jiao-cheng/</loc>
     </url>
     <url>
         <loc>https://blog.cirray.cn/tags/kai-fa-gong-ju/</loc>
+    </url>
+    <url>
+        <loc>https://blog.cirray.cn/tags/kotlin/</loc>
     </url>
     <url>
         <loc>https://blog.cirray.cn/tags/learn-agent-rust/</loc>
