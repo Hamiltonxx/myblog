@@ -1,0 +1,399 @@
+<!DOCTYPE html>
+
+<html lang="zh">
+
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="color-scheme" content="light dark">
+  
+  
+    
+  
+  <meta name="description" content="从一个孝心需求出发，我意识到「意图直接变执行」才是手机交互的终极形态，而现在的技术已经可以做到了。">
+
+  <title>手机不应该让人去学它——我想给父母造一个说话就能用的手机</title>
+  <link rel="icon" type="image/png" sizes="32x32" href="https://blog.cirray.cn/img/favicon-32x32.png">
+  <link rel="icon" type="image/png" sizes="16x16" href="https://blog.cirray.cn/img/favicon-16x16.png">
+  <link rel="apple-touch-icon" sizes="180x180" href="https://blog.cirray.cn/img/apple-touch-icon.png">
+  
+  <style>
+
+  /* light mode colors */
+  body {
+    --primary-color: #5871a2;
+    --primary-pale-color: #5871a233;
+    --primary-decoration-color: #5871a210;
+    --bg-color: #ffffff;
+    --text-color: #2f3030;
+    --text-pale-color: #767676;
+    --text-decoration-color: #a9a9a9;
+    --highlight-mark-color: #5f75b020;
+
+    --callout-note-color: #5871a2;
+    --callout-tip-color: #268556;
+    --callout-important-color: #885fc9;
+    --callout-warning-color: #ab6632;
+    --callout-caution-color: #c64e4e;
+  }
+
+  /* dark mode colors */
+  body.dark {
+    --primary-color: #6f8fd1;
+    --primary-pale-color: #6f8fd166;
+    --primary-decoration-color: #6f8fd112;
+    --bg-color: #1c1c1c;
+    --text-color: #c1c1c1;
+    --text-pale-color: #848484;
+    --text-decoration-color: #5f5f5f;
+    --highlight-mark-color: #8296cb3b;
+
+    --callout-note-color: #6f8fd1;
+    --callout-tip-color: #47976f;
+    --callout-important-color: #9776cd;
+    --callout-warning-color: #ad7a52;
+    --callout-caution-color: #d06161;
+  }
+
+  /* typography */
+  body {
+    --main-font: ui-sans-serif, system-ui, sans-serif, 'Apple Color Emoji', 'Segoe UI Emoji', 'Segoe UI Symbol', 'Noto Color Emoji';
+    --code-font: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, 'Liberation Mono', 'Courier New', monospace;
+    --homepage-max-width: 768px;
+    --main-max-width: 768px;
+    --avatar-size: 60px;
+    --font-size: 16px;
+    --line-height: 1.75;
+    --img-border-radius: 0px;
+    --detail-border-radius: 0px;
+    --dark-mode-img-brightness: 0.75;
+    --dark-mode-chart-brightness: 0.75;
+    --inline-code-border-radius: 2px;
+    --inline-code-bg-color: var(--primary-decoration-color);
+    --block-code-border-radius: 0px;
+    --block-code-border-color: var(--primary-color);
+    --detail-border-color: var(--primary-color);
+  }
+
+</style>
+
+  <link rel="stylesheet" href="https://blog.cirray.cn/main.css">
+  
+
+<link id="hl" rel="stylesheet" type="text/css" href="/giallo-light.css" />
+
+
+
+  
+</head>
+
+<body class="post">
+  
+  <script>
+    const theme = sessionStorage.getItem('theme');
+    const match = window.matchMedia("(prefers-color-scheme: dark)").matches;
+    if ((theme && theme == 'dark') || (!theme && match)) {
+      document.body.classList.add('dark');
+      const hl = document.querySelector('link#hl');
+      if (hl) hl.href = 'https://blog.cirray.cn/giallo-dark.css';
+    }
+  </script>
+  
+  
+<div id="wrapper">
+  <div id="blank"></div>
+  <aside>
+    
+    
+    <nav>
+      <ul>
+        
+        <li>
+          <a class="h2" href="#shi-mian-shang-you-mei-you-ren-zuo-guo">市面上有没有人做过？</a>
+          
+        </li>
+        
+        <li>
+          <a class="h2" href="#jia-gou-yi-tai-shou-ji-jiu-gou-liao">架构：一台手机就够了</a>
+          
+        </li>
+        
+        <li>
+          <a class="h2" href="#accessibility-service-bi-ni-xiang-xiang-de-qiang-da">Accessibility Service：比你想象的强大</a>
+          
+        </li>
+        
+        <li>
+          <a class="h2" href="#dian-wai-mai-zhe-ge-wen-ti">点外卖这个问题</a>
+          
+        </li>
+        
+        <li>
+          <a class="h2" href="#zhe-jian-shi-bi-wo-xiang-de-yao-da">这件事比我想的要大</a>
+          
+        </li>
+        
+        <li>
+          <a class="h2" href="#xia-yi-bu">下一步</a>
+          
+        </li>
+        
+      </ul>
+    </nav>
+    
+    
+    <button id="back-to-top" aria-label="back to top">
+      
+      <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="feather feather-arrow-up"><line x1="12" y1="19" x2="12" y2="5"></line><polyline points="5 12 12 5 19 12"></polyline></svg>
+
+    </button>
+    
+  </aside>
+  <main>
+    
+<header>
+  <nav>
+    <a id="back-link" href="https:&#x2F;&#x2F;blog.cirray.cn&#x2F;posts">← Back</a>
+  </nav>
+</header>
+
+
+    <div>
+      
+      
+      
+      
+      <div id="copy-cfg" style="display: none;" data-copy-icon="&lt;svg xmlns=&quot;http:&#x2F;&#x2F;www.w3.org&#x2F;2000&#x2F;svg&quot; viewBox=&quot;0 0 24 24&quot; width=&quot;18&quot; height=&quot;18&quot;&gt;&lt;path d=&quot;M6.9998 6V3C6.9998 2.44772 7.44752 2 7.9998 2H19.9998C20.5521 2 20.9998 2.44772 20.9998 3V17C20.9998 17.5523 20.5521 18 19.9998 18H16.9998V20.9991C16.9998 21.5519 16.5499 22 15.993 22H4.00666C3.45059 22 3 21.5554 3 20.9991L3.0026 7.00087C3.0027 6.44811 3.45264 6 4.00942 6H6.9998ZM5.00242 8L5.00019 20H14.9998V8H5.00242ZM8.9998 6H16.9998V16H18.9998V4H8.9998V6Z&quot; fill=&quot;currentColor&quot;&gt;&lt;&#x2F;path&gt;&lt;&#x2F;svg&gt;
+" data-check-icon="&lt;svg xmlns=&quot;http:&#x2F;&#x2F;www.w3.org&#x2F;2000&#x2F;svg&quot; viewBox=&quot;0 0 24 24&quot; width=&quot;18&quot; height=&quot;18&quot;&gt;&lt;path d=&quot;M10.0007 15.1709L19.1931 5.97852L20.6073 7.39273L10.0007 17.9993L3.63672 11.6354L5.05093 10.2212L10.0007 15.1709Z&quot; fill=&quot;currentColor&quot;&gt;&lt;&#x2F;path&gt;&lt;&#x2F;svg&gt;
+"></div>
+      
+      <article class="prose">
+        <h1>手机不应该让人去学它——我想给父母造一个说话就能用的手机</h1>
+        <div id="post-info">
+          <div id="date">
+            <span id="publish">2026-03-27</span>
+            </div>
+
+          
+          <div id="tags">
+            <a class="instant" href="https://blog.cirray.cn/tags/android"><span>#</span>android</a><a class="instant" href="https://blog.cirray.cn/tags/accessibility"><span>#</span>accessibility</a><a class="instant" href="https://blog.cirray.cn/tags/claude"><span>#</span>claude</a><a class="instant" href="https://blog.cirray.cn/tags/agent"><span>#</span>agent</a><a class="instant" href="https://blog.cirray.cn/tags/rust"><span>#</span>rust</a><a class="instant" href="https://blog.cirray.cn/tags/llm"><span>#</span>llm</a>
+          </div>
+          
+        </div>
+
+        
+        
+
+        
+
+        <p>父母年纪大了，智能手机对他们来说越来越难用。不是因为他们笨，是因为手机的交互模式本来就不是为他们设计的——找 App、点菜单、填表单，每一步都是障碍。</p>
+<p>我想给他们做一个东西：按住说话，松手执行。说"帮我点份盖浇饭"，饭就点好了。说"给儿子发微信说我吃饭了"，消息就发出去了。</p>
+<p>做着做着，我意识到这件事比我想的要大一些。</p>
+<hr />
+<h2 id="shi-mian-shang-you-mei-you-ren-zuo-guo">市面上有没有人做过？<a class="zola-anchor" href="#shi-mian-shang-you-mei-you-ren-zuo-guo" aria-label="Anchor link for: shi-mian-shang-you-mei-you-ren-zuo-guo" style="visibility: hidden;"></a>
+</h2>
+<p>做过，但没人做好。</p>
+<p><strong>AutoGLM（智谱）</strong> 能控制 40+ 个 App，包括美团和微信，技术上最接近。但它是面向所有用户的，没有针对老人的设计。</p>
+<p><strong>豆包手机助手（字节）</strong> 2025 年底上线，有专用硬件，能跨 App 完成任务。实测任务完成率：<strong>20%</strong>。老人没有耐心重试五次。</p>
+<p><strong>OPPO 小布关怀版</strong> 是最接近我想要的产品——专门适老，能语音点外卖发微信。致命缺点：只支持 OPPO 手机。</p>
+<p><strong>结论</strong>：没有一个产品同时满足「任何 Android 手机 + 老人优先设计 + 可靠完成核心任务」。</p>
+<p>而且我做的不是产品，是给我父母的专属版本。不需要通用性，只需要好用。</p>
+<hr />
+<h2 id="jia-gou-yi-tai-shou-ji-jiu-gou-liao">架构：一台手机就够了<a class="zola-anchor" href="#jia-gou-yi-tai-shou-ji-jiu-gou-liao" aria-label="Anchor link for: jia-gou-yi-tai-shou-ji-jiu-gou-liao" style="visibility: hidden;"></a>
+</h2>
+<p>最终方案极简：</p>
+<pre class="giallo z-code"><code data-lang="plain"><span class="giallo-l"><span>父母的 Android 手机</span></span>
+<span class="giallo-l"><span>  按住说话 → 松手 → 执行</span></span>
+<span class="giallo-l"></span>
+<span class="giallo-l"><span>  录音 → Rust 后端 → Claude → 返回指令 → Accessibility Service 执行</span></span></code></pre>
+<p>端到端数据流长这样：</p>
+<pre class="giallo z-code"><code data-lang="plain"><span class="giallo-l"><span>老人按下按钮</span></span>
+<span class="giallo-l"><span>    ↓</span></span>
+<span class="giallo-l"><span>Android 录音 (PCM 16kHz mono)</span></span>
+<span class="giallo-l"><span>    ↓</span></span>
+<span class="giallo-l"><span>POST /api/process  { audio: bytes }</span></span>
+<span class="giallo-l"><span>    ↓</span></span>
+<span class="giallo-l"><span>Rust: 阿里云 NLS → &quot;帮我给儿子发个微信说我吃饭了&quot;</span></span>
+<span class="giallo-l"><span>    ↓</span></span>
+<span class="giallo-l"><span>Rust: Claude API (Tool Use) → send_wechat(contact=&quot;儿子&quot;, message=&quot;我吃饭了&quot;)</span></span>
+<span class="giallo-l"><span>    ↓</span></span>
+<span class="giallo-l"><span>返回 JSON: { action: &quot;send_wechat&quot;, contact: &quot;儿子&quot;, message: &quot;我吃饭了&quot;, reply: &quot;好的，正在给儿子发微信&quot; }</span></span>
+<span class="giallo-l"><span>    ↓</span></span>
+<span class="giallo-l"><span>Android TTS 播报 &quot;好的，正在给儿子发微信&quot;</span></span>
+<span class="giallo-l"><span>    ↓</span></span>
+<span class="giallo-l"><span>Android Accessibility Service 执行微信操作</span></span>
+<span class="giallo-l"><span>    ↓</span></span>
+<span class="giallo-l"><span>完成，TTS 播报 &quot;已发送&quot;</span></span></code></pre>
+<p>一台手机，一个 App，导航、微信、外卖全搞定。后端用 Rust（Axum），语音识别用阿里云 NLS，意图理解用 Claude Tool Use，执行层用 Android Accessibility Service。</p>
+<hr />
+<h2 id="accessibility-service-bi-ni-xiang-xiang-de-qiang-da">Accessibility Service：比你想象的强大<a class="zola-anchor" href="#accessibility-service-bi-ni-xiang-xiang-de-qiang-da" aria-label="Anchor link for: accessibility-service-bi-ni-xiang-xiang-de-qiang-da" style="visibility: hidden;"></a>
+</h2>
+<p>很多人以为 Accessibility Service 只是给残障人士用的辅助功能。实际上它能做的事情是：</p>
+<ul>
+<li><strong>读取屏幕上所有 View 的内容</strong>（文字、位置、是否可点击）</li>
+<li><strong>模拟任何点击、输入、滚动</strong></li>
+<li><strong>跨 App 操作</strong>，没有沙盒限制</li>
+</ul>
+<p>把整个屏幕内容转成文字传给 Claude：</p>
+<pre class="giallo z-code"><code data-lang="kotlin"><span class="giallo-l"><span class="z-keyword">fun</span><span class="z-entity z-name"> dumpScreen</span><span>(node</span><span>: </span><span class="z-entity z-name">AccessibilityNodeInfo</span><span>, depth</span><span>: </span><span class="z-entity z-name">Int</span><span class="z-keyword"> =</span><span class="z-constant"> 0</span><span>)</span><span>: </span><span class="z-entity z-name">String</span><span> {</span></span>
+<span class="giallo-l"><span class="z-keyword">    val</span><span> text </span><span class="z-keyword">=</span><span> node.text</span><span>?.</span><span class="z-entity z-name">toString</span><span>()</span></span>
+<span class="giallo-l"><span class="z-keyword">    val</span><span> clickable </span><span class="z-keyword">=</span><span class="z-keyword"> if</span><span> (node.isClickable) </span><span class="z-string">&quot;</span><span class="z-string">[可点击]</span><span class="z-string">&quot;</span><span class="z-keyword"> else</span><span class="z-string"> &quot;&quot;</span></span>
+<span class="giallo-l"><span class="z-comment">    //</span><span class="z-comment"> 递归遍历整棵 View 树</span></span>
+<span class="giallo-l"><span class="z-keyword">    ..</span><span>.</span></span>
+<span class="giallo-l"><span>}</span></span></code></pre>
+<p>Claude 收到的大概是这样的内容：</p>
+<pre class="giallo z-code"><code data-lang="plain"><span class="giallo-l"><span>[可点击] 老家川菜</span></span>
+<span class="giallo-l"><span>  宫保鸡丁</span></span>
+<span class="giallo-l"><span>  ¥22  月售300+  4.8分</span></span>
+<span class="giallo-l"><span>  [可点击] 加入购物车</span></span>
+<span class="giallo-l"><span>[可点击] 去结算 (2) ¥40</span></span></code></pre>
+<p>它知道该点哪里。</p>
+<hr />
+<h2 id="dian-wai-mai-zhe-ge-wen-ti">点外卖这个问题<a class="zola-anchor" href="#dian-wai-mai-zhe-ge-wen-ti" aria-label="Anchor link for: dian-wai-mai-zhe-ge-wen-ti" style="visibility: hidden;"></a>
+</h2>
+<p>"帮我点份盖浇饭"背后有太多决策点：哪家餐厅、什么口味、几分辣、用哪张券……全自动太脆，老人也不需要全自动。</p>
+<p>实际设计是这样的：</p>
+<ol>
+<li>Accessibility 打开美团搜索，<strong>读取</strong>搜索结果</li>
+<li>把结果传给 Claude，Claude 结合历史记录推荐（3 天内吃过的降权，天气冷推热食）</li>
+<li>语音播报三个选项："第一个，老家川菜，宫保鸡丁 22 元；第二个……"</li>
+<li>老人说"第二个"</li>
+<li>Accessibility 完成选菜、加购、结算</li>
+<li><strong>指纹验证</strong>才支付——语音说"下单"不够，防误操作</li>
+</ol>
+<p>支付这一步用 Android BiometricPrompt，老人本来就习惯用指纹，自然。</p>
+<hr />
+<h2 id="zhe-jian-shi-bi-wo-xiang-de-yao-da">这件事比我想的要大<a class="zola-anchor" href="#zhe-jian-shi-bi-wo-xiang-de-yao-da" aria-label="Anchor link for: zhe-jian-shi-bi-wo-xiang-de-yao-da" style="visibility: hidden;"></a>
+</h2>
+<p>Humane Pin、Rabbit R1 都失败了，原因不是方向错，是执行方式错了。</p>
+<p>他们试图替换手机生态，从零建 App。</p>
+<pre class="giallo z-code"><code data-lang="plain"><span class="giallo-l"><span>他们:  [新设备] → 重建所有服务 → 失败</span></span>
+<span class="giallo-l"><span>你的:  [新界面] → 复用所有现有App → 可行</span></span></code></pre>
+<p>手机从"你操作的对象"变成"帮你干活的基础设施"。</p>
+<p>就像你不会去"操作"电网，你只说"开灯"。</p>
+<hr />
+<p>这个范式对老人成立，对所有人其实都成立：</p>
+<pre class="giallo z-code"><code data-lang="plain"><span class="giallo-l"><span>现在: 想吃饭 → 开手机 → 找美团 → 搜索 → 筛选 → 选餐厅 → 选菜 → 下单</span></span>
+<span class="giallo-l"><span>未来: 想吃饭 → 说&quot;帮我点饭&quot; → 吃饭</span></span></code></pre>
+<p>老人只是对现有交互方式最不适应，所以需求最迫切。但这个交互方式对所有人都更好。</p>
+<hr />
+<p>我现在做的，本质是在验证一个命题：</p>
+<blockquote>
+<p><strong>意图 → 执行</strong> 能否完全绕过 App 界面层？</p>
+</blockquote>
+<p>如果父母用起来顺畅了，这个命题就成立了。</p>
+<hr />
+<h2 id="xia-yi-bu">下一步<a class="zola-anchor" href="#xia-yi-bu" aria-label="Anchor link for: xia-yi-bu" style="visibility: hidden;"></a>
+</h2>
+<p>先把 Rust 后端和 Accessibility 基础跑通，验证「语音 → 屏幕操作」的完整链路。</p>
+<p>导航最简单——一行 Intent 调高德地图，先从这里开始。</p>
+
+      </article>
+
+      
+      
+
+      
+      
+      <div class="giscus"></div>
+      <style>
+#comments { margin-top: 3rem; }
+.c-item { margin: 1.2rem 0; }
+.c-reply { margin-left: 1.5rem; padding-left: 1rem; border-left: 2px solid var(--text-decoration-color); }
+.c-meta { display: flex; align-items: center; gap: 0.6rem; margin-bottom: 0.3rem; font-size: 0.85em; }
+.c-name { font-weight: bold; color: var(--text-color); }
+.c-time { color: var(--text-pale-color); }
+.c-reply-btn {
+  background: none; border: none; padding: 0;
+  color: var(--primary-color); cursor: pointer;
+  font-size: 0.85em; opacity: 0;
+  transition: opacity 0.15s;
+}
+.c-item:hover .c-reply-btn { opacity: 1; }
+.c-body { color: var(--text-color); line-height: var(--line-height); white-space: pre-wrap; word-break: break-word; }
+.c-loading, .c-empty { color: var(--text-pale-color); font-size: 0.9em; padding: 1rem 0; }
+.c-form { margin-top: 2rem; display: flex; flex-direction: column; gap: 0.6rem; }
+.c-form-row { display: flex; gap: 0.6rem; }
+.c-input {
+  width: 100%; padding: 0.5rem 0.7rem;
+  border: 1.5px solid var(--text-decoration-color);
+  border-radius: 4px;
+  background: var(--bg-color); color: var(--text-color);
+  font-size: 0.9em; font-family: var(--main-font);
+  outline: none; transition: border-color 0.15s;
+}
+.c-input:focus { border-color: var(--primary-color); }
+.c-input-content { resize: vertical; min-height: 100px; }
+.c-reply-tip {
+  font-size: 0.85em; color: var(--primary-color);
+  padding: 0.2rem 0.5rem;
+  background: var(--inline-code-bg-color);
+  border-radius: 4px; align-self: flex-start;
+}
+.c-reply-tip::after { content: " ✕"; opacity: 0.5; }
+.c-form-actions { display: flex; justify-content: flex-end; }
+.c-submit {
+  padding: 0.4rem 1.2rem;
+  background: var(--primary-color); color: var(--bg-color);
+  border: none; border-radius: 4px;
+  cursor: pointer; font-size: 0.9em;
+  transition: opacity 0.15s;
+}
+.c-submit:hover { opacity: 0.85; }
+.c-submit:disabled { opacity: 0.5; cursor: not-allowed; }
+</style>
+<div id="comments" data-page="&#x2F;posts&#x2F;redefine-phone-agent-for-parents-2026-03-27&#x2F;"></div>
+<script src="/comments.js"></script>
+
+
+      
+    </div>
+
+    
+
+
+<footer>
+  <div class="left">
+    <div class="copyright">
+      © 2026 Cirray AI
+      
+      <span>|</span>
+      Built with <a href="https://www.getzola.org" rel="noreferrer" target="_blank">zola</a> and <a href="https://github.com/isunjn/serene" rel="noreferrer" target="_blank">serene</a>
+      
+    </div>
+  </div>
+
+  <div class="right">
+    
+    
+    
+    
+
+    
+    
+    
+    <button id="theme-toggle" aria-label="theme switch">
+      <span class="moon-icon"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="18" height="18"><path d="M10 7C10 10.866 13.134 14 17 14C18.9584 14 20.729 13.1957 21.9995 11.8995C22 11.933 22 11.9665 22 12C22 17.5228 17.5228 22 12 22C6.47715 22 2 17.5228 2 12C2 6.47715 6.47715 2 12 2C12.0335 2 12.067 2 12.1005 2.00049C10.8043 3.27098 10 5.04157 10 7ZM4 12C4 16.4183 7.58172 20 12 20C15.0583 20 17.7158 18.2839 19.062 15.7621C18.3945 15.9187 17.7035 16 17 16C12.0294 16 8 11.9706 8 7C8 6.29648 8.08133 5.60547 8.2379 4.938C5.71611 6.28423 4 8.9417 4 12Z" fill="currentColor"></path></svg>
+</span>
+      <span class="sun-icon"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="18" height="18"><path d="M12 18C8.68629 18 6 15.3137 6 12C6 8.68629 8.68629 6 12 6C15.3137 6 18 8.68629 18 12C18 15.3137 15.3137 18 12 18ZM12 16C14.2091 16 16 14.2091 16 12C16 9.79086 14.2091 8 12 8C9.79086 8 8 9.79086 8 12C8 14.2091 9.79086 16 12 16ZM11 1H13V4H11V1ZM11 20H13V23H11V20ZM3.51472 4.92893L4.92893 3.51472L7.05025 5.63604L5.63604 7.05025L3.51472 4.92893ZM16.9497 18.364L18.364 16.9497L20.4853 19.0711L19.0711 20.4853L16.9497 18.364ZM19.0711 3.51472L20.4853 4.92893L18.364 7.05025L16.9497 5.63604L19.0711 3.51472ZM5.63604 16.9497L7.05025 18.364L4.92893 20.4853L3.51472 19.0711L5.63604 16.9497ZM23 11V13H20V11H23ZM4 11V13H1V11H4Z" fill="currentColor"></path></svg>
+</span>
+    </button>
+    
+  </div>
+</footer>
+
+
+
+
+
+  </main>
+</div>
+
+  
+<script src="/js/lightense.min.js"></script>
+
+
+  <script src="https://blog.cirray.cn/js/main.js"></script>
+</body>
+
+</html>

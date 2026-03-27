@@ -10,6 +10,9 @@
         <loc>https://blog.cirray.cn/categories/gong-ju/</loc>
     </url>
     <url>
+        <loc>https://blog.cirray.cn/categories/si-kao/</loc>
+    </url>
+    <url>
         <loc>https://blog.cirray.cn/categories/xiang-mu/</loc>
     </url>
     <url>
@@ -56,13 +59,23 @@
         <lastmod>2026-03-24</lastmod>
     </url>
     <url>
+        <loc>https://blog.cirray.cn/posts/redefine-phone-agent-for-parents-2026-03-27/</loc>
+        <lastmod>2026-03-27</lastmod>
+    </url>
+    <url>
         <loc>https://blog.cirray.cn/tags/</loc>
+    </url>
+    <url>
+        <loc>https://blog.cirray.cn/tags/accessibility/</loc>
     </url>
     <url>
         <loc>https://blog.cirray.cn/tags/agent/</loc>
     </url>
     <url>
         <loc>https://blog.cirray.cn/tags/ai/</loc>
+    </url>
+    <url>
+        <loc>https://blog.cirray.cn/tags/android/</loc>
     </url>
     <url>
         <loc>https://blog.cirray.cn/tags/async/</loc>
@@ -96,6 +109,9 @@
     </url>
     <url>
         <loc>https://blog.cirray.cn/tags/learn-agent-rust/</loc>
+    </url>
+    <url>
+        <loc>https://blog.cirray.cn/tags/llm/</loc>
     </url>
     <url>
         <loc>https://blog.cirray.cn/tags/mcp/</loc>
