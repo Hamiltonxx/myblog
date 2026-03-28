@@ -43,6 +43,10 @@
         <lastmod>2026-03-27</lastmod>
     </url>
     <url>
+        <loc>https://blog.cirray.cn/posts/harmonyos-accessibility-hell-2026-03-28/</loc>
+        <lastmod>2026-03-28</lastmod>
+    </url>
+    <url>
         <loc>https://blog.cirray.cn/posts/learn-agent-rust-day1-day2/</loc>
         <lastmod>2026-03-25</lastmod>
     </url>
@@ -92,6 +96,9 @@
         <loc>https://blog.cirray.cn/tags/async/</loc>
     </url>
     <url>
+        <loc>https://blog.cirray.cn/tags/automation/</loc>
+    </url>
+    <url>
         <loc>https://blog.cirray.cn/tags/blog/</loc>
     </url>
     <url>
@@ -114,6 +121,9 @@
     </url>
     <url>
         <loc>https://blog.cirray.cn/tags/harmonyos/</loc>
+    </url>
+    <url>
+        <loc>https://blog.cirray.cn/tags/huawei/</loc>
     </url>
     <url>
         <loc>https://blog.cirray.cn/tags/jiao-cheng/</loc>
@@ -150,6 +160,9 @@
     </url>
     <url>
         <loc>https://blog.cirray.cn/tags/wang-luo/</loc>
+    </url>
+    <url>
+        <loc>https://blog.cirray.cn/tags/wechat/</loc>
     </url>
     <url>
         <loc>https://blog.cirray.cn/tags/xiao-lu/</loc>

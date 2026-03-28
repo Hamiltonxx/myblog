@@ -1,0 +1,398 @@
+<!DOCTYPE html>
+
+<html lang="zh">
+
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="color-scheme" content="light dark">
+  
+  
+    
+  
+  <meta name="description" content="在华为 MatePad 上做语音控制微信，踩遍了 rootInActiveWindow、ACTION_PASTE、截图 API 的坑，最后发现国产 ROM 的限制根本不在 API 层。">
+
+  <title>华为鸿蒙把 AccessibilityService 折腾成什么样了</title>
+  <link rel="icon" type="image/png" sizes="32x32" href="https://blog.cirray.cn/img/favicon-32x32.png">
+  <link rel="icon" type="image/png" sizes="16x16" href="https://blog.cirray.cn/img/favicon-16x16.png">
+  <link rel="apple-touch-icon" sizes="180x180" href="https://blog.cirray.cn/img/apple-touch-icon.png">
+  
+  <style>
+
+  /* light mode colors */
+  body {
+    --primary-color: #5871a2;
+    --primary-pale-color: #5871a233;
+    --primary-decoration-color: #5871a210;
+    --bg-color: #ffffff;
+    --text-color: #2f3030;
+    --text-pale-color: #767676;
+    --text-decoration-color: #a9a9a9;
+    --highlight-mark-color: #5f75b020;
+
+    --callout-note-color: #5871a2;
+    --callout-tip-color: #268556;
+    --callout-important-color: #885fc9;
+    --callout-warning-color: #ab6632;
+    --callout-caution-color: #c64e4e;
+  }
+
+  /* dark mode colors */
+  body.dark {
+    --primary-color: #6f8fd1;
+    --primary-pale-color: #6f8fd166;
+    --primary-decoration-color: #6f8fd112;
+    --bg-color: #1c1c1c;
+    --text-color: #c1c1c1;
+    --text-pale-color: #848484;
+    --text-decoration-color: #5f5f5f;
+    --highlight-mark-color: #8296cb3b;
+
+    --callout-note-color: #6f8fd1;
+    --callout-tip-color: #47976f;
+    --callout-important-color: #9776cd;
+    --callout-warning-color: #ad7a52;
+    --callout-caution-color: #d06161;
+  }
+
+  /* typography */
+  body {
+    --main-font: ui-sans-serif, system-ui, sans-serif, 'Apple Color Emoji', 'Segoe UI Emoji', 'Segoe UI Symbol', 'Noto Color Emoji';
+    --code-font: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, 'Liberation Mono', 'Courier New', monospace;
+    --homepage-max-width: 768px;
+    --main-max-width: 768px;
+    --avatar-size: 60px;
+    --font-size: 16px;
+    --line-height: 1.75;
+    --img-border-radius: 0px;
+    --detail-border-radius: 0px;
+    --dark-mode-img-brightness: 0.75;
+    --dark-mode-chart-brightness: 0.75;
+    --inline-code-border-radius: 2px;
+    --inline-code-bg-color: var(--primary-decoration-color);
+    --block-code-border-radius: 0px;
+    --block-code-border-color: var(--primary-color);
+    --detail-border-color: var(--primary-color);
+  }
+
+</style>
+
+  <link rel="stylesheet" href="https://blog.cirray.cn/main.css">
+  
+
+<link id="hl" rel="stylesheet" type="text/css" href="/giallo-light.css" />
+
+
+
+  
+</head>
+
+<body class="post">
+  
+  <script>
+    const theme = sessionStorage.getItem('theme');
+    const match = window.matchMedia("(prefers-color-scheme: dark)").matches;
+    if ((theme && theme == 'dark') || (!theme && match)) {
+      document.body.classList.add('dark');
+      const hl = document.querySelector('link#hl');
+      if (hl) hl.href = 'https://blog.cirray.cn/giallo-dark.css';
+    }
+  </script>
+  
+  
+<div id="wrapper">
+  <div id="blank"></div>
+  <aside>
+    
+    
+    <nav>
+      <ul>
+        
+        <li>
+          <a class="h2" href="#xiang-mu-bei-jing">项目背景</a>
+          
+        </li>
+        
+        <li>
+          <a class="h2" href="#di-yi-keng-rootinactivewindow-kua-app-shi-xiao">第一坑：rootInActiveWindow 跨 App 失效</a>
+          
+        </li>
+        
+        <li>
+          <a class="h2" href="#di-er-keng-llm-kan-bu-dao-ping-mu-zuo-biao-luan-dian">第二坑：LLM 看不到屏幕，坐标乱点</a>
+          
+        </li>
+        
+        <li>
+          <a class="h2" href="#di-san-keng-jie-tu-api-yi-ge-du-yong-bu-liao">第三坑：截图 API 一个都用不了</a>
+          
+        </li>
+        
+        <li>
+          <a class="h2" href="#zhuan-zhe-fang-qi-tong-yong-agent-gai-xie-si-liu-cheng">转折：放弃通用 Agent，改写死流程</a>
+          
+        </li>
+        
+        <li>
+          <a class="h2" href="#di-si-keng-action-paste-zai-wei-xin-sou-suo-kuang-shi-xiao">第四坑：ACTION_PASTE 在微信搜索框失效</a>
+          
+        </li>
+        
+        <li>
+          <a class="h2" href="#jin-tian-de-jiao-xun">今天的教训</a>
+          
+        </li>
+        
+        <li>
+          <a class="h2" href="#xia-yi-bu">下一步</a>
+          
+        </li>
+        
+      </ul>
+    </nav>
+    
+    
+    <button id="back-to-top" aria-label="back to top">
+      
+      <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="feather feather-arrow-up"><line x1="12" y1="19" x2="12" y2="5"></line><polyline points="5 12 12 5 19 12"></polyline></svg>
+
+    </button>
+    
+  </aside>
+  <main>
+    
+<header>
+  <nav>
+    <a id="back-link" href="https:&#x2F;&#x2F;blog.cirray.cn&#x2F;posts">← Back</a>
+  </nav>
+</header>
+
+
+    <div>
+      
+      
+      
+      
+      <div id="copy-cfg" style="display: none;" data-copy-icon="&lt;svg xmlns=&quot;http:&#x2F;&#x2F;www.w3.org&#x2F;2000&#x2F;svg&quot; viewBox=&quot;0 0 24 24&quot; width=&quot;18&quot; height=&quot;18&quot;&gt;&lt;path d=&quot;M6.9998 6V3C6.9998 2.44772 7.44752 2 7.9998 2H19.9998C20.5521 2 20.9998 2.44772 20.9998 3V17C20.9998 17.5523 20.5521 18 19.9998 18H16.9998V20.9991C16.9998 21.5519 16.5499 22 15.993 22H4.00666C3.45059 22 3 21.5554 3 20.9991L3.0026 7.00087C3.0027 6.44811 3.45264 6 4.00942 6H6.9998ZM5.00242 8L5.00019 20H14.9998V8H5.00242ZM8.9998 6H16.9998V16H18.9998V4H8.9998V6Z&quot; fill=&quot;currentColor&quot;&gt;&lt;&#x2F;path&gt;&lt;&#x2F;svg&gt;
+" data-check-icon="&lt;svg xmlns=&quot;http:&#x2F;&#x2F;www.w3.org&#x2F;2000&#x2F;svg&quot; viewBox=&quot;0 0 24 24&quot; width=&quot;18&quot; height=&quot;18&quot;&gt;&lt;path d=&quot;M10.0007 15.1709L19.1931 5.97852L20.6073 7.39273L10.0007 17.9993L3.63672 11.6354L5.05093 10.2212L10.0007 15.1709Z&quot; fill=&quot;currentColor&quot;&gt;&lt;&#x2F;path&gt;&lt;&#x2F;svg&gt;
+"></div>
+      
+      <article class="prose">
+        <h1>华为鸿蒙把 AccessibilityService 折腾成什么样了</h1>
+        <div id="post-info">
+          <div id="date">
+            <span id="publish">2026-03-28</span>
+            </div>
+
+          
+          <div id="tags">
+            <a class="instant" href="https://blog.cirray.cn/tags/android"><span>#</span>android</a><a class="instant" href="https://blog.cirray.cn/tags/accessibility"><span>#</span>accessibility</a><a class="instant" href="https://blog.cirray.cn/tags/harmonyos"><span>#</span>harmonyos</a><a class="instant" href="https://blog.cirray.cn/tags/huawei"><span>#</span>huawei</a><a class="instant" href="https://blog.cirray.cn/tags/wechat"><span>#</span>wechat</a><a class="instant" href="https://blog.cirray.cn/tags/automation"><span>#</span>automation</a>
+          </div>
+          
+        </div>
+
+        
+        
+
+        
+
+        <p>今天做了一个给老人用的语音助手 App——说一句"给儿子发微信说我吃饭了"，自动完成整个流程。目标很简单，但华为鸿蒙把我教做人了。</p>
+<hr />
+<h2 id="xiang-mu-bei-jing">项目背景<a class="zola-anchor" href="#xiang-mu-bei-jing" aria-label="Anchor link for: xiang-mu-bei-jing" style="visibility: hidden;"></a>
+</h2>
+<p>App 叫 ElderPlay，核心逻辑：</p>
+<ol>
+<li>按住悬浮按钮说话（离线语音识别，sherpa-onnx + SenseVoice）</li>
+<li>LLM 解析意图，提取联系人名和消息内容</li>
+<li>用 <code>AccessibilityService</code> 自动操作微信完成发送</li>
+</ol>
+<p>设备：HUAWEI BAH3-W59（MatePad T8），HarmonyOS，API 29。</p>
+<hr />
+<h2 id="di-yi-keng-rootinactivewindow-kua-app-shi-xiao">第一坑：<code>rootInActiveWindow</code> 跨 App 失效<a class="zola-anchor" href="#di-yi-keng-rootinactivewindow-kua-app-shi-xiao" aria-label="Anchor link for: di-yi-keng-rootinactivewindow-kua-app-shi-xiao" style="visibility: hidden;"></a>
+</h2>
+<p>最早的多轮 Agent 方案：每轮读屏幕节点 → 喂给 LLM → LLM 决定下一步操作。在华为上，一旦切到微信，<code>rootInActiveWindow</code> 就返回 null 或空节点，LLM 收到空屏幕，开始乱猜联系人名字（"彭丽莎"这个真实联系人名完全读不到，模型自己编了一个）。</p>
+<p>修复：改用 <code>getWindows()</code> 遍历所有窗口，跳过输入法窗口和自身包名：</p>
+<pre class="giallo z-code"><code data-lang="kotlin"><span class="giallo-l"><span class="z-keyword">val</span><span> wins </span><span class="z-keyword">=</span><span> windows</span></span>
+<span class="giallo-l"><span class="z-keyword">for</span><span> (win </span><span class="z-keyword">in</span><span> wins) {</span></span>
+<span class="giallo-l"><span class="z-keyword">    if</span><span> (win.type </span><span class="z-keyword">==</span><span> AccessibilityWindowInfo.TYPE_INPUT_METHOD) </span><span class="z-keyword">continue</span></span>
+<span class="giallo-l"><span class="z-keyword">    val</span><span> root </span><span class="z-keyword">=</span><span> win.root ?: </span><span class="z-keyword">continue</span></span>
+<span class="giallo-l"><span class="z-keyword">    val</span><span> pkg </span><span class="z-keyword">=</span><span> root.packageName</span><span>?.</span><span class="z-entity z-name">toString</span><span>() ?: </span><span class="z-string">&quot;&quot;</span></span>
+<span class="giallo-l"><span class="z-keyword">    if</span><span> (pkg </span><span class="z-keyword">==</span><span class="z-string"> &quot;</span><span class="z-string">com.elderplay.agent</span><span class="z-string">&quot;</span><span>) { root</span><span>.</span><span class="z-entity z-name">recycle</span><span>(); </span><span class="z-keyword">continue</span><span> }</span></span>
+<span class="giallo-l"><span class="z-entity z-name">    traverseNode</span><span>(root, nodes)</span></span>
+<span class="giallo-l"><span>    root</span><span>.</span><span class="z-entity z-name">recycle</span><span>()</span></span>
+<span class="giallo-l"><span>}</span></span></code></pre>
+<p>这个改了之后，节点确实能读到了，但后来发现这只是开始。</p>
+<hr />
+<h2 id="di-er-keng-llm-kan-bu-dao-ping-mu-zuo-biao-luan-dian">第二坑：LLM 看不到屏幕，坐标乱点<a class="zola-anchor" href="#di-er-keng-llm-kan-bu-dao-ping-mu-zuo-biao-luan-dian" aria-label="Anchor link for: di-er-keng-llm-kan-bu-dao-ping-mu-zuo-biao-luan-dian" style="visibility: hidden;"></a>
+</h2>
+<p>读到了节点，但 LLM 没有图像，只有文字描述，让它估坐标就是瞎猜。Agent 连续把"菠萝的蜜前端交流群"和"遵义路780弄互助团购群"当成了目标联系人打开。</p>
+<p>于是转向截图方案：让 LLM 看截图再决定操作。</p>
+<hr />
+<h2 id="di-san-keng-jie-tu-api-yi-ge-du-yong-bu-liao">第三坑：截图 API 一个都用不了<a class="zola-anchor" href="#di-san-keng-jie-tu-api-yi-ge-du-yong-bu-liao" aria-label="Anchor link for: di-san-keng-jie-tu-api-yi-ge-du-yong-bu-liao" style="visibility: hidden;"></a>
+</h2>
+<p><strong>方案 A：<code>AccessibilityService.takeScreenshot()</code></strong>
+需要 API 30+，设备是 API 29，直接跳过。</p>
+<p><strong>方案 B：<code>Bitmap.wrapHardwareBuffer()</code></strong>
+需要 API 31+，同上。</p>
+<p><strong>方案 C：<code>MediaProjection</code></strong>
+API 21+ 都能用。实现了，加了"开启屏幕录制"按钮，用户点击允许后……App 直接崩了。华为对 <code>MediaProjection</code> 的处理明显有问题，<code>createVirtualDisplay</code> 后 <code>ImageReader</code> 一帧都拿不到，超时5秒返回 null，全部12轮都是"截图不可用"。</p>
+<p>最终：<strong>截图方案在这台华为设备上全部失败</strong>。</p>
+<hr />
+<h2 id="zhuan-zhe-fang-qi-tong-yong-agent-gai-xie-si-liu-cheng">转折：放弃通用 Agent，改写死流程<a class="zola-anchor" href="#zhuan-zhe-fang-qi-tong-yong-agent-gai-xie-si-liu-cheng" aria-label="Anchor link for: zhuan-zhe-fang-qi-tong-yong-agent-gai-xie-si-liu-cheng" style="visibility: hidden;"></a>
+</h2>
+<p>发送微信消息这件事，流程是固定的：</p>
+<pre class="giallo z-code"><code data-lang="plain"><span class="giallo-l"><span>打开微信 → 点搜索 → 输入联系人名</span></span>
+<span class="giallo-l"><span>→ 读取搜索结果节点 → 让用户确认联系人</span></span>
+<span class="giallo-l"><span>→ 点击联系人 → 输入消息 → 点发送</span></span></code></pre>
+<p>不需要 LLM 来导航，LLM 只做一件事：从语音里提取 <code>contact</code> 和 <code>message</code>。</p>
+<pre class="giallo z-code"><code data-lang="kotlin"><span class="giallo-l"><span class="z-comment">//</span><span class="z-comment"> CommandParser：一次 LLM 调用</span></span>
+<span class="giallo-l"><span class="z-comment">//</span><span class="z-comment"> &quot;跟彭丽莎说我吃过了&quot; → {&quot;intent&quot;:&quot;wechat_send&quot;,&quot;contact&quot;:&quot;彭丽莎&quot;,&quot;message&quot;:&quot;我吃过了&quot;}</span></span>
+<span class="giallo-l"></span>
+<span class="giallo-l"><span class="z-keyword">when</span><span> (cmd.intent) {</span></span>
+<span class="giallo-l"><span class="z-string">    &quot;</span><span class="z-string">wechat_send</span><span class="z-string">&quot;</span><span class="z-storage z-type"> -&gt;</span><span> WeChatSender</span><span>.</span><span class="z-entity z-name">send</span><span>(contact, message, </span><span class="z-keyword">..</span><span>.)</span></span>
+<span class="giallo-l"><span>}</span></span></code></pre>
+<p><code>WeChatSender</code> 是8步硬编码流程，每步都是确定性的代码，不再有 LLM 参与导航。</p>
+<hr />
+<h2 id="di-si-keng-action-paste-zai-wei-xin-sou-suo-kuang-shi-xiao">第四坑：<code>ACTION_PASTE</code> 在微信搜索框失效<a class="zola-anchor" href="#di-si-keng-action-paste-zai-wei-xin-sou-suo-kuang-shi-xiao" aria-label="Anchor link for: di-si-keng-action-paste-zai-wei-xin-sou-suo-kuang-shi-xiao" style="visibility: hidden;"></a>
+</h2>
+<p>硬编码流程跑起来了，微信搜索框也打开了，键盘也弹出来了，剪贴板也写进去了（键盘上方能看到"彭丽莎"的剪贴板建议）。但就是粘不进去。</p>
+<p><code>ACTION_PASTE</code> 返回 false，<code>ACTION_SET_TEXT</code> 也不行。</p>
+<p>搜了一下，发现各品牌的限制对比，总结如下：</p>
+<table><thead><tr><th>问题类型</th><th>华为</th><th>小米</th><th>OPPO/VIVO</th><th>Pixel</th></tr></thead><tbody>
+<tr><td><code>rootInActiveWindow</code> 跨 App</td><td>受限</td><td>基本可用</td><td>基本可用</td><td>完全可用</td></tr>
+<tr><td><code>ACTION_PASTE</code></td><td>通常可用，需正确聚焦</td><td>可用</td><td>可用</td><td>完全可用</td></tr>
+<tr><td><code>takeScreenshot()</code></td><td>受限</td><td>可用(API30+)</td><td>可用(API30+)</td><td>完全可用</td></tr>
+<tr><td>服务保活</td><td>极难（PowerGenie）</td><td>较难</td><td>较难</td><td>无限制</td></tr>
+</tbody></table>
+<p><code>ACTION_PASTE</code> 在华为上理论上可用，但要求节点<strong>真正聚焦</strong>。问题可能是调用顺序——要先 <code>ACTION_FOCUS</code> 再粘贴。这个还在调试中。</p>
+<hr />
+<h2 id="jin-tian-de-jiao-xun">今天的教训<a class="zola-anchor" href="#jin-tian-de-jiao-xun" aria-label="Anchor link for: jin-tian-de-jiao-xun" style="visibility: hidden;"></a>
+</h2>
+<ol>
+<li>
+<p><strong>国产 ROM 的限制不在 API 层，在进程保活和 window 访问层</strong>。<code>rootInActiveWindow</code> 不是被禁了，而是 window 焦点判断逻辑不同。</p>
+</li>
+<li>
+<p><strong>通用 LLM Agent 对固定流程场景是过度设计</strong>。12 轮循环 + LLM 决策，不如8行硬编码可靠。</p>
+</li>
+<li>
+<p><strong>截图方案对旧华为设备完全不可行</strong>，不是 API 限制，是硬件兼容性问题。</p>
+</li>
+<li>
+<p><strong>剪贴板粘贴是中文输入的最佳方案</strong>，但依赖节点的聚焦状态，细节很重要。</p>
+</li>
+</ol>
+<hr />
+<h2 id="xia-yi-bu">下一步<a class="zola-anchor" href="#xia-yi-bu" aria-label="Anchor link for: xia-yi-bu" style="visibility: hidden;"></a>
+</h2>
+<p>搞定 <code>ACTION_PASTE</code> 的聚焦问题（加 <code>ACTION_FOCUS</code> 或长按触发粘贴菜单），然后完整跑通"给彭丽莎发我吃过了"这个流程。</p>
+
+      </article>
+
+      
+      
+
+      
+      
+      <div class="giscus"></div>
+      <style>
+#comments { margin-top: 3rem; }
+.c-item { margin: 1.2rem 0; }
+.c-reply { margin-left: 1.5rem; padding-left: 1rem; border-left: 2px solid var(--text-decoration-color); }
+.c-meta { display: flex; align-items: center; gap: 0.6rem; margin-bottom: 0.3rem; font-size: 0.85em; }
+.c-name { font-weight: bold; color: var(--text-color); }
+.c-time { color: var(--text-pale-color); }
+.c-reply-btn {
+  background: none; border: none; padding: 0;
+  color: var(--primary-color); cursor: pointer;
+  font-size: 0.85em; opacity: 0;
+  transition: opacity 0.15s;
+}
+.c-item:hover .c-reply-btn { opacity: 1; }
+.c-body { color: var(--text-color); line-height: var(--line-height); white-space: pre-wrap; word-break: break-word; }
+.c-loading, .c-empty { color: var(--text-pale-color); font-size: 0.9em; padding: 1rem 0; }
+.c-form { margin-top: 2rem; display: flex; flex-direction: column; gap: 0.6rem; }
+.c-form-row { display: flex; gap: 0.6rem; }
+.c-input {
+  width: 100%; padding: 0.5rem 0.7rem;
+  border: 1.5px solid var(--text-decoration-color);
+  border-radius: 4px;
+  background: var(--bg-color); color: var(--text-color);
+  font-size: 0.9em; font-family: var(--main-font);
+  outline: none; transition: border-color 0.15s;
+}
+.c-input:focus { border-color: var(--primary-color); }
+.c-input-content { resize: vertical; min-height: 100px; }
+.c-reply-tip {
+  font-size: 0.85em; color: var(--primary-color);
+  padding: 0.2rem 0.5rem;
+  background: var(--inline-code-bg-color);
+  border-radius: 4px; align-self: flex-start;
+}
+.c-reply-tip::after { content: " ✕"; opacity: 0.5; }
+.c-form-actions { display: flex; justify-content: flex-end; }
+.c-submit {
+  padding: 0.4rem 1.2rem;
+  background: var(--primary-color); color: var(--bg-color);
+  border: none; border-radius: 4px;
+  cursor: pointer; font-size: 0.9em;
+  transition: opacity 0.15s;
+}
+.c-submit:hover { opacity: 0.85; }
+.c-submit:disabled { opacity: 0.5; cursor: not-allowed; }
+</style>
+<div id="comments" data-page="&#x2F;posts&#x2F;harmonyos-accessibility-hell-2026-03-28&#x2F;"></div>
+<script src="/comments.js"></script>
+
+
+      
+    </div>
+
+    
+
+
+<footer>
+  <div class="left">
+    <div class="copyright">
+      © 2026 Cirray AI
+      
+      <span>|</span>
+      Built with <a href="https://www.getzola.org" rel="noreferrer" target="_blank">zola</a> and <a href="https://github.com/isunjn/serene" rel="noreferrer" target="_blank">serene</a>
+      
+    </div>
+  </div>
+
+  <div class="right">
+    
+    
+    
+    
+
+    
+    
+    
+    <button id="theme-toggle" aria-label="theme switch">
+      <span class="moon-icon"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="18" height="18"><path d="M10 7C10 10.866 13.134 14 17 14C18.9584 14 20.729 13.1957 21.9995 11.8995C22 11.933 22 11.9665 22 12C22 17.5228 17.5228 22 12 22C6.47715 22 2 17.5228 2 12C2 6.47715 6.47715 2 12 2C12.0335 2 12.067 2 12.1005 2.00049C10.8043 3.27098 10 5.04157 10 7ZM4 12C4 16.4183 7.58172 20 12 20C15.0583 20 17.7158 18.2839 19.062 15.7621C18.3945 15.9187 17.7035 16 17 16C12.0294 16 8 11.9706 8 7C8 6.29648 8.08133 5.60547 8.2379 4.938C5.71611 6.28423 4 8.9417 4 12Z" fill="currentColor"></path></svg>
+</span>
+      <span class="sun-icon"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="18" height="18"><path d="M12 18C8.68629 18 6 15.3137 6 12C6 8.68629 8.68629 6 12 6C15.3137 6 18 8.68629 18 12C18 15.3137 15.3137 18 12 18ZM12 16C14.2091 16 16 14.2091 16 12C16 9.79086 14.2091 8 12 8C9.79086 8 8 9.79086 8 12C8 14.2091 9.79086 16 12 16ZM11 1H13V4H11V1ZM11 20H13V23H11V20ZM3.51472 4.92893L4.92893 3.51472L7.05025 5.63604L5.63604 7.05025L3.51472 4.92893ZM16.9497 18.364L18.364 16.9497L20.4853 19.0711L19.0711 20.4853L16.9497 18.364ZM19.0711 3.51472L20.4853 4.92893L18.364 7.05025L16.9497 5.63604L19.0711 3.51472ZM5.63604 16.9497L7.05025 18.364L4.92893 20.4853L3.51472 19.0711L5.63604 16.9497ZM23 11V13H20V11H23ZM4 11V13H1V11H4Z" fill="currentColor"></path></svg>
+</span>
+    </button>
+    
+  </div>
+</footer>
+
+
+
+
+
+  </main>
+</div>
+
+  
+<script src="/js/lightense.min.js"></script>
+
+
+  <script src="https://blog.cirray.cn/js/main.js"></script>
+</body>
+
+</html>
