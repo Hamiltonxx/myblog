@@ -1,0 +1,516 @@
+<!DOCTYPE html>
+
+<html lang="zh">
+
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="color-scheme" content="light dark">
+  
+  
+    
+  
+  <meta name="description" content="别再把所有 prompt 塞进 system——今天两个机制让 agent 真正「用多少、拿多少」，还能在长对话里自己压缩历史。">
+
+  <title>用 Rust 学 AI Agent——Day 5：知识按需注入，上下文永不爆炸</title>
+  <link rel="icon" type="image/png" sizes="32x32" href="https://blog.cirray.cn/img/favicon-32x32.png">
+  <link rel="icon" type="image/png" sizes="16x16" href="https://blog.cirray.cn/img/favicon-16x16.png">
+  <link rel="apple-touch-icon" sizes="180x180" href="https://blog.cirray.cn/img/apple-touch-icon.png">
+  
+  <style>
+
+  /* light mode colors */
+  body {
+    --primary-color: #5871a2;
+    --primary-pale-color: #5871a233;
+    --primary-decoration-color: #5871a210;
+    --bg-color: #ffffff;
+    --text-color: #2f3030;
+    --text-pale-color: #767676;
+    --text-decoration-color: #a9a9a9;
+    --highlight-mark-color: #5f75b020;
+
+    --callout-note-color: #5871a2;
+    --callout-tip-color: #268556;
+    --callout-important-color: #885fc9;
+    --callout-warning-color: #ab6632;
+    --callout-caution-color: #c64e4e;
+  }
+
+  /* dark mode colors */
+  body.dark {
+    --primary-color: #6f8fd1;
+    --primary-pale-color: #6f8fd166;
+    --primary-decoration-color: #6f8fd112;
+    --bg-color: #1c1c1c;
+    --text-color: #c1c1c1;
+    --text-pale-color: #848484;
+    --text-decoration-color: #5f5f5f;
+    --highlight-mark-color: #8296cb3b;
+
+    --callout-note-color: #6f8fd1;
+    --callout-tip-color: #47976f;
+    --callout-important-color: #9776cd;
+    --callout-warning-color: #ad7a52;
+    --callout-caution-color: #d06161;
+  }
+
+  /* typography */
+  body {
+    --main-font: ui-sans-serif, system-ui, sans-serif, 'Apple Color Emoji', 'Segoe UI Emoji', 'Segoe UI Symbol', 'Noto Color Emoji';
+    --code-font: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, 'Liberation Mono', 'Courier New', monospace;
+    --homepage-max-width: 768px;
+    --main-max-width: 768px;
+    --avatar-size: 60px;
+    --font-size: 16px;
+    --line-height: 1.75;
+    --img-border-radius: 0px;
+    --detail-border-radius: 0px;
+    --dark-mode-img-brightness: 0.75;
+    --dark-mode-chart-brightness: 0.75;
+    --inline-code-border-radius: 2px;
+    --inline-code-bg-color: var(--primary-decoration-color);
+    --block-code-border-radius: 0px;
+    --block-code-border-color: var(--primary-color);
+    --detail-border-color: var(--primary-color);
+  }
+
+</style>
+
+  <link rel="stylesheet" href="https://blog.cirray.cn/main.css">
+  
+
+<link id="hl" rel="stylesheet" type="text/css" href="/giallo-light.css" />
+
+
+
+  
+</head>
+
+<body class="post">
+  
+  <script>
+    const theme = sessionStorage.getItem('theme');
+    const match = window.matchMedia("(prefers-color-scheme: dark)").matches;
+    if ((theme && theme == 'dark') || (!theme && match)) {
+      document.body.classList.add('dark');
+      const hl = document.querySelector('link#hl');
+      if (hl) hl.href = 'https://blog.cirray.cn/giallo-dark.css';
+    }
+  </script>
+  
+  
+<div id="wrapper">
+  <div id="blank"></div>
+  <aside>
+    
+    
+    <nav>
+      <ul>
+        
+        <li>
+          <a class="h2" href="#s05-zhi-shi-bu-shi-pei-zhi-shi-gong-ju">S05：知识不是配置，是工具</a>
+          
+          <ul>
+            
+            <li>
+              <a class="h3" href="#xian-li-jie-fan-mo-shi">先理解反模式</a>
+            </li>
+            
+            <li>
+              <a class="h3" href="#he-xin-she-ji">核心设计</a>
+            </li>
+            
+            <li>
+              <a class="h3" href="#liu-cheng-shi-zhe-yang-de">流程是这样的</a>
+            </li>
+            
+            <li>
+              <a class="h3" href="#system-prompt-zhi-shuo-you-shen-me-bu-shuo-nei-rong-shi-shen-me">system prompt 只说「有什么」，不说「内容是什么」</a>
+            </li>
+            
+            <li>
+              <a class="h3" href="#pao-qi-lai-de-xiao-guo">跑起来的效果</a>
+            </li>
+            
+          </ul>
+          
+        </li>
+        
+        <li>
+          <a class="h2" href="#s06-messages-tai-chang-liao-zi-ji-ya-suo">S06：messages 太长了，自己压缩</a>
+          
+          <ul>
+            
+            <li>
+              <a class="h3" href="#xian-li-jie-wen-ti">先理解问题</a>
+            </li>
+            
+            <li>
+              <a class="h3" href="#jie-fa-chao-guo-yu-zhi-yong-mo-xing-ya-suo-jiu-xiao-xi">解法：超过阈值，用模型压缩旧消息</a>
+            </li>
+            
+            <li>
+              <a class="h3" href="#agent-loop-li-zhi-jia-yi-xing">agent loop 里只加一行</a>
+            </li>
+            
+            <li>
+              <a class="h3" href="#vec-de-drain-shi-guan-jian">Vec 的 drain 是关键</a>
+            </li>
+            
+          </ul>
+          
+        </li>
+        
+        <li>
+          <a class="h2" href="#jin-tian-de-rust-shou-huo">今天的 Rust 收获</a>
+          
+        </li>
+        
+        <li>
+          <a class="h2" href="#xia-yi-bu">下一步</a>
+          
+        </li>
+        
+      </ul>
+    </nav>
+    
+    
+    <button id="back-to-top" aria-label="back to top">
+      
+      <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="feather feather-arrow-up"><line x1="12" y1="19" x2="12" y2="5"></line><polyline points="5 12 12 5 19 12"></polyline></svg>
+
+    </button>
+    
+  </aside>
+  <main>
+    
+<header>
+  <nav>
+    <a id="back-link" href="https:&#x2F;&#x2F;blog.cirray.cn&#x2F;posts">← Back</a>
+  </nav>
+</header>
+
+
+    <div>
+      
+      
+      
+      
+      <div id="copy-cfg" style="display: none;" data-copy-icon="&lt;svg xmlns=&quot;http:&#x2F;&#x2F;www.w3.org&#x2F;2000&#x2F;svg&quot; viewBox=&quot;0 0 24 24&quot; width=&quot;18&quot; height=&quot;18&quot;&gt;&lt;path d=&quot;M6.9998 6V3C6.9998 2.44772 7.44752 2 7.9998 2H19.9998C20.5521 2 20.9998 2.44772 20.9998 3V17C20.9998 17.5523 20.5521 18 19.9998 18H16.9998V20.9991C16.9998 21.5519 16.5499 22 15.993 22H4.00666C3.45059 22 3 21.5554 3 20.9991L3.0026 7.00087C3.0027 6.44811 3.45264 6 4.00942 6H6.9998ZM5.00242 8L5.00019 20H14.9998V8H5.00242ZM8.9998 6H16.9998V16H18.9998V4H8.9998V6Z&quot; fill=&quot;currentColor&quot;&gt;&lt;&#x2F;path&gt;&lt;&#x2F;svg&gt;
+" data-check-icon="&lt;svg xmlns=&quot;http:&#x2F;&#x2F;www.w3.org&#x2F;2000&#x2F;svg&quot; viewBox=&quot;0 0 24 24&quot; width=&quot;18&quot; height=&quot;18&quot;&gt;&lt;path d=&quot;M10.0007 15.1709L19.1931 5.97852L20.6073 7.39273L10.0007 17.9993L3.63672 11.6354L5.05093 10.2212L10.0007 15.1709Z&quot; fill=&quot;currentColor&quot;&gt;&lt;&#x2F;path&gt;&lt;&#x2F;svg&gt;
+"></div>
+      
+      <article class="prose">
+        <h1>用 Rust 学 AI Agent——Day 5：知识按需注入，上下文永不爆炸</h1>
+        <div id="post-info">
+          <div id="date">
+            <span id="publish">2026-03-29</span>
+            </div>
+
+          
+          <div id="tags">
+            <a class="instant" href="https://blog.cirray.cn/tags/rust"><span>#</span>rust</a><a class="instant" href="https://blog.cirray.cn/tags/ai"><span>#</span>ai</a><a class="instant" href="https://blog.cirray.cn/tags/claude"><span>#</span>claude</a><a class="instant" href="https://blog.cirray.cn/tags/agent"><span>#</span>agent</a><a class="instant" href="https://blog.cirray.cn/tags/learn-agent-rust"><span>#</span>learn-agent-rust</a><a class="instant" href="https://blog.cirray.cn/tags/context"><span>#</span>context</a><a class="instant" href="https://blog.cirray.cn/tags/skill-loading"><span>#</span>skill-loading</a>
+          </div>
+          
+        </div>
+
+        
+        
+
+        
+
+        <blockquote>
+<p>Day 4 的 agent 已经能规划、能分身了。</p>
+<p>但还有两个隐患：<strong>知识全堆在 system prompt</strong>，一启动就占满；<strong>对话越来越长</strong>，迟早撞上 context window 上限。</p>
+<p>今天解决这两件事：S05 让 agent 自己决定「什么时候加载什么知识」，S06 让它在长对话里自动压缩历史。</p>
+</blockquote>
+<hr />
+<h2 id="s05-zhi-shi-bu-shi-pei-zhi-shi-gong-ju">S05：知识不是配置，是工具<a class="zola-anchor" href="#s05-zhi-shi-bu-shi-pei-zhi-shi-gong-ju" aria-label="Anchor link for: s05-zhi-shi-bu-shi-pei-zhi-shi-gong-ju" style="visibility: hidden;"></a>
+</h2>
+<h3 id="xian-li-jie-fan-mo-shi">先理解反模式<a class="zola-anchor" href="#xian-li-jie-fan-mo-shi" aria-label="Anchor link for: xian-li-jie-fan-mo-shi" style="visibility: hidden;"></a>
+</h3>
+<p>很多人搭 agent 的第一反应是：把所有领域知识塞进 system prompt。</p>
+<pre class="giallo z-code"><code data-lang="plain"><span class="giallo-l"><span>system = &quot;你是一个助手。以下是你的知识库：\n{3000字的文档}\n{2000字的文档}...&quot;</span></span></code></pre>
+<p>问题显而易见：</p>
+<ol>
+<li>每次请求都要发这 5000 字，贵</li>
+<li>模型要在海量 system 里找相关信息，准确率下降</li>
+<li>知识越来越多，system prompt 没有上限</li>
+</ol>
+<p><strong>S05 的思路完全反过来</strong>：不预加载，让模型自己按需取。</p>
+<h3 id="he-xin-she-ji">核心设计<a class="zola-anchor" href="#he-xin-she-ji" aria-label="Anchor link for: he-xin-she-ji" style="visibility: hidden;"></a>
+</h3>
+<p>实现一个 <code>SkillLoaderTool</code>，读取 <code>skills/</code> 目录下的 <code>.md</code> 文件，把内容通过 <code>tool_result</code> 注入对话历史：</p>
+<pre class="giallo z-code"><code data-lang="rust"><span class="giallo-l"><span class="z-storage z-type">struct</span><span class="z-entity z-name"> SkillLoaderTool</span><span>;</span></span>
+<span class="giallo-l"></span>
+<span class="giallo-l"><span>#</span><span>[</span><span>async_trait</span><span>]</span></span>
+<span class="giallo-l"><span class="z-keyword">impl</span><span class="z-entity z-name"> Tool</span><span class="z-keyword"> for</span><span class="z-entity z-name"> SkillLoaderTool</span><span> {</span></span>
+<span class="giallo-l"><span class="z-keyword">    fn</span><span class="z-entity z-name"> name</span><span>(</span><span class="z-keyword">&amp;</span><span class="z-variable z-language">self</span><span>)</span><span class="z-keyword"> -&gt;</span><span class="z-keyword"> &amp;</span><span class="z-entity z-name">str</span><span> {</span><span class="z-punctuation z-definition z-string"> &quot;</span><span class="z-string">load_skill</span><span class="z-punctuation z-definition z-string">&quot;</span><span> }</span></span>
+<span class="giallo-l"></span>
+<span class="giallo-l"><span class="z-keyword">    fn</span><span class="z-entity z-name"> definition</span><span>(</span><span class="z-keyword">&amp;</span><span class="z-variable z-language">self</span><span>)</span><span class="z-keyword"> -&gt;</span><span class="z-entity z-name"> Value</span><span> {</span></span>
+<span class="giallo-l"><span class="z-entity z-name">        json!</span><span>(</span><span>{</span></span>
+<span class="giallo-l"><span class="z-punctuation z-definition z-string">            &quot;</span><span class="z-string">name</span><span class="z-punctuation z-definition z-string">&quot;</span><span class="z-keyword">:</span><span class="z-punctuation z-definition z-string"> &quot;</span><span class="z-string">load_skill</span><span class="z-punctuation z-definition z-string">&quot;</span><span>,</span></span>
+<span class="giallo-l"><span class="z-punctuation z-definition z-string">            &quot;</span><span class="z-string">description</span><span class="z-punctuation z-definition z-string">&quot;</span><span class="z-keyword">:</span><span class="z-punctuation z-definition z-string"> &quot;</span><span class="z-string">加载指定技能的知识文档。当你需要某个领域的专业知识时调用此工具。</span><span class="z-punctuation z-definition z-string">&quot;</span><span>,</span></span>
+<span class="giallo-l"><span class="z-punctuation z-definition z-string">            &quot;</span><span class="z-string">input_schema</span><span class="z-punctuation z-definition z-string">&quot;</span><span class="z-keyword">:</span><span> {</span></span>
+<span class="giallo-l"><span class="z-punctuation z-definition z-string">                &quot;</span><span class="z-string">type</span><span class="z-punctuation z-definition z-string">&quot;</span><span class="z-keyword">:</span><span class="z-punctuation z-definition z-string"> &quot;</span><span class="z-string">object</span><span class="z-punctuation z-definition z-string">&quot;</span><span>,</span></span>
+<span class="giallo-l"><span class="z-punctuation z-definition z-string">                &quot;</span><span class="z-string">properties</span><span class="z-punctuation z-definition z-string">&quot;</span><span class="z-keyword">:</span><span> {</span></span>
+<span class="giallo-l"><span class="z-punctuation z-definition z-string">                    &quot;</span><span class="z-string">skill_name</span><span class="z-punctuation z-definition z-string">&quot;</span><span class="z-keyword">:</span><span> {</span></span>
+<span class="giallo-l"><span class="z-punctuation z-definition z-string">                        &quot;</span><span class="z-string">type</span><span class="z-punctuation z-definition z-string">&quot;</span><span class="z-keyword">:</span><span class="z-punctuation z-definition z-string"> &quot;</span><span class="z-string">string</span><span class="z-punctuation z-definition z-string">&quot;</span><span>,</span></span>
+<span class="giallo-l"><span class="z-punctuation z-definition z-string">                        &quot;</span><span class="z-string">description</span><span class="z-punctuation z-definition z-string">&quot;</span><span class="z-keyword">:</span><span class="z-punctuation z-definition z-string"> &quot;</span><span class="z-string">技能名称，对应 skills/ 目录下的子目录名</span><span class="z-punctuation z-definition z-string">&quot;</span></span>
+<span class="giallo-l"><span>                    }</span></span>
+<span class="giallo-l"><span>                }</span><span>,</span></span>
+<span class="giallo-l"><span class="z-punctuation z-definition z-string">                &quot;</span><span class="z-string">required</span><span class="z-punctuation z-definition z-string">&quot;</span><span class="z-keyword">:</span><span> [</span><span class="z-punctuation z-definition z-string">&quot;</span><span class="z-string">skill_name</span><span class="z-punctuation z-definition z-string">&quot;</span><span>]</span></span>
+<span class="giallo-l"><span>            }</span></span>
+<span class="giallo-l"><span>        }</span><span>)</span></span>
+<span class="giallo-l"><span>    }</span></span>
+<span class="giallo-l"></span>
+<span class="giallo-l"><span class="z-keyword">    async</span><span class="z-keyword"> fn</span><span class="z-entity z-name"> execute</span><span>(</span><span class="z-keyword">&amp;</span><span class="z-variable z-language">self</span><span>,</span><span class="z-variable z-other"> input</span><span class="z-keyword">:</span><span class="z-entity z-name"> Value</span><span>)</span><span class="z-keyword"> -&gt;</span><span class="z-entity z-name"> String</span><span> {</span></span>
+<span class="giallo-l"><span class="z-storage z-type">        let</span><span class="z-variable z-other"> skill_name</span><span class="z-keyword"> =</span><span class="z-variable z-other"> input</span><span>[</span><span class="z-punctuation z-definition z-string">&quot;</span><span class="z-string">skill_name</span><span class="z-punctuation z-definition z-string">&quot;</span><span>]</span><span class="z-keyword">.</span><span class="z-entity z-name">as_str</span><span>(</span><span>)</span><span class="z-keyword">.</span><span class="z-entity z-name">unwrap_or</span><span>(</span><span class="z-punctuation z-definition z-string">&quot;</span><span class="z-punctuation z-definition z-string">&quot;</span><span>)</span><span>;</span></span>
+<span class="giallo-l"><span class="z-storage z-type">        let</span><span class="z-variable z-other"> path</span><span class="z-keyword"> =</span><span class="z-entity z-name"> format!</span><span>(</span><span class="z-punctuation z-definition z-string">&quot;</span><span class="z-string">skills/</span><span class="z-string">{</span><span class="z-string">}</span><span class="z-string">/SKILL.md</span><span class="z-punctuation z-definition z-string">&quot;</span><span>,</span><span class="z-variable z-other"> skill_name</span><span>)</span><span>;</span></span>
+<span class="giallo-l"></span>
+<span class="giallo-l"><span class="z-keyword">        match</span><span class="z-entity z-name"> std</span><span class="z-keyword">::</span><span class="z-entity z-name">fs</span><span class="z-keyword">::</span><span class="z-entity z-name">read_to_string</span><span>(</span><span class="z-keyword">&amp;</span><span class="z-variable z-other">path</span><span>)</span><span> {</span></span>
+<span class="giallo-l"><span class="z-entity z-name">            Ok</span><span>(</span><span class="z-variable z-other">content</span><span>)</span><span class="z-keyword"> =&gt;</span><span class="z-variable z-other"> content</span><span>,</span></span>
+<span class="giallo-l"><span class="z-entity z-name">            Err</span><span>(</span><span class="z-variable z-other">_</span><span>)</span><span class="z-keyword"> =&gt;</span><span> {</span></span>
+<span class="giallo-l"><span class="z-storage z-type">                let</span><span class="z-variable z-other"> available</span><span class="z-keyword"> =</span><span class="z-entity z-name"> list_skills</span><span>(</span><span>)</span><span>;</span></span>
+<span class="giallo-l"><span class="z-entity z-name">                format!</span><span>(</span><span class="z-punctuation z-definition z-string">&quot;</span><span class="z-string">技能 &#39;</span><span class="z-string">{</span><span class="z-string">}</span><span class="z-string">&#39; 不存在。可用技能: </span><span class="z-string">{</span><span class="z-string">}</span><span class="z-punctuation z-definition z-string">&quot;</span><span>,</span><span class="z-variable z-other"> skill_name</span><span>,</span><span class="z-variable z-other"> available</span><span class="z-keyword">.</span><span class="z-entity z-name">join</span><span>(</span><span class="z-punctuation z-definition z-string">&quot;</span><span class="z-string">, </span><span class="z-punctuation z-definition z-string">&quot;</span><span>)</span><span>)</span></span>
+<span class="giallo-l"><span>            }</span></span>
+<span class="giallo-l"><span>        }</span></span>
+<span class="giallo-l"><span>    }</span></span>
+<span class="giallo-l"><span>}</span></span></code></pre>
+<p><code>execute</code> 就是一个文件读取——<code>std::fs::read_to_string</code>，两行。</p>
+<h3 id="liu-cheng-shi-zhe-yang-de">流程是这样的<a class="zola-anchor" href="#liu-cheng-shi-zhe-yang-de" aria-label="Anchor link for: liu-cheng-shi-zhe-yang-de" style="visibility: hidden;"></a>
+</h3>
+<pre class="giallo z-code"><code data-lang="plain"><span class="giallo-l"><span>用户: &quot;帮我设计一个客服 agent&quot;</span></span>
+<span class="giallo-l"><span>  ↓</span></span>
+<span class="giallo-l"><span>Claude 判断: 我需要 agent 设计相关知识</span></span>
+<span class="giallo-l"><span>  ↓</span></span>
+<span class="giallo-l"><span>Claude 调用: load_skill(&quot;agent-builder&quot;)</span></span>
+<span class="giallo-l"><span>  ↓</span></span>
+<span class="giallo-l"><span>tool_result: [agent-builder/SKILL.md 的全部内容]</span></span>
+<span class="giallo-l"><span>  ↓</span></span>
+<span class="giallo-l"><span>Claude 读完，基于知识给出专业回答</span></span></code></pre>
+<p><strong>关键在这里</strong>：知识进入 <code>messages[]</code> 的时机是「模型主动调用工具之后」，而不是启动时写死在 system prompt 里。这条对话里用不到的知识，永远不会出现在 context 里。</p>
+<h3 id="system-prompt-zhi-shuo-you-shen-me-bu-shuo-nei-rong-shi-shen-me">system prompt 只说「有什么」，不说「内容是什么」<a class="zola-anchor" href="#system-prompt-zhi-shuo-you-shen-me-bu-shuo-nei-rong-shi-shen-me" aria-label="Anchor link for: system-prompt-zhi-shuo-you-shen-me-bu-shuo-nei-rong-shi-shen-me" style="visibility: hidden;"></a>
+</h3>
+<pre class="giallo z-code"><code data-lang="rust"><span class="giallo-l"><span class="z-storage z-type">let</span><span class="z-variable z-other"> available</span><span class="z-keyword"> =</span><span class="z-entity z-name"> list_skills</span><span>(</span><span>)</span><span class="z-keyword">.</span><span class="z-entity z-name">join</span><span>(</span><span class="z-punctuation z-definition z-string">&quot;</span><span class="z-string">, </span><span class="z-punctuation z-definition z-string">&quot;</span><span>)</span><span>;</span></span>
+<span class="giallo-l"><span class="z-storage z-type">let</span><span class="z-variable z-other"> system</span><span class="z-keyword"> =</span><span class="z-entity z-name"> format!</span><span>(</span></span>
+<span class="giallo-l"><span class="z-punctuation z-definition z-string">    &quot;</span><span class="z-string">你是一个知识丰富的助手。当你需要特定领域的专业知识时，用 load_skill 工具加载对应技能文档。</span><span class="z-constant">\</span><span class="z-constant">n</span><span class="z-string">可用技能: </span><span class="z-string">{</span><span class="z-string">}</span><span class="z-punctuation z-definition z-string">&quot;</span><span>,</span></span>
+<span class="giallo-l"><span class="z-variable z-other">    available</span></span>
+<span class="giallo-l"><span>)</span><span>;</span></span></code></pre>
+<p>system prompt 只告诉模型「你有哪些技能可以加载」，不塞内容本身。模型自己决定要不要调、调哪个。</p>
+<h3 id="pao-qi-lai-de-xiao-guo">跑起来的效果<a class="zola-anchor" href="#pao-qi-lai-de-xiao-guo" aria-label="Anchor link for: pao-qi-lai-de-xiao-guo" style="visibility: hidden;"></a>
+</h3>
+<p>输入："帮我设计一个 agent"：</p>
+<pre class="giallo z-code"><code data-lang="plain"><span class="giallo-l"><span>[工具调用] load_skill  {&quot;skill_name&quot;: &quot;agent-builder&quot;}</span></span>
+<span class="giallo-l"><span>  [加载技能] agent-builder (3421 字节)</span></span>
+<span class="giallo-l"></span>
+<span class="giallo-l"><span>Claude: 设计一个 agent 需要考虑三个核心要素：</span></span>
+<span class="giallo-l"><span>  1. Capabilities（能做什么）...</span></span></code></pre>
+<p>输入："帮我 review 这段代码"：</p>
+<pre class="giallo z-code"><code data-lang="plain"><span class="giallo-l"><span>[工具调用] load_skill  {&quot;skill_name&quot;: &quot;code-review&quot;}</span></span>
+<span class="giallo-l"><span>  [加载技能] code-review (1876 字节)</span></span>
+<span class="giallo-l"></span>
+<span class="giallo-l"><span>Claude: 代码审查建议从以下几个维度...</span></span></code></pre>
+<p>没有任何路由代码，判断完全在模型侧。</p>
+<hr />
+<h2 id="s06-messages-tai-chang-liao-zi-ji-ya-suo">S06：messages 太长了，自己压缩<a class="zola-anchor" href="#s06-messages-tai-chang-liao-zi-ji-ya-suo" aria-label="Anchor link for: s06-messages-tai-chang-liao-zi-ji-ya-suo" style="visibility: hidden;"></a>
+</h2>
+<h3 id="xian-li-jie-wen-ti">先理解问题<a class="zola-anchor" href="#xian-li-jie-wen-ti" aria-label="Anchor link for: xian-li-jie-wen-ti" style="visibility: hidden;"></a>
+</h3>
+<p>agent 的对话历史是追加的——每次工具调用产生两条（<code>assistant</code> + <code>tool_result</code>），几轮下来 <code>messages</code> 轻松到 30、40 条。</p>
+<p>大模型的 context window 有限，超了要么报错，要么截断——截断更危险，因为它会悄悄丢掉你以为存在的信息。</p>
+<h3 id="jie-fa-chao-guo-yu-zhi-yong-mo-xing-ya-suo-jiu-xiao-xi">解法：超过阈值，用模型压缩旧消息<a class="zola-anchor" href="#jie-fa-chao-guo-yu-zhi-yong-mo-xing-ya-suo-jiu-xiao-xi" aria-label="Anchor link for: jie-fa-chao-guo-yu-zhi-yong-mo-xing-ya-suo-jiu-xiao-xi" style="visibility: hidden;"></a>
+</h3>
+<p>两个常量：</p>
+<pre class="giallo z-code"><code data-lang="rust"><span class="giallo-l"><span class="z-storage z-type">const</span><span class="z-constant"> COMPACT_THRESHOLD</span><span class="z-keyword">:</span><span class="z-entity z-name"> usize</span><span class="z-keyword"> =</span><span class="z-constant"> 20</span><span>;</span><span class="z-punctuation z-definition z-comment"> //</span><span class="z-comment"> 超过这个数触发压缩</span></span>
+<span class="giallo-l"><span class="z-storage z-type">const</span><span class="z-constant"> KEEP_RECENT</span><span class="z-keyword">:</span><span class="z-entity z-name"> usize</span><span class="z-keyword"> =</span><span class="z-constant"> 10</span><span>;</span><span class="z-punctuation z-definition z-comment">       //</span><span class="z-comment"> 保留最近 N 条原文</span></span></code></pre>
+<p>每轮 agent loop 开始前调用一次 <code>maybe_compact</code>：</p>
+<pre class="giallo z-code"><code data-lang="rust"><span class="giallo-l"><span class="z-keyword">async</span><span class="z-keyword"> fn</span><span class="z-entity z-name"> maybe_compact</span><span>(</span></span>
+<span class="giallo-l"><span class="z-variable z-other">    client</span><span class="z-keyword">:</span><span class="z-keyword"> &amp;</span><span class="z-entity z-name">reqwest</span><span class="z-keyword">::</span><span class="z-entity z-name">Client</span><span>,</span></span>
+<span class="giallo-l"><span class="z-variable z-other">    api_key</span><span class="z-keyword">:</span><span class="z-keyword"> &amp;</span><span class="z-entity z-name">str</span><span>,</span></span>
+<span class="giallo-l"><span class="z-variable z-other">    messages</span><span class="z-keyword">:</span><span class="z-keyword"> &amp;</span><span class="z-storage">mut</span><span class="z-entity z-name"> Vec</span><span>&lt;</span><span class="z-entity z-name">Message</span><span>&gt;</span><span>,</span></span>
+<span class="giallo-l"><span>)</span><span> {</span></span>
+<span class="giallo-l"><span class="z-keyword">    if</span><span class="z-variable z-other"> messages</span><span class="z-keyword">.</span><span class="z-entity z-name">len</span><span>(</span><span>)</span><span> &lt;</span><span class="z-constant"> COMPACT_THRESHOLD</span><span> {</span></span>
+<span class="giallo-l"><span class="z-keyword">        return</span><span>;</span></span>
+<span class="giallo-l"><span>    }</span></span>
+<span class="giallo-l"></span>
+<span class="giallo-l"><span class="z-punctuation z-definition z-comment">    //</span><span class="z-comment"> drain 取出前面要压缩的部分</span></span>
+<span class="giallo-l"><span class="z-storage z-type">    let</span><span class="z-variable z-other"> to_compress</span><span class="z-keyword">:</span><span class="z-entity z-name"> Vec</span><span>&lt;</span><span class="z-entity z-name">Message</span><span>&gt;</span><span class="z-keyword"> =</span><span class="z-variable z-other"> messages</span><span class="z-keyword">.</span><span class="z-entity z-name">drain</span><span>(</span><span class="z-keyword">..</span><span class="z-constant">COMPACT_THRESHOLD</span><span class="z-keyword"> -</span><span class="z-constant"> KEEP_RECENT</span><span>)</span><span class="z-keyword">.</span><span class="z-entity z-name">collect</span><span>(</span><span>)</span><span>;</span></span>
+<span class="giallo-l"><span class="z-entity z-name">    println!</span><span>(</span><span class="z-punctuation z-definition z-string">&quot;</span><span class="z-string">[压缩] 将 </span><span class="z-string">{</span><span class="z-string">}</span><span class="z-string"> 条消息压缩为摘要...</span><span class="z-punctuation z-definition z-string">&quot;</span><span>,</span><span class="z-variable z-other"> to_compress</span><span class="z-keyword">.</span><span class="z-entity z-name">len</span><span>(</span><span>)</span><span>)</span><span>;</span></span>
+<span class="giallo-l"></span>
+<span class="giallo-l"><span class="z-storage z-type">    let</span><span class="z-variable z-other"> summary</span><span class="z-keyword"> =</span><span class="z-entity z-name"> summarize</span><span>(</span><span class="z-variable z-other">client</span><span>,</span><span class="z-variable z-other"> api_key</span><span>,</span><span class="z-keyword"> &amp;</span><span class="z-variable z-other">to_compress</span><span>)</span><span class="z-keyword">.</span><span class="z-keyword">await</span><span>;</span></span>
+<span class="giallo-l"></span>
+<span class="giallo-l"><span class="z-punctuation z-definition z-comment">    //</span><span class="z-comment"> 把摘要插回最前面</span></span>
+<span class="giallo-l"><span class="z-variable z-other">    messages</span><span class="z-keyword">.</span><span class="z-entity z-name">insert</span><span>(</span><span class="z-constant">0</span><span>,</span><span class="z-entity z-name"> Message</span><span> {</span></span>
+<span class="giallo-l"><span class="z-variable z-other">        role</span><span class="z-keyword">:</span><span class="z-punctuation z-definition z-string"> &quot;</span><span class="z-string">user</span><span class="z-punctuation z-definition z-string">&quot;</span><span class="z-keyword">.</span><span class="z-entity z-name">to_string</span><span>(</span><span>)</span><span>,</span></span>
+<span class="giallo-l"><span class="z-variable z-other">        content</span><span class="z-keyword">:</span><span class="z-entity z-name"> json!</span><span>(</span><span class="z-entity z-name">format!</span><span>(</span><span class="z-punctuation z-definition z-string">&quot;</span><span class="z-string">[对话历史摘要]</span><span class="z-constant">\</span><span class="z-constant">n</span><span class="z-string">{</span><span class="z-string">}</span><span class="z-punctuation z-definition z-string">&quot;</span><span>,</span><span class="z-variable z-other"> summary</span><span>)</span><span>)</span><span>,</span></span>
+<span class="giallo-l"><span>    }</span><span>)</span><span>;</span></span>
+<span class="giallo-l"></span>
+<span class="giallo-l"><span class="z-entity z-name">    println!</span><span>(</span><span class="z-punctuation z-definition z-string">&quot;</span><span class="z-string">[压缩完成] 剩余消息数: </span><span class="z-string">{</span><span class="z-string">}</span><span class="z-punctuation z-definition z-string">&quot;</span><span>,</span><span class="z-variable z-other"> messages</span><span class="z-keyword">.</span><span class="z-entity z-name">len</span><span>(</span><span>)</span><span>)</span><span>;</span></span>
+<span class="giallo-l"><span>}</span></span></code></pre>
+<p><code>summarize</code> 把要压缩的消息拼成文本，发给模型请求摘要：</p>
+<pre class="giallo z-code"><code data-lang="rust"><span class="giallo-l"><span class="z-keyword">async</span><span class="z-keyword"> fn</span><span class="z-entity z-name"> summarize</span><span>(</span></span>
+<span class="giallo-l"><span class="z-variable z-other">    client</span><span class="z-keyword">:</span><span class="z-keyword"> &amp;</span><span class="z-entity z-name">reqwest</span><span class="z-keyword">::</span><span class="z-entity z-name">Client</span><span>,</span></span>
+<span class="giallo-l"><span class="z-variable z-other">    api_key</span><span class="z-keyword">:</span><span class="z-keyword"> &amp;</span><span class="z-entity z-name">str</span><span>,</span></span>
+<span class="giallo-l"><span class="z-variable z-other">    messages</span><span class="z-keyword">:</span><span class="z-keyword"> &amp;</span><span>[</span><span class="z-entity z-name">Message</span><span>]</span><span>,</span></span>
+<span class="giallo-l"><span>)</span><span class="z-keyword"> -&gt;</span><span class="z-entity z-name"> String</span><span> {</span></span>
+<span class="giallo-l"><span class="z-storage z-type">    let</span><span class="z-variable z-other"> text</span><span class="z-keyword"> =</span><span class="z-variable z-other"> messages</span><span class="z-keyword">.</span><span class="z-entity z-name">iter</span><span>(</span><span>)</span></span>
+<span class="giallo-l"><span class="z-keyword">        .</span><span class="z-entity z-name">map</span><span>(</span><span class="z-keyword">|</span><span class="z-variable z-other">m</span><span class="z-keyword">|</span><span class="z-entity z-name"> format!</span><span>(</span><span class="z-punctuation z-definition z-string">&quot;</span><span class="z-string">{</span><span class="z-string">}</span><span class="z-string">: </span><span class="z-string">{</span><span class="z-string">}</span><span class="z-punctuation z-definition z-string">&quot;</span><span>,</span><span class="z-variable z-other"> m</span><span class="z-keyword">.</span><span>role</span><span>,</span><span class="z-variable z-other"> m</span><span class="z-keyword">.</span><span>content</span><span>)</span><span>)</span></span>
+<span class="giallo-l"><span class="z-keyword">        .</span><span class="z-entity z-name">collect</span><span class="z-keyword">::</span><span>&lt;</span><span class="z-entity z-name">Vec</span><span>&lt;</span><span class="z-variable z-other">_</span><span>&gt;</span><span>&gt;</span><span>(</span><span>)</span></span>
+<span class="giallo-l"><span class="z-keyword">        .</span><span class="z-entity z-name">join</span><span>(</span><span class="z-punctuation z-definition z-string">&quot;</span><span class="z-constant">\</span><span class="z-constant">n</span><span class="z-punctuation z-definition z-string">&quot;</span><span>)</span><span>;</span></span>
+<span class="giallo-l"></span>
+<span class="giallo-l"><span class="z-storage z-type">    let</span><span class="z-variable z-other"> req</span><span class="z-keyword"> =</span><span class="z-entity z-name"> ApiRequest</span><span> {</span></span>
+<span class="giallo-l"><span class="z-variable z-other">        model</span><span class="z-keyword">:</span><span class="z-punctuation z-definition z-string"> &quot;</span><span class="z-string">claude-haiku-4-5-20251001</span><span class="z-punctuation z-definition z-string">&quot;</span><span class="z-keyword">.</span><span class="z-entity z-name">to_string</span><span>(</span><span>)</span><span>,</span></span>
+<span class="giallo-l"><span class="z-variable z-other">        max_tokens</span><span class="z-keyword">:</span><span class="z-constant"> 1024</span><span>,</span></span>
+<span class="giallo-l"><span class="z-variable z-other">        system</span><span class="z-keyword">:</span><span class="z-punctuation z-definition z-string"> &quot;</span><span class="z-string">请将以下对话历史压缩成简洁摘要，保留关键信息、已完成的操作和重要结论。</span><span class="z-punctuation z-definition z-string">&quot;</span><span class="z-keyword">.</span><span class="z-entity z-name">to_string</span><span>(</span><span>)</span><span>,</span></span>
+<span class="giallo-l"><span class="z-variable z-other">        messages</span><span class="z-keyword">:</span><span class="z-entity z-name"> vec!</span><span>[</span><span class="z-entity z-name">Message</span><span> {</span></span>
+<span class="giallo-l"><span class="z-variable z-other">            role</span><span class="z-keyword">:</span><span class="z-punctuation z-definition z-string"> &quot;</span><span class="z-string">user</span><span class="z-punctuation z-definition z-string">&quot;</span><span class="z-keyword">.</span><span class="z-entity z-name">to_string</span><span>(</span><span>)</span><span>,</span></span>
+<span class="giallo-l"><span class="z-variable z-other">            content</span><span class="z-keyword">:</span><span class="z-entity z-name"> json!</span><span>(</span><span class="z-variable z-other">text</span><span>)</span><span>,</span></span>
+<span class="giallo-l"><span>        }</span><span>]</span><span>,</span></span>
+<span class="giallo-l"><span class="z-variable z-other">        tools</span><span class="z-keyword">:</span><span class="z-entity z-name"> None</span><span>,</span></span>
+<span class="giallo-l"><span>    }</span><span>;</span></span>
+<span class="giallo-l"></span>
+<span class="giallo-l"><span class="z-punctuation z-definition z-comment">    //</span><span class="z-comment"> ... call_api，提取文本返回</span></span>
+<span class="giallo-l"><span>}</span></span></code></pre><h3 id="agent-loop-li-zhi-jia-yi-xing">agent loop 里只加一行<a class="zola-anchor" href="#agent-loop-li-zhi-jia-yi-xing" aria-label="Anchor link for: agent-loop-li-zhi-jia-yi-xing" style="visibility: hidden;"></a>
+</h3>
+<pre class="giallo z-code"><code data-lang="rust"><span class="giallo-l"><span class="z-keyword">loop</span><span> {</span></span>
+<span class="giallo-l"><span class="z-entity z-name">    maybe_compact</span><span>(</span><span class="z-variable z-other">client</span><span>,</span><span class="z-variable z-other"> api_key</span><span>,</span><span class="z-keyword"> &amp;</span><span class="z-storage">mut</span><span class="z-variable z-other"> messages</span><span>)</span><span class="z-keyword">.</span><span class="z-keyword">await</span><span>;</span><span class="z-punctuation z-definition z-comment">  //</span><span class="z-comment"> ← 只加这一行</span></span>
+<span class="giallo-l"><span class="z-storage z-type">    let</span><span class="z-variable z-other"> response</span><span class="z-keyword"> =</span><span class="z-entity z-name"> call_api</span><span>(</span><span class="z-keyword">...</span><span>)</span><span class="z-keyword">.</span><span class="z-keyword">await</span><span>;</span></span>
+<span class="giallo-l"><span class="z-punctuation z-definition z-comment">    //</span><span class="z-comment"> 其余完全不变</span></span>
+<span class="giallo-l"><span>}</span></span></code></pre>
+<p>agent loop 本身不需要感知压缩发生过——它只看到一个长度可控的 <code>messages</code>，继续正常工作。</p>
+<h3 id="vec-de-drain-shi-guan-jian">Vec 的 drain 是关键<a class="zola-anchor" href="#vec-de-drain-shi-guan-jian" aria-label="Anchor link for: vec-de-drain-shi-guan-jian" style="visibility: hidden;"></a>
+</h3>
+<p><code>drain(..N)</code> 从 Vec 里取出前 N 个元素，返回迭代器，原 Vec 缩短。对比几种方案：</p>
+<table><thead><tr><th>方法</th><th>行为</th><th>适合场景</th></tr></thead><tbody>
+<tr><td><code>split_at</code></td><td>借用，不修改</td><td>只读</td></tr>
+<tr><td><code>drain(..N)</code></td><td>取出并删除</td><td>需要消费前 N 个</td></tr>
+<tr><td><code>truncate(N)</code></td><td>保留前 N，删掉后面</td><td>反向需求</td></tr>
+</tbody></table>
+<p>这里用 <code>drain</code> 最自然——取出要压缩的部分，剩下的自动前移。</p>
+<hr />
+<h2 id="jin-tian-de-rust-shou-huo">今天的 Rust 收获<a class="zola-anchor" href="#jin-tian-de-rust-shou-huo" aria-label="Anchor link for: jin-tian-de-rust-shou-huo" style="visibility: hidden;"></a>
+</h2>
+<table><thead><tr><th>机制</th><th>用在哪</th><th>解决什么问题</th></tr></thead><tbody>
+<tr><td><code>std::fs::read_to_string</code></td><td>SkillLoaderTool</td><td>同步文件读取，两行搞定</td></tr>
+<tr><td><code>Vec::drain(..N)</code></td><td>maybe_compact</td><td>取出前 N 条消息并从 Vec 中移除</td></tr>
+<tr><td><code>Vec::insert(0, ...)</code></td><td>maybe_compact</td><td>把摘要插回最前面</td></tr>
+</tbody></table>
+<p>S05 最大的收获不是 Rust 语法，而是设计思路：<strong>知识是工具，不是配置</strong>。把所有知识扔进 system prompt 是懒惰的做法，让模型自己决定要什么，才是正确的抽象。</p>
+<hr />
+<h2 id="xia-yi-bu">下一步<a class="zola-anchor" href="#xia-yi-bu" aria-label="Anchor link for: xia-yi-bu" style="visibility: hidden;"></a>
+</h2>
+<p>Day 6-7 是缓冲期：修 bug、补注释、<code>git pull</code> 更新网站。</p>
+<p>然后 Day 8 开始任务系统（S07）——<code>Task</code> struct 带依赖关系，要做图的拓扑排序，终于到 Rust 更有趣的部分了。</p>
+<p>代码在：<a rel="nofollow noreferrer external" href="https://github.com/Hamiltonxx/learn-claude-code-rust">https://github.com/Hamiltonxx/learn-claude-code-rust</a></p>
+
+      </article>
+
+      
+      
+
+      
+      
+      <div class="giscus"></div>
+      <style>
+#comments { margin-top: 3rem; }
+.c-item { margin: 1.2rem 0; }
+.c-reply { margin-left: 1.5rem; padding-left: 1rem; border-left: 2px solid var(--text-decoration-color); }
+.c-meta { display: flex; align-items: center; gap: 0.6rem; margin-bottom: 0.3rem; font-size: 0.85em; }
+.c-name { font-weight: bold; color: var(--text-color); }
+.c-time { color: var(--text-pale-color); }
+.c-reply-btn {
+  background: none; border: none; padding: 0;
+  color: var(--primary-color); cursor: pointer;
+  font-size: 0.85em; opacity: 0;
+  transition: opacity 0.15s;
+}
+.c-item:hover .c-reply-btn { opacity: 1; }
+.c-body { color: var(--text-color); line-height: var(--line-height); white-space: pre-wrap; word-break: break-word; }
+.c-loading, .c-empty { color: var(--text-pale-color); font-size: 0.9em; padding: 1rem 0; }
+.c-form { margin-top: 2rem; display: flex; flex-direction: column; gap: 0.6rem; }
+.c-form-row { display: flex; gap: 0.6rem; }
+.c-input {
+  width: 100%; padding: 0.5rem 0.7rem;
+  border: 1.5px solid var(--text-decoration-color);
+  border-radius: 4px;
+  background: var(--bg-color); color: var(--text-color);
+  font-size: 0.9em; font-family: var(--main-font);
+  outline: none; transition: border-color 0.15s;
+}
+.c-input:focus { border-color: var(--primary-color); }
+.c-input-content { resize: vertical; min-height: 100px; }
+.c-reply-tip {
+  font-size: 0.85em; color: var(--primary-color);
+  padding: 0.2rem 0.5rem;
+  background: var(--inline-code-bg-color);
+  border-radius: 4px; align-self: flex-start;
+}
+.c-reply-tip::after { content: " ✕"; opacity: 0.5; }
+.c-form-actions { display: flex; justify-content: flex-end; }
+.c-submit {
+  padding: 0.4rem 1.2rem;
+  background: var(--primary-color); color: var(--bg-color);
+  border: none; border-radius: 4px;
+  cursor: pointer; font-size: 0.9em;
+  transition: opacity 0.15s;
+}
+.c-submit:hover { opacity: 0.85; }
+.c-submit:disabled { opacity: 0.5; cursor: not-allowed; }
+</style>
+<div id="comments" data-page="&#x2F;posts&#x2F;rust-agent-skill-compact-2026-03-29&#x2F;"></div>
+<script src="/comments.js"></script>
+
+
+      
+    </div>
+
+    
+
+
+<footer>
+  <div class="left">
+    <div class="copyright">
+      © 2026 Cirray AI
+      
+      <span>|</span>
+      Built with <a href="https://www.getzola.org" rel="noreferrer" target="_blank">zola</a> and <a href="https://github.com/isunjn/serene" rel="noreferrer" target="_blank">serene</a>
+      
+    </div>
+  </div>
+
+  <div class="right">
+    
+    
+    
+    
+
+    
+    
+    
+    <button id="theme-toggle" aria-label="theme switch">
+      <span class="moon-icon"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="18" height="18"><path d="M10 7C10 10.866 13.134 14 17 14C18.9584 14 20.729 13.1957 21.9995 11.8995C22 11.933 22 11.9665 22 12C22 17.5228 17.5228 22 12 22C6.47715 22 2 17.5228 2 12C2 6.47715 6.47715 2 12 2C12.0335 2 12.067 2 12.1005 2.00049C10.8043 3.27098 10 5.04157 10 7ZM4 12C4 16.4183 7.58172 20 12 20C15.0583 20 17.7158 18.2839 19.062 15.7621C18.3945 15.9187 17.7035 16 17 16C12.0294 16 8 11.9706 8 7C8 6.29648 8.08133 5.60547 8.2379 4.938C5.71611 6.28423 4 8.9417 4 12Z" fill="currentColor"></path></svg>
+</span>
+      <span class="sun-icon"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="18" height="18"><path d="M12 18C8.68629 18 6 15.3137 6 12C6 8.68629 8.68629 6 12 6C15.3137 6 18 8.68629 18 12C18 15.3137 15.3137 18 12 18ZM12 16C14.2091 16 16 14.2091 16 12C16 9.79086 14.2091 8 12 8C9.79086 8 8 9.79086 8 12C8 14.2091 9.79086 16 12 16ZM11 1H13V4H11V1ZM11 20H13V23H11V20ZM3.51472 4.92893L4.92893 3.51472L7.05025 5.63604L5.63604 7.05025L3.51472 4.92893ZM16.9497 18.364L18.364 16.9497L20.4853 19.0711L19.0711 20.4853L16.9497 18.364ZM19.0711 3.51472L20.4853 4.92893L18.364 7.05025L16.9497 5.63604L19.0711 3.51472ZM5.63604 16.9497L7.05025 18.364L4.92893 20.4853L3.51472 19.0711L5.63604 16.9497ZM23 11V13H20V11H23ZM4 11V13H1V11H4Z" fill="currentColor"></path></svg>
+</span>
+    </button>
+    
+  </div>
+</footer>
+
+
+
+
+
+  </main>
+</div>
+
+  
+<script src="/js/lightense.min.js"></script>
+
+
+  <script src="https://blog.cirray.cn/js/main.js"></script>
+</body>
+
+</html>
