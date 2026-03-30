@@ -1,0 +1,414 @@
+<!DOCTYPE html>
+
+<html lang="zh">
+
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="color-scheme" content="light dark">
+  
+  
+    
+  
+  <meta name="description" content="不是刷 LeetCode，而是让 AI 读你的真实项目代码、每天定时出一道针对性练习题，push 到 GitHub 等你去做。">
+
+  <title>让 AI 每天出一道 Rust 题：用 Claude Remote Agent 实现自动刷题</title>
+  <link rel="icon" type="image/png" sizes="32x32" href="https://blog.cirray.cn/img/favicon-32x32.png">
+  <link rel="icon" type="image/png" sizes="16x16" href="https://blog.cirray.cn/img/favicon-16x16.png">
+  <link rel="apple-touch-icon" sizes="180x180" href="https://blog.cirray.cn/img/apple-touch-icon.png">
+  
+  <style>
+
+  /* light mode colors */
+  body {
+    --primary-color: #5871a2;
+    --primary-pale-color: #5871a233;
+    --primary-decoration-color: #5871a210;
+    --bg-color: #ffffff;
+    --text-color: #2f3030;
+    --text-pale-color: #767676;
+    --text-decoration-color: #a9a9a9;
+    --highlight-mark-color: #5f75b020;
+
+    --callout-note-color: #5871a2;
+    --callout-tip-color: #268556;
+    --callout-important-color: #885fc9;
+    --callout-warning-color: #ab6632;
+    --callout-caution-color: #c64e4e;
+  }
+
+  /* dark mode colors */
+  body.dark {
+    --primary-color: #6f8fd1;
+    --primary-pale-color: #6f8fd166;
+    --primary-decoration-color: #6f8fd112;
+    --bg-color: #1c1c1c;
+    --text-color: #c1c1c1;
+    --text-pale-color: #848484;
+    --text-decoration-color: #5f5f5f;
+    --highlight-mark-color: #8296cb3b;
+
+    --callout-note-color: #6f8fd1;
+    --callout-tip-color: #47976f;
+    --callout-important-color: #9776cd;
+    --callout-warning-color: #ad7a52;
+    --callout-caution-color: #d06161;
+  }
+
+  /* typography */
+  body {
+    --main-font: ui-sans-serif, system-ui, sans-serif, 'Apple Color Emoji', 'Segoe UI Emoji', 'Segoe UI Symbol', 'Noto Color Emoji';
+    --code-font: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, 'Liberation Mono', 'Courier New', monospace;
+    --homepage-max-width: 768px;
+    --main-max-width: 768px;
+    --avatar-size: 60px;
+    --font-size: 16px;
+    --line-height: 1.75;
+    --img-border-radius: 0px;
+    --detail-border-radius: 0px;
+    --dark-mode-img-brightness: 0.75;
+    --dark-mode-chart-brightness: 0.75;
+    --inline-code-border-radius: 2px;
+    --inline-code-bg-color: var(--primary-decoration-color);
+    --block-code-border-radius: 0px;
+    --block-code-border-color: var(--primary-color);
+    --detail-border-color: var(--primary-color);
+  }
+
+</style>
+
+  <link rel="stylesheet" href="https://blog.cirray.cn/main.css">
+  
+
+<link id="hl" rel="stylesheet" type="text/css" href="/giallo-light.css" />
+
+
+
+  
+</head>
+
+<body class="post">
+  
+  <script>
+    const theme = sessionStorage.getItem('theme');
+    const match = window.matchMedia("(prefers-color-scheme: dark)").matches;
+    if ((theme && theme == 'dark') || (!theme && match)) {
+      document.body.classList.add('dark');
+      const hl = document.querySelector('link#hl');
+      if (hl) hl.href = 'https://blog.cirray.cn/giallo-dark.css';
+    }
+  </script>
+  
+  
+<div id="wrapper">
+  <div id="blank"></div>
+  <aside>
+    
+    
+    <nav>
+      <ul>
+        
+        <li>
+          <a class="h2" href="#wei-shen-me-yao-zhe-me-gao">为什么要这么搞</a>
+          
+        </li>
+        
+        <li>
+          <a class="h2" href="#jia-gou-she-ji">架构设计</a>
+          
+        </li>
+        
+        <li>
+          <a class="h2" href="#agent-prompt-she-ji">Agent Prompt 设计</a>
+          
+        </li>
+        
+        <li>
+          <a class="h2" href="#token-xiao-lu-wen-ti">Token 效率问题</a>
+          
+        </li>
+        
+        <li>
+          <a class="h2" href="#remote-agent-shi-shen-me">Remote Agent 是什么</a>
+          
+        </li>
+        
+        <li>
+          <a class="h2" href="#wei-shen-me-bu-yong-ben-di-cron">为什么不用本地 cron</a>
+          
+        </li>
+        
+        <li>
+          <a class="h2" href="#jie-guo">结果</a>
+          
+        </li>
+        
+      </ul>
+    </nav>
+    
+    
+    <button id="back-to-top" aria-label="back to top">
+      
+      <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="feather feather-arrow-up"><line x1="12" y1="19" x2="12" y2="5"></line><polyline points="5 12 12 5 19 12"></polyline></svg>
+
+    </button>
+    
+  </aside>
+  <main>
+    
+<header>
+  <nav>
+    <a id="back-link" href="https:&#x2F;&#x2F;blog.cirray.cn&#x2F;posts">← Back</a>
+  </nav>
+</header>
+
+
+    <div>
+      
+      
+      
+      
+      <div id="copy-cfg" style="display: none;" data-copy-icon="&lt;svg xmlns=&quot;http:&#x2F;&#x2F;www.w3.org&#x2F;2000&#x2F;svg&quot; viewBox=&quot;0 0 24 24&quot; width=&quot;18&quot; height=&quot;18&quot;&gt;&lt;path d=&quot;M6.9998 6V3C6.9998 2.44772 7.44752 2 7.9998 2H19.9998C20.5521 2 20.9998 2.44772 20.9998 3V17C20.9998 17.5523 20.5521 18 19.9998 18H16.9998V20.9991C16.9998 21.5519 16.5499 22 15.993 22H4.00666C3.45059 22 3 21.5554 3 20.9991L3.0026 7.00087C3.0027 6.44811 3.45264 6 4.00942 6H6.9998ZM5.00242 8L5.00019 20H14.9998V8H5.00242ZM8.9998 6H16.9998V16H18.9998V4H8.9998V6Z&quot; fill=&quot;currentColor&quot;&gt;&lt;&#x2F;path&gt;&lt;&#x2F;svg&gt;
+" data-check-icon="&lt;svg xmlns=&quot;http:&#x2F;&#x2F;www.w3.org&#x2F;2000&#x2F;svg&quot; viewBox=&quot;0 0 24 24&quot; width=&quot;18&quot; height=&quot;18&quot;&gt;&lt;path d=&quot;M10.0007 15.1709L19.1931 5.97852L20.6073 7.39273L10.0007 17.9993L3.63672 11.6354L5.05093 10.2212L10.0007 15.1709Z&quot; fill=&quot;currentColor&quot;&gt;&lt;&#x2F;path&gt;&lt;&#x2F;svg&gt;
+"></div>
+      
+      <article class="prose">
+        <h1>让 AI 每天出一道 Rust 题：用 Claude Remote Agent 实现自动刷题</h1>
+        <div id="post-info">
+          <div id="date">
+            <span id="publish">2026-03-30</span>
+            </div>
+
+          
+          <div id="tags">
+            <a class="instant" href="https://blog.cirray.cn/tags/rust"><span>#</span>rust</a><a class="instant" href="https://blog.cirray.cn/tags/claude-code"><span>#</span>claude-code</a><a class="instant" href="https://blog.cirray.cn/tags/remote-agent"><span>#</span>remote-agent</a><a class="instant" href="https://blog.cirray.cn/tags/github"><span>#</span>github</a><a class="instant" href="https://blog.cirray.cn/tags/automation"><span>#</span>automation</a>
+          </div>
+          
+        </div>
+
+        
+        
+
+        
+
+        <p>今天搭了一套自动出题系统：Claude Remote Agent 每天 18:00 读我两个 Rust 工程的最新 commit，结合预设考点计划，自动生成一道练习题 push 到 GitHub，我 pull 下来做就行。</p>
+<hr />
+<h2 id="wei-shen-me-yao-zhe-me-gao">为什么要这么搞<a class="zola-anchor" href="#wei-shen-me-yao-zhe-me-gao" aria-label="Anchor link for: wei-shen-me-yao-zhe-me-gao" style="visibility: hidden;"></a>
+</h2>
+<p>我有两个 Rust 工程一直在推进：</p>
+<ul>
+<li><strong>cbase</strong>：RAG 向量搜索 + MCP Server，用了 fastembed、qdrant、tokio、Arc/Mutex</li>
+<li><strong>learn-claude-code-rust</strong>：用 Rust 实现 Claude API agent loop，有 async trait、serde tag enum、reqwest</li>
+</ul>
+<p>代码写了不少，但很多 Rust 特性是"用过但没真正掌握"——比如 <code>Arc&lt;Mutex&lt;T&gt;&gt;</code> 在 async 里怎么用对、<code>impl Display</code> 怎么写、<code>#[serde(tag)]</code> 背后是什么。</p>
+<p>与其去刷通用题，不如直接从自己的代码里出题，练的都是真实遇到的模式。</p>
+<hr />
+<h2 id="jia-gou-she-ji">架构设计<a class="zola-anchor" href="#jia-gou-she-ji" aria-label="Anchor link for: jia-gou-she-ji" style="visibility: hidden;"></a>
+</h2>
+<pre class="giallo z-code"><code data-lang="plain"><span class="giallo-l"><span>每天 18:00</span></span>
+<span class="giallo-l"><span>  │</span></span>
+<span class="giallo-l"><span>  ▼</span></span>
+<span class="giallo-l"><span>Remote Agent（Anthropic 云端）</span></span>
+<span class="giallo-l"><span>  ├── gh api 读 learn-claude-code-rust 最新 commit diff（只读，不 clone）</span></span>
+<span class="giallo-l"><span>  ├── gh api 读 cli-tools 最新 commit diff（只读，不 clone）</span></span>
+<span class="giallo-l"><span>  ├── clone rust-daily-quiz（写入用）</span></span>
+<span class="giallo-l"><span>  ├── 按考点计划选题，结合代码改动出题</span></span>
+<span class="giallo-l"><span>  ├── 写入 quiz/src/quiz_NNN.rs</span></span>
+<span class="giallo-l"><span>  ├── 更新 quiz/QUIZ.md</span></span>
+<span class="giallo-l"><span>  └── commit + push</span></span>
+<span class="giallo-l"></span>
+<span class="giallo-l"><span>用户：git pull → cargo run --bin quiz_NNN</span></span></code></pre>
+<p>关键设计决策：<strong>只 clone rust-daily-quiz</strong>（要写入的 repo），另外两个工程用 <code>gh api</code> 只读，不 clone。Remote Agent 每次启动是全新容器，clone 小 repo 开销极低。</p>
+<hr />
+<h2 id="agent-prompt-she-ji">Agent Prompt 设计<a class="zola-anchor" href="#agent-prompt-she-ji" aria-label="Anchor link for: agent-prompt-she-ji" style="visibility: hidden;"></a>
+</h2>
+<p>Prompt 需要完全自包含，agent 启动时没有任何上下文。核心步骤：</p>
+<p><strong>1. 检查最近代码变动</strong></p>
+<p>用 <code>gh api</code> 查两个 repo 最近的 commit，找出改动的 <code>.rs</code> 文件：</p>
+<pre class="giallo z-code"><code data-lang="shellscript"><span class="giallo-l"><span class="z-entity z-name">gh</span><span class="z-string"> api</span><span class="z-punctuation z-definition z-string"> &quot;</span><span class="z-string">repos/Hamiltonxx/learn-claude-code-rust/commits?per_page=3</span><span class="z-punctuation z-definition z-string">&quot;</span></span>
+<span class="giallo-l"><span class="z-entity z-name">gh</span><span class="z-string"> api</span><span class="z-punctuation z-definition z-string"> &quot;</span><span class="z-string">repos/Hamiltonxx/cli-tools/commits?per_page=3</span><span class="z-punctuation z-definition z-string">&quot;</span></span></code></pre>
+<p>对最新 commit 查看 diff，聚焦 <code>files[].patch</code> 中 <code>.rs</code> 文件的改动内容。</p>
+<p><strong>2. 确定下一题编号和已覆盖考点</strong></p>
+<p>在已 clone 的 rust-daily-quiz 目录中，列出 <code>quiz/src/quiz_*.rs</code>，找最大编号，读 <code>QUIZ.md</code> 了解已覆盖考点。</p>
+<p><strong>3. 按考点计划选题</strong></p>
+<pre class="giallo z-code"><code data-lang="plain"><span class="giallo-l"><span>trait 实现(Display/Debug) → enum+match → Arc&lt;Mutex&lt;T&gt;&gt; →</span></span>
+<span class="giallo-l"><span>serde进阶 → async trait → 自定义Error → 结构体生命周期 →</span></span>
+<span class="giallo-l"><span>From/Into → 泛型+trait bound(Send+Sync) → newtype pattern</span></span></code></pre>
+<p>结合代码改动选最相关的考点，若无明显变动则按序选下一个。</p>
+<p><strong>4. 题目格式</strong></p>
+<pre class="giallo z-code"><code data-lang="rust"><span class="giallo-l"><span class="z-punctuation z-definition z-comment">//</span><span class="z-comment"> ============================================================</span></span>
+<span class="giallo-l"><span class="z-punctuation z-definition z-comment">//</span><span class="z-comment"> Quiz NNN — 考点标题</span></span>
+<span class="giallo-l"><span class="z-punctuation z-definition z-comment">//</span><span class="z-comment"> 日期: YYYY-MM-DD  难度: ★★☆☆☆  考点: xxx</span></span>
+<span class="giallo-l"><span class="z-punctuation z-definition z-comment">//</span><span class="z-comment"> 灵感: 工程名/文件路径（具体代码片段说明）</span></span>
+<span class="giallo-l"><span class="z-punctuation z-definition z-comment">//</span><span class="z-comment"> ============================================================</span></span>
+<span class="giallo-l"><span class="z-punctuation z-definition z-comment">//</span></span>
+<span class="giallo-l"><span class="z-punctuation z-definition z-comment">//</span><span class="z-comment"> 背景：[考点在实际代码中如何出现]</span></span>
+<span class="giallo-l"><span class="z-punctuation z-definition z-comment">//</span><span class="z-comment"> 任务：[清晰的任务描述]</span></span>
+<span class="giallo-l"><span class="z-punctuation z-definition z-comment">//</span><span class="z-comment"> 运行：cargo run --bin quiz_NNN</span></span>
+<span class="giallo-l"></span>
+<span class="giallo-l"><span class="z-punctuation z-definition z-comment">//</span><span class="z-comment"> starter code with TODO</span></span>
+<span class="giallo-l"></span>
+<span class="giallo-l"><span class="z-keyword">fn</span><span class="z-entity z-name"> main</span><span>(</span><span>)</span><span> {</span><span class="z-comment"> /*</span><span class="z-comment"> test cases </span><span class="z-comment">*/</span><span> }</span></span>
+<span class="giallo-l"></span>
+<span class="giallo-l"><span class="z-punctuation z-definition z-comment">//</span><span class="z-comment"> ============================================================</span></span>
+<span class="giallo-l"><span class="z-punctuation z-definition z-comment">//</span><span class="z-comment"> 期望输出：...</span></span>
+<span class="giallo-l"><span class="z-punctuation z-definition z-comment">//</span><span class="z-comment"> 提示：...</span></span>
+<span class="giallo-l"><span class="z-punctuation z-definition z-comment">//</span><span class="z-comment"> ============================================================</span></span></code></pre>
+<p><strong>5. 写入文件、更新 QUIZ.md、commit + push</strong></p>
+<hr />
+<h2 id="token-xiao-lu-wen-ti">Token 效率问题<a class="zola-anchor" href="#token-xiao-lu-wen-ti" aria-label="Anchor link for: token-xiao-lu-wen-ti" style="visibility: hidden;"></a>
+</h2>
+<p>搭建过程中踩了个坑：第一次探索两个工程花了 2K+ token，如果每天重复扫描代价太高。</p>
+<p>解决方案：<strong>把稳定信息存入 Claude memory，不稳定信息用 git diff 增量读。</strong></p>
+<p>memory 里存：</p>
+<ul>
+<li>用户 Rust 水平评估（稳定）</li>
+<li>两个工程路径和关键文件映射（稳定）</li>
+<li>下一题编号（append-only）</li>
+</ul>
+<p>每次出题只需读 1~2 个目标文件，而不是全量扫描。这个优化适用于本地 session，Remote Agent 本身是无状态的，靠 QUIZ.md 维护进度。</p>
+<hr />
+<h2 id="remote-agent-shi-shen-me">Remote Agent 是什么<a class="zola-anchor" href="#remote-agent-shi-shen-me" aria-label="Anchor link for: remote-agent-shi-shen-me" style="visibility: hidden;"></a>
+</h2>
+<p>CCR（Cloud Code Runner）是 Anthropic 云端运行的 Claude Code 实例。</p>
+<p>简单说：<strong>就是一个跑在云上的 Claude Code session，按时间自动触发。</strong></p>
+<pre class="giallo z-code"><code data-lang="plain"><span class="giallo-l"><span>你的机器                    Anthropic 云端</span></span>
+<span class="giallo-l"></span>
+<span class="giallo-l"><span>定时触发（18:00）  ──────►  新容器启动</span></span>
+<span class="giallo-l"><span>                            clone repo</span></span>
+<span class="giallo-l"><span>                            运行 Claude</span></span>
+<span class="giallo-l"><span>                            执行工具（Bash/Write/gh...）</span></span>
+<span class="giallo-l"><span>                            commit + push</span></span>
+<span class="giallo-l"><span>                            容器销毁</span></span></code></pre>
+<p>和你本地用 Claude Code 是同一个东西，区别是：</p>
+<ul>
+<li>不需要你的机器在线</li>
+<li>每次全新环境，无状态</li>
+<li>通过 GitHub repo 交换结果</li>
+</ul>
+<p>用 <code>/schedule</code> skill 配置，支持标准 cron 表达式，最小间隔 1 小时。</p>
+<hr />
+<h2 id="wei-shen-me-bu-yong-ben-di-cron">为什么不用本地 cron<a class="zola-anchor" href="#wei-shen-me-bu-yong-ben-di-cron" aria-label="Anchor link for: wei-shen-me-bu-yong-ben-di-cron" style="visibility: hidden;"></a>
+</h2>
+<p>也想过用 <code>launchd</code> + <code>claude -p</code> 在本地跑，优势是能直接读本地 memory 文件，context 更丰富。</p>
+<p>但 Remote Agent 更省心：机器关机也不影响，结果通过 GitHub 同步，哪台设备都能 pull。对于"每天一题"这个场景，无状态反而合适——每次都是全新出发，不依赖历史 session。</p>
+<hr />
+<h2 id="jie-guo">结果<a class="zola-anchor" href="#jie-guo" aria-label="Anchor link for: jie-guo" style="visibility: hidden;"></a>
+</h2>
+<ul>
+<li>GitHub repo：<a rel="nofollow noreferrer external" href="https://github.com/Hamiltonxx/rust-daily-quiz">rust-daily-quiz</a></li>
+<li>每天 18:00 自动出题，写入 <code>quiz/src/quiz_NNN.rs</code></li>
+<li>管理页面：https://claude.ai/code/scheduled</li>
+</ul>
+<p>今天 18:00 第一题，考点是 <strong>trait 实现（Display/Debug）</strong>，灵感来自 <code>search.rs</code> 里手动拼装搜索结果输出那段代码。</p>
+<p>下一步打算：做完题把答案也 push 上去，顺便看看 agent 出的题质量怎么样，必要时调整 prompt。</p>
+
+      </article>
+
+      
+      
+
+      
+      
+      <div class="giscus"></div>
+      <style>
+#comments { margin-top: 3rem; }
+.c-item { margin: 1.2rem 0; }
+.c-reply { margin-left: 1.5rem; padding-left: 1rem; border-left: 2px solid var(--text-decoration-color); }
+.c-meta { display: flex; align-items: center; gap: 0.6rem; margin-bottom: 0.3rem; font-size: 0.85em; }
+.c-name { font-weight: bold; color: var(--text-color); }
+.c-time { color: var(--text-pale-color); }
+.c-reply-btn {
+  background: none; border: none; padding: 0;
+  color: var(--primary-color); cursor: pointer;
+  font-size: 0.85em; opacity: 0;
+  transition: opacity 0.15s;
+}
+.c-item:hover .c-reply-btn { opacity: 1; }
+.c-body { color: var(--text-color); line-height: var(--line-height); white-space: pre-wrap; word-break: break-word; }
+.c-loading, .c-empty { color: var(--text-pale-color); font-size: 0.9em; padding: 1rem 0; }
+.c-form { margin-top: 2rem; display: flex; flex-direction: column; gap: 0.6rem; }
+.c-form-row { display: flex; gap: 0.6rem; }
+.c-input {
+  width: 100%; padding: 0.5rem 0.7rem;
+  border: 1.5px solid var(--text-decoration-color);
+  border-radius: 4px;
+  background: var(--bg-color); color: var(--text-color);
+  font-size: 0.9em; font-family: var(--main-font);
+  outline: none; transition: border-color 0.15s;
+}
+.c-input:focus { border-color: var(--primary-color); }
+.c-input-content { resize: vertical; min-height: 100px; }
+.c-reply-tip {
+  font-size: 0.85em; color: var(--primary-color);
+  padding: 0.2rem 0.5rem;
+  background: var(--inline-code-bg-color);
+  border-radius: 4px; align-self: flex-start;
+}
+.c-reply-tip::after { content: " ✕"; opacity: 0.5; }
+.c-form-actions { display: flex; justify-content: flex-end; }
+.c-submit {
+  padding: 0.4rem 1.2rem;
+  background: var(--primary-color); color: var(--bg-color);
+  border: none; border-radius: 4px;
+  cursor: pointer; font-size: 0.9em;
+  transition: opacity 0.15s;
+}
+.c-submit:hover { opacity: 0.85; }
+.c-submit:disabled { opacity: 0.5; cursor: not-allowed; }
+</style>
+<div id="comments" data-page="&#x2F;posts&#x2F;rust-daily-quiz-agent-2026-03-30&#x2F;"></div>
+<script src="/comments.js"></script>
+
+
+      
+    </div>
+
+    
+
+
+<footer>
+  <div class="left">
+    <div class="copyright">
+      © 2026 Cirray AI
+      
+      <span>|</span>
+      Built with <a href="https://www.getzola.org" rel="noreferrer" target="_blank">zola</a> and <a href="https://github.com/isunjn/serene" rel="noreferrer" target="_blank">serene</a>
+      
+    </div>
+  </div>
+
+  <div class="right">
+    
+    
+    
+    
+
+    
+    
+    
+    <button id="theme-toggle" aria-label="theme switch">
+      <span class="moon-icon"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="18" height="18"><path d="M10 7C10 10.866 13.134 14 17 14C18.9584 14 20.729 13.1957 21.9995 11.8995C22 11.933 22 11.9665 22 12C22 17.5228 17.5228 22 12 22C6.47715 22 2 17.5228 2 12C2 6.47715 6.47715 2 12 2C12.0335 2 12.067 2 12.1005 2.00049C10.8043 3.27098 10 5.04157 10 7ZM4 12C4 16.4183 7.58172 20 12 20C15.0583 20 17.7158 18.2839 19.062 15.7621C18.3945 15.9187 17.7035 16 17 16C12.0294 16 8 11.9706 8 7C8 6.29648 8.08133 5.60547 8.2379 4.938C5.71611 6.28423 4 8.9417 4 12Z" fill="currentColor"></path></svg>
+</span>
+      <span class="sun-icon"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="18" height="18"><path d="M12 18C8.68629 18 6 15.3137 6 12C6 8.68629 8.68629 6 12 6C15.3137 6 18 8.68629 18 12C18 15.3137 15.3137 18 12 18ZM12 16C14.2091 16 16 14.2091 16 12C16 9.79086 14.2091 8 12 8C9.79086 8 8 9.79086 8 12C8 14.2091 9.79086 16 12 16ZM11 1H13V4H11V1ZM11 20H13V23H11V20ZM3.51472 4.92893L4.92893 3.51472L7.05025 5.63604L5.63604 7.05025L3.51472 4.92893ZM16.9497 18.364L18.364 16.9497L20.4853 19.0711L19.0711 20.4853L16.9497 18.364ZM19.0711 3.51472L20.4853 4.92893L18.364 7.05025L16.9497 5.63604L19.0711 3.51472ZM5.63604 16.9497L7.05025 18.364L4.92893 20.4853L3.51472 19.0711L5.63604 16.9497ZM23 11V13H20V11H23ZM4 11V13H1V11H4Z" fill="currentColor"></path></svg>
+</span>
+    </button>
+    
+  </div>
+</footer>
+
+
+
+
+
+  </main>
+</div>
+
+  
+<script src="/js/lightense.min.js"></script>
+
+
+  <script src="https://blog.cirray.cn/js/main.js"></script>
+</body>
+
+</html>

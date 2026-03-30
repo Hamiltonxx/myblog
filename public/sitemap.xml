@@ -79,6 +79,10 @@
         <lastmod>2026-03-27</lastmod>
     </url>
     <url>
+        <loc>https://blog.cirray.cn/posts/rust-daily-quiz-agent-2026-03-30/</loc>
+        <lastmod>2026-03-30</lastmod>
+    </url>
+    <url>
         <loc>https://blog.cirray.cn/tags/</loc>
     </url>
     <url>
@@ -124,6 +128,9 @@
         <loc>https://blog.cirray.cn/tags/fastembed/</loc>
     </url>
     <url>
+        <loc>https://blog.cirray.cn/tags/github/</loc>
+    </url>
+    <url>
         <loc>https://blog.cirray.cn/tags/gong-ju/</loc>
     </url>
     <url>
@@ -158,6 +165,9 @@
     </url>
     <url>
         <loc>https://blog.cirray.cn/tags/rag/</loc>
+    </url>
+    <url>
+        <loc>https://blog.cirray.cn/tags/remote-agent/</loc>
     </url>
     <url>
         <loc>https://blog.cirray.cn/tags/rust/</loc>
