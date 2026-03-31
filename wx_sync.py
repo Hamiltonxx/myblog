@@ -374,8 +374,8 @@ def upload_thumb(token, image_path):
 # ── 推草稿 ────────────────────────────────────────────
 def push_draft(token, title, html, digest='', thumb_media_id=''):
     url = f'https://api.weixin.qq.com/cgi-bin/draft/add?access_token={token}'
-    # 微信草稿标题实测上限约 37 字节
-    def truncate_bytes(s, limit=36):
+    # 微信草稿标题 API 上限约 64 个字符（192 字节）
+    def truncate_bytes(s, limit=180):
         encoded = s.encode('utf-8')
         if len(encoded) <= limit:
             return s
@@ -397,6 +397,96 @@ def push_draft(token, title, html, digest='', thumb_media_id=''):
     r = requests.post(url, data=body.encode('utf-8'),
                       headers={'Content-Type': 'application/json; charset=utf-8'}, timeout=15)
     return r.json()
+
+# ── 代码块截图 ───────────────────────────────────────
+_MONO_FONTS = [
+    '/System/Library/Fonts/Menlo.ttc',
+    '/System/Library/Fonts/Supplemental/Courier New.ttf',
+]
+
+def render_code_image(code: str, lang: str, min_width: int = 600) -> bytes:
+    """把代码字符串渲染成 PNG 图片（terminal 风格）。"""
+    from PIL import Image, ImageDraw, ImageFont
+    import io
+
+    FONT_SIZE = 13
+    LINE_H    = 20
+    PAD_X     = 16
+    PAD_Y     = 12
+    HDR_H     = 32
+
+    font = ImageFont.load_default()
+    for fp in _MONO_FONTS:
+        try:
+            font = ImageFont.truetype(fp, FONT_SIZE)
+            break
+        except Exception:
+            pass
+
+    lines = code.rstrip('\n').split('\n')
+    # 估算宽度：每字符约 8px（Menlo 13px）
+    content_w = max(min_width, PAD_X * 2 + max((len(l) for l in lines), default=0) * 8)
+    content_h = PAD_Y + len(lines) * LINE_H + PAD_Y
+    total_h   = HDR_H + content_h
+
+    img  = Image.new('RGB', (content_w, total_h), '#282c34')
+    draw = ImageDraw.Draw(img)
+
+    # 标题栏
+    draw.rectangle([0, 0, content_w, HDR_H], fill='#1d2026')
+    dot_y = HDR_H // 2
+    for color, cx in [('#ff5f56', 14), ('#ffbd2e', 32), ('#27c93f', 50)]:
+        draw.ellipse([cx - 5, dot_y - 5, cx + 5, dot_y + 5], fill=color)
+    if lang:
+        try:
+            lf = ImageFont.truetype(_MONO_FONTS[0], 11)
+        except Exception:
+            lf = font
+        draw.text((content_w - PAD_X - len(lang) * 7, 10),
+                  lang.upper(), font=lf, fill='#636d83')
+
+    # 代码行
+    y = HDR_H + PAD_Y
+    for line in lines:
+        draw.text((PAD_X, y), line, font=font, fill='#abb2bf')
+        y += LINE_H
+
+    buf = io.BytesIO()
+    img.save(buf, 'PNG')
+    return buf.getvalue()
+
+
+def upload_content_image(token: str, png_bytes: bytes) -> str:
+    """把图片上传到微信（用于文章正文内嵌），返回可直接放 <img src> 的 URL。"""
+    import io
+    url = f'https://api.weixin.qq.com/cgi-bin/media/uploadimg?access_token={token}'
+    r = requests.post(
+        url,
+        files={'media': ('code.png', io.BytesIO(png_bytes), 'image/png')},
+        timeout=30,
+    )
+    data = r.json()
+    if 'url' not in data:
+        raise RuntimeError(f"上传内容图片失败: {data}")
+    return data['url']
+
+
+def preprocess_code_images(md: str, token: str) -> str:
+    """把 Markdown 中每个代码块渲染为图片并上传，替换为 <img> 标签。"""
+    def replace(m):
+        lang = m.group(1).strip() or ''
+        code = m.group(2)
+        try:
+            print(f"    渲染代码块 [{lang or 'text'}]...")
+            png     = render_code_image(code, lang)
+            img_url = upload_content_image(token, png)
+            return f'\n\n<img src="{img_url}" style="width:100%;display:block;margin:14px 0;">\n\n'
+        except Exception as e:
+            print(f"  ⚠️ 代码图片化失败({e})，保留 HTML 格式")
+            return m.group(0)
+
+    return re.sub(r'```(\w*)\n(.*?)```', replace, md, flags=re.DOTALL)
+
 
 # ── 找最新文章 ────────────────────────────────────────
 def latest_post():
@@ -420,11 +510,15 @@ def main():
     cover = generate_cover(post['title'], post['category'])
     print(f"  封面图: {cover}")
 
-    print("  转换 Markdown...")
-    header = build_header(post['title'], post['tags'], post['description'],
-                          post['date'], post['category'])
-    body   = md_to_html(post['body'])
-    footer = build_footer()
+    print("  获取 access_token...")
+    token = get_token()
+
+    print("  转换 Markdown（代码块 → 截图）...")
+    md_body = preprocess_code_images(post['body'], token)
+    header  = build_header(post['title'], post['tags'], post['description'],
+                           post['date'], post['category'])
+    body    = md_to_html(md_body)
+    footer  = build_footer()
     html = (
         '<div style="background:#f5f5f5;font-family:-apple-system,Helvetica,Arial,sans-serif;'
         'box-sizing:border-box;">'
@@ -436,9 +530,6 @@ def main():
         + footer
         + '</div>'
     )
-
-    print("  获取 access_token...")
-    token = get_token()
 
     print("  上传封面图...")
     thumb_id = upload_thumb(token, str(cover))
