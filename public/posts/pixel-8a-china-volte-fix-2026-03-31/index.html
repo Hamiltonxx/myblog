@@ -12,7 +12,7 @@
   
   <meta name="description" content="Google 默认屏蔽了国内运营商的 VoLTE 配置，但不用 Root，Shizuku + Pixel IMS 就能把通话能力找回来。">
 
-  <title>Pixel 8a 在国内插联通卡能上网却打不了电话？用这两个工具 5 分钟搞定</title>
+  <title>二手Pixel到货，做&#x27;智能手机&#x27;前先把雷排了</title>
   <link rel="icon" type="image/png" sizes="32x32" href="https://blog.cirray.cn/img/favicon-32x32.png">
   <link rel="icon" type="image/png" sizes="16x16" href="https://blog.cirray.cn/img/favicon-16x16.png">
   <link rel="apple-touch-icon" sizes="180x180" href="https://blog.cirray.cn/img/apple-touch-icon.png">
@@ -128,7 +128,7 @@
             </li>
             
             <li>
-              <a class="h3" href="#qi-dong-shizuku-android-11-zhuan-yong-fang-shi">启动 Shizuku（Android 11+ 专用方式）</a>
+              <a class="h3" href="#qi-dong-shizuku">启动 Shizuku</a>
             </li>
             
             <li>
@@ -179,7 +179,7 @@
 "></div>
       
       <article class="prose">
-        <h1>Pixel 8a 在国内插联通卡能上网却打不了电话？用这两个工具 5 分钟搞定</h1>
+        <h1>二手Pixel到货，做&#x27;智能手机&#x27;前先把雷排了</h1>
         <div id="post-info">
           <div id="date">
             <span id="publish">2026-03-31</span>
@@ -221,9 +221,9 @@
 </h3>
 <p>Mac 上有 Android Studio 的话，adb 已经在 <code>~/Library/Android/sdk/platform-tools/</code> 里了。直接用：</p>
 <pre class="giallo z-code"><code data-lang="shellscript"><span class="giallo-l"><span class="z-entity z-name">adb</span><span class="z-string"> install</span><span class="z-string"> shizuku.apk</span></span>
-<span class="giallo-l"><span class="z-entity z-name">adb</span><span class="z-string"> install</span><span class="z-string"> dev.bluehouse.enablevolte.apk</span></span></code></pre><h3 id="qi-dong-shizuku-android-11-zhuan-yong-fang-shi">启动 Shizuku（Android 11+ 专用方式）<a class="zola-anchor" href="#qi-dong-shizuku-android-11-zhuan-yong-fang-shi" aria-label="Anchor link for: qi-dong-shizuku-android-11-zhuan-yong-fang-shi" style="visibility: hidden;"></a>
+<span class="giallo-l"><span class="z-entity z-name">adb</span><span class="z-string"> install</span><span class="z-string"> dev.bluehouse.enablevolte.apk</span></span></code></pre><h3 id="qi-dong-shizuku">启动 Shizuku<a class="zola-anchor" href="#qi-dong-shizuku" aria-label="Anchor link for: qi-dong-shizuku" style="visibility: hidden;"></a>
 </h3>
-<p>旧的脚本路径（<code>/sdcard/Android/data/...</code>）在 Android 14 上因为沙盒限制已经失效了。正确做法是在 Shizuku App 里点「通过连接电脑启动 → 查看指令」，它会给你一个专属路径：</p>
+<p>在 Shizuku App 里点「通过连接电脑启动 → 查看指令」，它会给你一个专属路径：</p>
 <pre class="giallo z-code"><code data-lang="shellscript"><span class="giallo-l"><span class="z-entity z-name">adb</span><span class="z-string"> shell</span><span class="z-string"> /data/app/~~</span><span class="z-keyword">&lt;</span><span class="z-string">随机has</span><span>h</span><span class="z-keyword">&gt;</span><span class="z-string">==/moe.shizuku.privileged.api-</span><span class="z-keyword">&lt;</span><span class="z-string">has</span><span>h</span><span class="z-keyword">&gt;</span><span class="z-string">==/lib/arm64/libshizuku.so</span></span></code></pre>
 <p>这个路径每台设备不同，必须从 App 里复制，不能照搬别人的。跑完之后手机上 Shizuku 显示「正在运行」就好了。</p>
 <h3 id="kai-qi-volte">开启 VoLTE<a class="zola-anchor" href="#kai-qi-volte" aria-label="Anchor link for: kai-qi-volte" style="visibility: hidden;"></a>

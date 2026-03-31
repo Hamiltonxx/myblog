@@ -323,9 +323,10 @@ def push_draft(token, title, html, digest='', thumb_media_id=''):
 # ── 找最新文章 ────────────────────────────────────────
 def latest_post():
     pattern = str(POSTS_DIR / '*-[0-9][0-9][0-9][0-9]-[0-9][0-9]-[0-9][0-9].md')
-    posts = sorted(glob.glob(pattern))
+    posts = glob.glob(pattern)
     if not posts:
         raise FileNotFoundError("没找到带日期的文章")
+    posts.sort(key=lambda p: (Path(p).stem[-10:], Path(p).stat().st_mtime))
     return posts[-1]
 
 # ── 主流程 ────────────────────────────────────────────

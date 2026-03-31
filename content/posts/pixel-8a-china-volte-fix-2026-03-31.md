@@ -1,5 +1,5 @@
 +++
-title = "Pixel 8a 在国内插联通卡能上网却打不了电话？用这两个工具 5 分钟搞定"
+title = "二手Pixel到货，做'智能手机'前先把雷排了"
 description = "Google 默认屏蔽了国内运营商的 VoLTE 配置，但不用 Root，Shizuku + Pixel IMS 就能把通话能力找回来。"
 date = 2026-03-31
 
@@ -52,9 +52,9 @@ adb install shizuku.apk
 adb install dev.bluehouse.enablevolte.apk
 ```
 
-### 启动 Shizuku（Android 11+ 专用方式）
+### 启动 Shizuku
 
-旧的脚本路径（`/sdcard/Android/data/...`）在 Android 14 上因为沙盒限制已经失效了。正确做法是在 Shizuku App 里点「通过连接电脑启动 → 查看指令」，它会给你一个专属路径：
+在 Shizuku App 里点「通过连接电脑启动 → 查看指令」，它会给你一个专属路径：
 
 ```bash
 adb shell /data/app/~~<随机hash>==/moe.shizuku.privileged.api-<hash>==/lib/arm64/libshizuku.so
