@@ -79,6 +79,10 @@
         <lastmod>2026-03-29</lastmod>
     </url>
     <url>
+        <loc>https://blog.cirray.cn/posts/rust-agent-task-system-2026-03-31/</loc>
+        <lastmod>2026-03-31</lastmod>
+    </url>
+    <url>
         <loc>https://blog.cirray.cn/posts/rust-agent-todo-subagent-2026-03-27/</loc>
         <lastmod>2026-03-27</lastmod>
     </url>
@@ -190,6 +194,12 @@
     </url>
     <url>
         <loc>https://blog.cirray.cn/tags/skill-loading/</loc>
+    </url>
+    <url>
+        <loc>https://blog.cirray.cn/tags/task-system/</loc>
+    </url>
+    <url>
+        <loc>https://blog.cirray.cn/tags/topological-sort/</loc>
     </url>
     <url>
         <loc>https://blog.cirray.cn/tags/trait/</loc>
