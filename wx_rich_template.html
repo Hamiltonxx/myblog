@@ -1,0 +1,142 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>公众号预览</title>
+<style>
+body{background:#111;margin:0;padding:24px 12px;font-family:-apple-system,sans-serif;display:flex;flex-direction:column;align-items:center;}
+.bar{width:680px;max-width:100%;display:flex;gap:10px;margin-bottom:14px;align-items:center;}
+.cbtn{padding:10px 22px;background:#CE4B16;color:#fff;border:none;border-radius:6px;font-size:13px;font-weight:600;cursor:pointer;}
+.hint{color:#555;font-size:12px;}
+#wrap{width:680px;max-width:100%;}
+</style>
+</head>
+<body>
+<div class="bar">
+  <button class="cbtn" onclick="copyIt()">复制富文本 → 粘贴进公众号</button>
+  <span class="hint">用 Chrome/Edge 打开，Safari 不支持</span>
+</div>
+<div id="wrap">
+<div id="article" style="background:#f5f5f5;font-family:-apple-system,Helvetica,Arial,sans-serif;box-sizing:border-box;">
+
+<!-- ══ HEADER：渐变封面 ══════════════════════════════════════════════ -->
+<!-- 占位符（由 wx_sync.py 替换）：
+     {{TAGS_BADGE}}   → 大写标签徽章，如 "PIXEL · ANDROID · VOLTE"
+     {{TITLE_LIGHT}}  → 标题第一行（font-weight:300）
+     {{TITLE_BOLD}}   → 标题第二行（font-weight:700, 暖色）
+     {{DESCRIPTION}}  → 一句话摘要（半透明白色）
+     {{TAG_PILLS}}    → 若干小标签 + 日期
+-->
+<table width="100%" cellpadding="0" cellspacing="0" border="0" style="background:#CE4B16;background:linear-gradient(135deg,#CE4B16 0%,#E8621F 50%,#B03A0D 100%);">
+<tr><td style="padding:32px 20px 24px;">
+  <p style="margin:0 0 14px;padding:0;"><span style="display:inline-block;background:rgba(255,255,255,0.15);border:1px solid rgba(255,255,255,0.3);color:rgba(255,255,255,0.9);font-size:11px;letter-spacing:0.1em;padding:4px 14px;border-radius:20px;font-family:monospace,sans-serif;">{{TAGS_BADGE}}</span></p>
+  <p style="margin:0 0 6px;padding:0;font-size:22px;font-weight:300;color:#fff;line-height:1.45;letter-spacing:0.01em;">{{TITLE_LIGHT}}</p>
+  <p style="margin:0 0 14px;padding:0;font-size:19px;font-weight:700;color:#FFD4B8;line-height:1.45;">{{TITLE_BOLD}}</p>
+  <p style="margin:0 0 18px;padding:0;font-size:13px;font-weight:300;color:rgba(255,255,255,0.78);line-height:1.75;">{{DESCRIPTION}}</p>
+  <p style="margin:0;padding:0;line-height:2;">{{TAG_PILLS}}</p>
+</td></tr>
+</table>
+
+<!-- ══ BODY：白色内容区 ══════════════════════════════════════════════ -->
+<!-- 占位符：
+     {{BODY_HTML}}    → Markdown 正文转换后的 HTML（见样式规范）
+-->
+<table width="100%" cellpadding="0" cellspacing="0" border="0" style="background:#fff;">
+<tr><td style="padding:24px 16px 32px; word-wrap:break-word;">
+
+  {{BODY_HTML}}
+
+</td></tr>
+</table>
+
+<!-- ══ FOOTER ════════════════════════════════════════════════════════ -->
+<!-- 占位符：
+     {{FOOTER_TEXT}}  → 如 "learn-claude-code-rust 系列 · blog.cirray.cn"
+-->
+<table width="100%" cellpadding="0" cellspacing="0" border="0" style="background:#f0ece8;">
+<tr><td style="padding:24px 16px;text-align:center;">
+  <p style="color:#888;font-size:13px;line-height:1.8;margin:0;padding:0;">{{FOOTER_TEXT}}</p>
+</td></tr>
+</table>
+
+</div></div>
+
+<script>
+async function copyIt(){
+  const el=document.getElementById('article');
+  try{
+    await navigator.clipboard.write([new ClipboardItem({'text/html':new Blob([el.innerHTML],{type:'text/html'})})]);
+    const b=document.querySelector('.cbtn');
+    b.textContent='✓ 已复制！去公众号粘贴';
+    setTimeout(()=>b.textContent='复制富文本 → 粘贴进公众号',2500);
+  }catch(e){alert('请用 Chrome 或 Edge 打开此文件。');}
+}
+</script>
+</body>
+</html>
+
+<!--
+══ 样式规范（供 wx_sync.py 参考）══════════════════════════════════════
+
+设计 token:
+  ACCENT        = #CE4B16
+  GRADIENT      = linear-gradient(135deg, #CE4B16 0%, #E8621F 50%, #B03A0D 100%)
+  INLINE_CODE   = background:#FFF0EA; color:#B03A0D; border:1px solid #FADDD2
+  CODE_BG       = #282c34  (代码块主体)
+  CODE_HDR      = #1d2026  (代码块标题栏)
+  BODY_TEXT     = font-size:14.5px; font-weight:300; color:#333; line-height:1.85
+  SECTION_TITLE = border-left:3px solid #CE4B16; font-size:17px; font-weight:600; color:#1a1a1a
+  BLOCKQUOTE    = background:#FFF5F2; border-left:3px solid #CE4B16; border-radius:0 6px 6px 0
+  DIVIDER       = border-top:1px solid #ebebeb
+
+BODY_HTML 内各元素的 inline style:
+
+  段落 <p>:
+    font-size:14.5px;font-weight:300;color:#333;line-height:1.85;margin:0 0 10px;padding:0;text-align:justify;
+
+  首段引言（文章第一段，italic + 左边框）:
+    margin:0 0 24px;padding:0 0 0 12px;border-left:3px solid #CE4B16;
+    font-size:14.5px;font-weight:300;color:#555;line-height:1.85;font-style:italic;
+
+  ## 二级标题 → <section>:
+    margin:0 0 14px;padding:0 0 0 10px;border-left:3px solid #CE4B16;
+    font-size:17px;font-weight:600;color:#1a1a1a;line-height:1.2;letter-spacing:0.02em;
+
+  ### 三级标题 → <section>:
+    font-size:15px;font-weight:600;color:#CE4B16;margin:0 0 8px;padding:0;
+
+  `inline code`:
+    font-family:monospace,sans-serif;font-size:12.5px;background:#FFF0EA;color:#B03A0D;
+    padding:2px 6px;border-radius:3px;border:1px solid #FADDD2;word-break:break-all;
+
+  代码块（fenced code）→ <table>:
+    外层: width:100%;margin:14px 0;border-collapse:collapse;background:#282c34;border-radius:6px;overflow:hidden;
+    标题栏 <td>: background:#1d2026;padding:8px 14px;
+      三点: ● (red #ff5f56) ● (yellow #ffbd2e) ● (green #27c93f)  font-size:16px
+      语言标签: float:right; font-family:monospace; font-size:11px; color:#636d83
+    代码 <td>: padding:16px 18px;
+      每行: <span style="display:block;margin-bottom:3px;font-family:monospace,sans-serif;
+             font-size:12.5px;line-height:1.7;color:#abb2bf;white-space:pre-wrap;word-wrap:break-word;">
+
+  blockquote:
+    margin:14px 0;padding:14px 16px;background:#FFF5F2;border-left:3px solid #CE4B16;
+    font-size:14.5px;color:#555;line-height:1.8;font-style:italic;border-radius:0 6px 6px 0;
+
+  无序列表 → 用 ◆ 替代 bullet:
+    <p style="font-size:14.5px;font-weight:300;color:#333;line-height:1.85;margin:0 0 7px;padding:0;">
+      ◆&nbsp;&nbsp;<span>内容</span>
+
+  分隔线 <hr>:
+    <p style="border-top:1px solid #ebebeb;margin:0 0 24px;padding:0;font-size:0;">&nbsp;</p>
+
+  strong:
+    font-weight:600;color:#111;
+
+TAG_PILLS 格式（每个 tag）:
+  <span style="display:inline-block;background:rgba(255,255,255,0.13);border:1px solid rgba(255,255,255,0.25);
+    color:rgba(255,255,255,0.85);font-size:11px;padding:3px 10px;border-radius:3px;
+    font-family:monospace,sans-serif;margin-right:6px;margin-bottom:6px;">tag</span>
+
+══════════════════════════════════════════════════════════════════════
+-->

@@ -141,45 +141,46 @@ def parse_post(filepath):
         return [x.strip().strip('"') for x in hit.group(1).split(',')]
 
     cats = fm_list('categories')
+    date_hit = re.search(r'date\s*=\s*(\d{4}-\d{2}-\d{2})', fm)
     return {
         'title':       fm_get('title'),
         'description': fm_get('description'),
         'category':    cats[0] if cats else '',
+        'tags':        fm_list('tags'),
+        'date':        date_hit.group(1) if date_hit else '',
         'body':        body,
     }
 
-# ── 主题配置 ─────────────────────────────────────────
-ACCENT  = '#CE422B'                          # Rust 橙
-FONT_ZH = '"Noto Sans SC","PingFang SC","Microsoft YaHei",sans-serif'
-FONT_EN = '"JetBrains Mono","Fira Code",Consolas,monospace'
-# ── 样式表 ────────────────────────────────────────────
-S = {
-    'h2':   f'font-family:{FONT_ZH};font-size:17px;font-weight:600;color:{ACCENT};'
-            f'border-bottom:1px solid {ACCENT};padding-bottom:5px;margin:30px 0 10px;line-height:1.5;',
-    'h3':   f'font-family:{FONT_ZH};font-size:15px;font-weight:600;color:#333;margin:20px 0 8px;line-height:1.5;',
-    'p':    f'font-family:{FONT_ZH};font-size:14px;font-weight:400;line-height:1.9;'
-            f'margin:10px 0;color:#3a3a3a;text-align:justify;letter-spacing:0.01em;',
-    'bq':   f'border-left:3px solid {ACCENT};margin:14px 0;padding:8px 14px;'
-            f'background-color:#fdf5f3;color:#666;font-family:{FONT_ZH};font-size:13px;',
-    'th':   f'font-family:{FONT_ZH};font-size:13px;font-weight:500;'
-            f'border:1px solid #e8e8e8;padding:7px 12px;background-color:#fdf5f3;text-align:left;',
-    'td':   f'font-family:{FONT_ZH};font-size:13px;font-weight:400;'
-            f'border:1px solid #e8e8e8;padding:7px 12px;color:#3a3a3a;',
-    'hr':   'border:none;border-top:1px solid #f0f0f0;margin:28px 0;',
-    'code': f'font-family:{FONT_EN};font-size:12px;color:{ACCENT};'
-            f'background-color:#fdf5f3;padding:1px 5px;border-radius:3px;',
-    'pre_td': f'background-color:#282c34;color:#abb2bf;padding:12px 14px;'
-              f'border-radius:0 0 4px 4px;font-family:{FONT_EN};font-size:10px;'
-              f'line-height:1.6;white-space:pre-wrap;word-break:break-all;',
-    'pre_hdr': f'background-color:#21252b;padding:8px 14px;border-radius:4px 4px 0 0;',
-    'pre_lang': f'font-family:{FONT_EN};font-size:11px;color:#636d83;letter-spacing:0.05em;',
-}
+# ── 设计 token（与 wx_rich_template.html 保持一致）─────
+ACCENT   = '#CE4B16'
+GRADIENT = 'linear-gradient(135deg,#CE4B16 0%,#E8621F 50%,#B03A0D 100%)'
+FONT_BODY = '-apple-system,Helvetica,Arial,sans-serif'
+FONT_MONO = 'monospace,sans-serif'
+FONT_CODE = '"JetBrains Mono","Fira Code",Consolas,monospace'
 
-# 列表样式
-LI_WRAP   = 'display:flex;align-items:baseline;margin:5px 0;'
-LI_BULLET = f'color:{ACCENT};font-size:16px;line-height:1.6;margin-right:8px;flex-shrink:0;'
-LI_TEXT   = f'font-family:{FONT_ZH};font-size:14px;font-weight:400;line-height:1.85;color:#3a3a3a;flex:1;text-align:justify;'
-OL_NUM    = f'font-family:{FONT_EN};color:{ACCENT};font-size:13px;font-weight:500;margin-right:8px;flex-shrink:0;line-height:1.85;min-width:16px;'
+# ── body 内各元素 inline style ─────────────────────────
+S = {
+    'p':      ('font-size:14.5px;font-weight:300;color:#333;line-height:1.85;'
+               'margin:0 0 10px;padding:0;text-align:justify;'),
+    'p_lead': ('font-size:14.5px;font-weight:300;color:#555;line-height:1.85;'
+               'margin:0 0 24px;padding:0 0 0 12px;'
+               f'border-left:3px solid {ACCENT};font-style:italic;'),
+    'h2':     ('margin:0 0 14px;padding:0 0 0 10px;'
+               f'border-left:3px solid {ACCENT};'
+               'font-size:17px;font-weight:600;color:#1a1a1a;'
+               'line-height:1.2;letter-spacing:0.02em;'),
+    'h3':     (f'font-size:15px;font-weight:600;color:{ACCENT};margin:0 0 8px;padding:0;'),
+    'bq':     ('margin:14px 0;padding:14px 16px;background:#FFF5F2;'
+               f'border-left:3px solid {ACCENT};font-size:14.5px;color:#555;'
+               'line-height:1.8;font-style:italic;border-radius:0 6px 6px 0;'),
+    'code':   (f'font-family:{FONT_MONO};font-size:12.5px;background:#FFF0EA;color:#B03A0D;'
+               'padding:2px 6px;border-radius:3px;border:1px solid #FADDD2;word-break:break-all;'),
+    'hr':     'border:none;border-top:1px solid #ebebeb;margin:28px 0;',
+    'th':     ('font-size:13px;font-weight:500;border:1px solid #e8e8e8;'
+               'padding:7px 12px;background-color:#FFF0EA;text-align:left;'),
+    'td':     ('font-size:13px;font-weight:300;border:1px solid #e8e8e8;'
+               'padding:7px 12px;color:#3a3a3a;'),
+}
 
 def _highlight(code: str, lang: str) -> str:
     from pygments import highlight
@@ -191,7 +192,7 @@ def _highlight(code: str, lang: str) -> str:
         lexer = TextLexer()
     fmt = HtmlFormatter(style='one-dark', nowrap=True, noclasses=True)
     result = highlight(code, lexer, fmt)
-    return '<br>'.join(result.split('\n')).rstrip('<br>')
+    return result.split('\n')
 
 def _handle_code_blocks(html):
     def replace_block(m):
@@ -203,28 +204,33 @@ def _handle_code_blocks(html):
                       .replace('&quot;', '"').replace('&#39;', "'")
                       .replace('&amp;', '&'))
 
-        body = _highlight(inner.rstrip('\n'), lang)
-
-        lang_tag = (f'<span style="float:right;{S["pre_lang"]}">{lang}</span>' if lang else '')
-        header = (
-            f'<td style="{S["pre_hdr"]}">'
-            + lang_tag
-            + f'<span style="color:#ff5f56;font-size:14px;margin-right:4px;">●</span>'
-            f'<span style="color:#ffbd2e;font-size:14px;margin-right:4px;">●</span>'
-            f'<span style="color:#27c93f;font-size:14px;">●</span>'
-            f'</td>'
+        lines = _highlight(inner.rstrip('\n'), lang)
+        code_html = ''.join(
+            f'<span style="display:block;margin-bottom:3px;font-family:{FONT_CODE};'
+            f'font-size:12.5px;line-height:1.7;color:#abb2bf;'
+            f'white-space:pre-wrap;word-wrap:break-word;">{line}</span>'
+            for line in lines if line
+        )
+        lang_tag = (f'<span style="float:right;font-family:{FONT_MONO};font-size:11px;'
+                    f'color:#636d83;letter-spacing:0.08em;">{lang}</span>' if lang else '')
+        dots = (
+            '<span style="color:#ff5f56;font-size:16px;line-height:1;font-family:sans-serif;">●</span>'
+            '<span style="color:#ffbd2e;font-size:16px;line-height:1;font-family:sans-serif;margin-left:4px;">●</span>'
+            '<span style="color:#27c93f;font-size:16px;line-height:1;font-family:sans-serif;margin-left:4px;">●</span>'
         )
         return (
-            f'<table style="width:100%;margin:14px 0;border-collapse:collapse;">'
-            f'<tr>{header}</tr>'
-            f'<tr><td style="{S["pre_td"]}">{body}</td></tr>'
+            f'<table width="100%" cellpadding="0" cellspacing="0" border="0" '
+            f'style="background:#282c34;border-radius:6px;overflow:hidden;margin:14px 0;">'
+            f'<tr><td style="background:#1d2026;padding:8px 14px;line-height:1;font-size:0;">'
+            f'{lang_tag}{dots}</td></tr>'
+            f'<tr><td style="padding:16px 18px;">{code_html}</td></tr>'
             f'</table>'
         )
 
     return re.sub(r'<pre><code([^>]*)>(.*?)</code></pre>', replace_block, html, flags=re.DOTALL)
 
 def _convert_headings(html):
-    # 微信会剥离 <h2>/<h3> 的 inline style，改用 <section>
+    # 微信会剥离 h2/h3 的 inline style，改用 section
     html = re.sub(r'<h2[^>]*>(.*?)</h2>',
                   lambda m: f'<section style="{S["h2"]}">{m.group(1)}</section>',
                   html, flags=re.DOTALL)
@@ -234,13 +240,13 @@ def _convert_headings(html):
     return html
 
 def _convert_lists(html):
+    p_li = ('font-size:14.5px;font-weight:300;color:#333;'
+            'line-height:1.85;margin:0 0 7px;padding:0;')
+
     def replace_ul(m):
         items = re.findall(r'<li[^>]*>(.*?)</li>', m.group(1), re.DOTALL)
         rows = ''.join(
-            f'<section style="{LI_WRAP}">'
-            f'<span style="{LI_BULLET}">•</span>'
-            f'<span style="{LI_TEXT}">{item.strip()}</span>'
-            f'</section>'
+            f'<p style="{p_li}">◆&nbsp;&nbsp;<span>{item.strip()}</span></p>'
             for item in items
         )
         return f'<section style="margin:12px 0;">{rows}</section>'
@@ -248,10 +254,10 @@ def _convert_lists(html):
     def replace_ol(m):
         items = re.findall(r'<li[^>]*>(.*?)</li>', m.group(1), re.DOTALL)
         rows = ''.join(
-            f'<section style="{LI_WRAP}">'
-            f'<span style="{OL_NUM}">{i}.</span>'
-            f'<span style="{LI_TEXT}">{item.strip()}</span>'
-            f'</section>'
+            f'<p style="{p_li}">'
+            f'<span style="font-family:{FONT_MONO};color:{ACCENT};font-size:13px;'
+            f'font-weight:500;margin-right:8px;">{i}.</span>'
+            f'<span>{item.strip()}</span></p>'
             for i, item in enumerate(items, 1)
         )
         return f'<section style="margin:12px 0;">{rows}</section>'
@@ -270,18 +276,74 @@ def inject_styles(html):
     html = html.replace('<blockquote>', f'<blockquote style="{S["bq"]}">')
     html = html.replace('<hr>', f'<hr style="{S["hr"]}">')
     html = re.sub(r'<strong>',
-                  f'<strong style="font-weight:500;color:#111;font-family:{FONT_ZH};">',
+                  '<strong style="font-weight:600;color:#111;">',
                   html)
     html = re.sub(r'<table>',
                   '<table style="width:100%;border-collapse:collapse;margin:16px 0;">',
                   html)
+    # 第一个 <p> 改为引言样式
+    html = re.sub(r'<p style="[^"]*">', f'<p style="{S["p_lead"]}">', html, count=1)
     return html
 
 def md_to_html(md):
     import markdown
-    # 不用 nl2br，避免段落内多余换行
     html = markdown.markdown(md, extensions=['fenced_code', 'tables'], output_format='html')
     return inject_styles(html)
+
+# ── Header / Footer 构建 ──────────────────────────────
+def build_header(title, tags, description, date, category=''):
+    # 按 ：？，拆分标题为两行
+    title_light, title_bold = title, ''
+    for sep in ['：', '？', '，']:
+        if sep in title:
+            idx = title.index(sep)
+            title_light = title[:idx + (1 if sep == '？' else 0)]
+            title_bold  = title[idx + 1:] if sep != '？' else ''
+            break
+
+    # 顶部徽章：取分类 + 前两个 tag，大写
+    badge_parts = ([category.upper()] if category else []) + [t.upper() for t in tags[:2]]
+    tags_badge = ' · '.join(badge_parts[:3]) or 'BLOG'
+
+    # tag pills
+    pill = ('display:inline-block;background:rgba(255,255,255,0.13);'
+            'border:1px solid rgba(255,255,255,0.25);color:rgba(255,255,255,0.85);'
+            f'font-size:11px;padding:3px 10px;border-radius:3px;'
+            f'font-family:{FONT_MONO};margin-right:6px;margin-bottom:6px;')
+    tag_pills = ''.join(f'<span style="{pill}">{t}</span>' for t in tags)
+    tag_pills += f'<span style="{pill}">{date}</span>'
+
+    title_bold_html = (f'<p style="margin:0 0 14px;padding:0;font-size:19px;font-weight:700;'
+                       f'color:#FFD4B8;line-height:1.45;">{title_bold}</p>' if title_bold else
+                       '<p style="margin:0 0 14px;padding:0;"></p>')
+
+    return (
+        f'<table width="100%" cellpadding="0" cellspacing="0" border="0" '
+        f'style="background:{ACCENT};background:{GRADIENT};">'
+        f'<tr><td style="padding:32px 20px 24px;">'
+        f'<p style="margin:0 0 14px;padding:0;">'
+        f'<span style="display:inline-block;background:rgba(255,255,255,0.15);'
+        f'border:1px solid rgba(255,255,255,0.3);color:rgba(255,255,255,0.9);'
+        f'font-size:11px;letter-spacing:0.1em;padding:4px 14px;border-radius:20px;'
+        f'font-family:{FONT_MONO};">{tags_badge}</span></p>'
+        f'<p style="margin:0 0 6px;padding:0;font-size:22px;font-weight:300;color:#fff;'
+        f'line-height:1.45;letter-spacing:0.01em;">{title_light}</p>'
+        f'{title_bold_html}'
+        f'<p style="margin:0 0 18px;padding:0;font-size:13px;font-weight:300;'
+        f'color:rgba(255,255,255,0.78);line-height:1.75;">{description}</p>'
+        f'<p style="margin:0;padding:0;line-height:2;">{tag_pills}</p>'
+        f'</td></tr></table>'
+    )
+
+def build_footer(blog_url='blog.cirray.cn'):
+    return (
+        f'<table width="100%" cellpadding="0" cellspacing="0" border="0" '
+        f'style="background:#f0ece8;">'
+        f'<tr><td style="padding:24px 16px;text-align:center;">'
+        f'<p style="color:#888;font-size:13px;line-height:1.8;margin:0;padding:0;">'
+        f'<span style="color:{ACCENT};font-weight:600;">{blog_url}</span></p>'
+        f'</td></tr></table>'
+    )
 
 # ── 上传永久素材（封面图）────────────────────────────
 def upload_thumb(token, image_path):
@@ -343,7 +405,21 @@ def main():
     print(f"  封面图: {cover}")
 
     print("  转换 Markdown...")
-    html = md_to_html(post['body'])
+    header = build_header(post['title'], post['tags'], post['description'],
+                          post['date'], post['category'])
+    body   = md_to_html(post['body'])
+    footer = build_footer()
+    html = (
+        '<div style="background:#f5f5f5;font-family:-apple-system,Helvetica,Arial,sans-serif;'
+        'box-sizing:border-box;">'
+        + header
+        + '<table width="100%" cellpadding="0" cellspacing="0" border="0" style="background:#fff;">'
+        + '<tr><td style="padding:24px 16px 32px;word-wrap:break-word;">'
+        + body
+        + '</td></tr></table>'
+        + footer
+        + '</div>'
+    )
 
     print("  获取 access_token...")
     token = get_token()
