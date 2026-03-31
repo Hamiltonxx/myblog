@@ -182,6 +182,22 @@ S = {
                'padding:7px 12px;color:#3a3a3a;'),
 }
 
+def _preserve_spaces(html_line: str) -> str:
+    """把 HTML tag 之外的空格替换成 &nbsp;，防止微信折叠空白。"""
+    result, in_tag = [], False
+    for ch in html_line:
+        if ch == '<':
+            in_tag = True
+            result.append(ch)
+        elif ch == '>':
+            in_tag = False
+            result.append(ch)
+        elif ch == ' ' and not in_tag:
+            result.append('&nbsp;')
+        else:
+            result.append(ch)
+    return ''.join(result)
+
 def _highlight(code: str, lang: str) -> str:
     from pygments import highlight
     from pygments.lexers import get_lexer_by_name, TextLexer
@@ -192,7 +208,7 @@ def _highlight(code: str, lang: str) -> str:
         lexer = TextLexer()
     fmt = HtmlFormatter(style='one-dark', nowrap=True, noclasses=True)
     result = highlight(code, lexer, fmt)
-    return result.split('\n')
+    return [_preserve_spaces(line) for line in result.split('\n')]
 
 def _handle_code_blocks(html):
     def replace_block(m):
