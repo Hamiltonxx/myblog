@@ -1,5 +1,5 @@
 +++
-title = "给 AI 一个任务清单，它第一反应是用标题当 ID"
+title = "用 Rust 学 AI Agent——Day 8：给 AI 一个任务清单，它第一反应是用标题当 ID"
 description = "今天实现了带依赖关系的任务系统——Kahn 算法、Arc<Mutex<T>>、JSON 持久化都顺手，但最值得记录的是 Claude 调工具时犯的那个错，以及它说明了什么。"
 date = 2026-03-31
 
