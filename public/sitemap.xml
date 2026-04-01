@@ -91,10 +91,17 @@
         <lastmod>2026-03-30</lastmod>
     </url>
     <url>
+        <loc>https://blog.cirray.cn/posts/rust-dojo-2026-04-01/</loc>
+        <lastmod>2026-04-01</lastmod>
+    </url>
+    <url>
         <loc>https://blog.cirray.cn/tags/</loc>
     </url>
     <url>
         <loc>https://blog.cirray.cn/tags/accessibility/</loc>
+    </url>
+    <url>
+        <loc>https://blog.cirray.cn/tags/adaptive-learning/</loc>
     </url>
     <url>
         <loc>https://blog.cirray.cn/tags/adb/</loc>
