@@ -221,26 +221,27 @@ def _handle_code_blocks(html):
                       .replace('&amp;', '&'))
 
         lines = _highlight(inner.rstrip('\n'), lang)
-        code_html = ''.join(
-            f'<span style="display:block;margin-bottom:3px;font-family:{FONT_CODE};'
-            f'font-size:12.5px;line-height:1.7;color:#abb2bf;'
-            f'white-space:pre-wrap;word-wrap:break-word;">{line}</span>'
+        code_lines = ''.join(
+            f'<span style="display:block;font-family:{FONT_CODE};'
+            f'font-size:12px;line-height:1.8;color:#abb2bf;'
+            f'white-space:pre;">{line}</span>'
             for line in lines if line
         )
-        lang_tag = (f'<span style="float:right;font-family:{FONT_MONO};font-size:11px;'
+        lang_tag = (f'<span style="font-family:{FONT_MONO};font-size:11px;'
                     f'color:#636d83;letter-spacing:0.08em;">{lang}</span>' if lang else '')
         dots = (
-            '<span style="color:#ff5f56;font-size:16px;line-height:1;font-family:sans-serif;">●</span>'
-            '<span style="color:#ffbd2e;font-size:16px;line-height:1;font-family:sans-serif;margin-left:4px;">●</span>'
-            '<span style="color:#27c93f;font-size:16px;line-height:1;font-family:sans-serif;margin-left:4px;">●</span>'
+            '<span style="color:#ff5f56;font-size:14px;line-height:1;font-family:sans-serif;">●</span>'
+            '<span style="color:#ffbd2e;font-size:14px;line-height:1;font-family:sans-serif;margin-left:4px;">●</span>'
+            '<span style="color:#27c93f;font-size:14px;line-height:1;font-family:sans-serif;margin-left:4px;">●</span>'
         )
         return (
-            f'<table width="100%" cellpadding="0" cellspacing="0" border="0" '
-            f'style="background:#282c34;border-radius:6px;overflow:hidden;margin:14px 0;">'
-            f'<tr><td style="background:#1d2026;padding:8px 14px;line-height:1;font-size:0;">'
-            f'{lang_tag}{dots}</td></tr>'
-            f'<tr><td style="padding:16px 18px;">{code_html}</td></tr>'
-            f'</table>'
+            f'<section style="background:#282c34;border-radius:6px;margin:14px 0;overflow:hidden;">'
+            f'<section style="background:#1d2026;padding:8px 14px;display:-webkit-box;'
+            f'-webkit-box-pack:justify;-webkit-box-align:center;">'
+            f'<span>{dots}</span>{lang_tag}</section>'
+            f'<section style="overflow-x:auto;-webkit-overflow-scrolling:touch;padding:16px 18px;">'
+            f'{code_lines}'
+            f'</section></section>'
         )
 
     return re.sub(r'<pre><code([^>]*)>(.*?)</code></pre>', replace_block, html, flags=re.DOTALL)
@@ -404,13 +405,19 @@ _MONO_FONTS = [
     '/System/Library/Fonts/Supplemental/Courier New.ttf',
 ]
 
+def _should_screenshot(code: str) -> bool:
+    """短代码（≤15行且最长行≤52字符）转截图，长代码用可横滑文字块。"""
+    lines = code.strip().splitlines()
+    return len(lines) <= 15 and max((len(l) for l in lines), default=0) <= 52
+
+
 def render_code_image(code: str, lang: str, min_width: int = 600) -> bytes:
     """把代码字符串渲染成 PNG 图片（terminal 风格）。"""
     from PIL import Image, ImageDraw, ImageFont
     import io
 
-    FONT_SIZE = 13
-    LINE_H    = 20
+    FONT_SIZE = 12
+    LINE_H    = 19
     PAD_X     = 16
     PAD_Y     = 12
     HDR_H     = 32
@@ -424,8 +431,8 @@ def render_code_image(code: str, lang: str, min_width: int = 600) -> bytes:
             pass
 
     lines = code.rstrip('\n').split('\n')
-    # 估算宽度：每字符约 8px（Menlo 13px）
-    content_w = max(min_width, PAD_X * 2 + max((len(l) for l in lines), default=0) * 8)
+    # 估算宽度：每字符约 7px（Menlo 12px）
+    content_w = max(min_width, PAD_X * 2 + max((len(l) for l in lines), default=0) * 7)
     content_h = PAD_Y + len(lines) * LINE_H + PAD_Y
     total_h   = HDR_H + content_h
 
@@ -472,12 +479,15 @@ def upload_content_image(token: str, png_bytes: bytes) -> str:
 
 
 def preprocess_code_images(md: str, token: str) -> str:
-    """把 Markdown 中每个代码块渲染为图片并上传，替换为 <img> 标签。"""
+    """短代码块渲染为图片上传，长代码块保留给 HTML 横滑处理。"""
     def replace(m):
         lang = m.group(1).strip() or ''
         code = m.group(2)
+        if not _should_screenshot(code):
+            print(f"    代码块 [{lang or 'text'}] 较长，保留为可横滑文字块")
+            return m.group(0)
         try:
-            print(f"    渲染代码块 [{lang or 'text'}]...")
+            print(f"    渲染代码块 [{lang or 'text'}] → 截图...")
             png     = render_code_image(code, lang)
             img_url = upload_content_image(token, png)
             return f'\n\n<img src="{img_url}" style="width:100%;display:block;margin:14px 0;">\n\n'

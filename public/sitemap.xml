@@ -23,6 +23,10 @@
         <lastmod>2026-03-22</lastmod>
     </url>
     <url>
+        <loc>https://blog.cirray.cn/posts/android-todo-app-2026-04-03/</loc>
+        <lastmod>2026-04-03</lastmod>
+    </url>
+    <url>
         <loc>https://blog.cirray.cn/posts/auto-deploy/</loc>
         <lastmod>2026-03-22</lastmod>
     </url>
@@ -149,6 +153,9 @@
         <loc>https://blog.cirray.cn/tags/fastembed/</loc>
     </url>
     <url>
+        <loc>https://blog.cirray.cn/tags/gemini/</loc>
+    </url>
+    <url>
         <loc>https://blog.cirray.cn/tags/github/</loc>
     </url>
     <url>
@@ -159,6 +166,9 @@
     </url>
     <url>
         <loc>https://blog.cirray.cn/tags/huawei/</loc>
+    </url>
+    <url>
+        <loc>https://blog.cirray.cn/tags/jetpack-compose/</loc>
     </url>
     <url>
         <loc>https://blog.cirray.cn/tags/jiao-cheng/</loc>
@@ -204,6 +214,9 @@
     </url>
     <url>
         <loc>https://blog.cirray.cn/tags/task-system/</loc>
+    </url>
+    <url>
+        <loc>https://blog.cirray.cn/tags/todo/</loc>
     </url>
     <url>
         <loc>https://blog.cirray.cn/tags/topological-sort/</loc>
