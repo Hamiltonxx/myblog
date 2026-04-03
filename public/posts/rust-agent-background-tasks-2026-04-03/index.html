@@ -1,0 +1,499 @@
+<!DOCTYPE html>
+
+<html lang="zh">
+
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="color-scheme" content="light dark">
+  
+  
+    
+  
+  <meta name="description" content="今天实现了后台任务系统——tokio::spawn + mpsc channel，agent 启动耗时命令后可以继续对话。但这条路上有几个坑，几乎每个 Rust 异步新手都会踩。">
+
+  <title>用 Rust 学 AI Agent——Day 9：让 agent 同时做两件事，我踩了哪些异步的坑</title>
+  <link rel="icon" type="image/png" sizes="32x32" href="https://blog.cirray.cn/img/favicon-32x32.png">
+  <link rel="icon" type="image/png" sizes="16x16" href="https://blog.cirray.cn/img/favicon-16x16.png">
+  <link rel="apple-touch-icon" sizes="180x180" href="https://blog.cirray.cn/img/apple-touch-icon.png">
+  
+  <style>
+
+  /* light mode colors */
+  body {
+    --primary-color: #5871a2;
+    --primary-pale-color: #5871a233;
+    --primary-decoration-color: #5871a210;
+    --bg-color: #ffffff;
+    --text-color: #2f3030;
+    --text-pale-color: #767676;
+    --text-decoration-color: #a9a9a9;
+    --highlight-mark-color: #5f75b020;
+
+    --callout-note-color: #5871a2;
+    --callout-tip-color: #268556;
+    --callout-important-color: #885fc9;
+    --callout-warning-color: #ab6632;
+    --callout-caution-color: #c64e4e;
+  }
+
+  /* dark mode colors */
+  body.dark {
+    --primary-color: #6f8fd1;
+    --primary-pale-color: #6f8fd166;
+    --primary-decoration-color: #6f8fd112;
+    --bg-color: #1c1c1c;
+    --text-color: #c1c1c1;
+    --text-pale-color: #848484;
+    --text-decoration-color: #5f5f5f;
+    --highlight-mark-color: #8296cb3b;
+
+    --callout-note-color: #6f8fd1;
+    --callout-tip-color: #47976f;
+    --callout-important-color: #9776cd;
+    --callout-warning-color: #ad7a52;
+    --callout-caution-color: #d06161;
+  }
+
+  /* typography */
+  body {
+    --main-font: ui-sans-serif, system-ui, sans-serif, 'Apple Color Emoji', 'Segoe UI Emoji', 'Segoe UI Symbol', 'Noto Color Emoji';
+    --code-font: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, 'Liberation Mono', 'Courier New', monospace;
+    --homepage-max-width: 768px;
+    --main-max-width: 768px;
+    --avatar-size: 60px;
+    --font-size: 16px;
+    --line-height: 1.75;
+    --img-border-radius: 0px;
+    --detail-border-radius: 0px;
+    --dark-mode-img-brightness: 0.75;
+    --dark-mode-chart-brightness: 0.75;
+    --inline-code-border-radius: 2px;
+    --inline-code-bg-color: var(--primary-decoration-color);
+    --block-code-border-radius: 0px;
+    --block-code-border-color: var(--primary-color);
+    --detail-border-color: var(--primary-color);
+  }
+
+</style>
+
+  <link rel="stylesheet" href="https://blog.cirray.cn/main.css">
+  
+
+<link id="hl" rel="stylesheet" type="text/css" href="/giallo-light.css" />
+
+
+
+  
+</head>
+
+<body class="post">
+  
+  <script>
+    const theme = sessionStorage.getItem('theme');
+    const match = window.matchMedia("(prefers-color-scheme: dark)").matches;
+    if ((theme && theme == 'dark') || (!theme && match)) {
+      document.body.classList.add('dark');
+      const hl = document.querySelector('link#hl');
+      if (hl) hl.href = 'https://blog.cirray.cn/giallo-dark.css';
+    }
+  </script>
+  
+  
+<div id="wrapper">
+  <div id="blank"></div>
+  <aside>
+    
+    
+    <nav>
+      <ul>
+        
+        <li>
+          <a class="h2" href="#wo-xiang-yao-de-xiao-guo">我想要的效果</a>
+          
+        </li>
+        
+        <li>
+          <a class="h2" href="#jia-gou-yi-ju-hua">架构一句话</a>
+          
+        </li>
+        
+        <li>
+          <a class="h2" href="#keng-yi-std-process-command-ba-zheng-ge-yun-xing-shi-qia-si-liao">坑一：std::process::Command 把整个运行时卡死了</a>
+          
+        </li>
+        
+        <li>
+          <a class="h2" href="#keng-er-arc-mutex-t-suo-bu-neng-kua-await">坑二：Arc&lt;Mutex&lt;T&gt;&gt; 锁不能跨 .await</a>
+          
+        </li>
+        
+        <li>
+          <a class="h2" href="#keng-san-fa-song-zhe-ti-qian-drop-jie-shou-zhe-li-ke-shou-dao-guan-bi-xin-hao">坑三：发送者提前 drop，接收者立刻收到关闭信号</a>
+          
+        </li>
+        
+        <li>
+          <a class="h2" href="#keng-si-recv-vs-try-recv-yi-ge-zi-mu-de-qu-bie-rang-zhu-xun-huan-qia-si">坑四：recv() vs try_recv()——一个字母的区别让主循环卡死</a>
+          
+        </li>
+        
+        <li>
+          <a class="h2" href="#keng-wu-spawn-yao-qiu-static-send">坑五：spawn 要求 &#x27;static + Send</a>
+          
+        </li>
+        
+        <li>
+          <a class="h2" href="#zui-zhong-xiao-guo">最终效果</a>
+          
+        </li>
+        
+        <li>
+          <a class="h2" href="#jin-tian-de-rust-shou-huo">今天的 Rust 收获</a>
+          
+        </li>
+        
+        <li>
+          <a class="h2" href="#xia-yi-bu">下一步</a>
+          
+        </li>
+        
+      </ul>
+    </nav>
+    
+    
+    <button id="back-to-top" aria-label="back to top">
+      
+      <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="feather feather-arrow-up"><line x1="12" y1="19" x2="12" y2="5"></line><polyline points="5 12 12 5 19 12"></polyline></svg>
+
+    </button>
+    
+  </aside>
+  <main>
+    
+<header>
+  <nav>
+    <a id="back-link" href="https:&#x2F;&#x2F;blog.cirray.cn&#x2F;posts">← Back</a>
+  </nav>
+</header>
+
+
+    <div>
+      
+      
+      
+      
+      <div id="copy-cfg" style="display: none;" data-copy-icon="&lt;svg xmlns=&quot;http:&#x2F;&#x2F;www.w3.org&#x2F;2000&#x2F;svg&quot; viewBox=&quot;0 0 24 24&quot; width=&quot;18&quot; height=&quot;18&quot;&gt;&lt;path d=&quot;M6.9998 6V3C6.9998 2.44772 7.44752 2 7.9998 2H19.9998C20.5521 2 20.9998 2.44772 20.9998 3V17C20.9998 17.5523 20.5521 18 19.9998 18H16.9998V20.9991C16.9998 21.5519 16.5499 22 15.993 22H4.00666C3.45059 22 3 21.5554 3 20.9991L3.0026 7.00087C3.0027 6.44811 3.45264 6 4.00942 6H6.9998ZM5.00242 8L5.00019 20H14.9998V8H5.00242ZM8.9998 6H16.9998V16H18.9998V4H8.9998V6Z&quot; fill=&quot;currentColor&quot;&gt;&lt;&#x2F;path&gt;&lt;&#x2F;svg&gt;
+" data-check-icon="&lt;svg xmlns=&quot;http:&#x2F;&#x2F;www.w3.org&#x2F;2000&#x2F;svg&quot; viewBox=&quot;0 0 24 24&quot; width=&quot;18&quot; height=&quot;18&quot;&gt;&lt;path d=&quot;M10.0007 15.1709L19.1931 5.97852L20.6073 7.39273L10.0007 17.9993L3.63672 11.6354L5.05093 10.2212L10.0007 15.1709Z&quot; fill=&quot;currentColor&quot;&gt;&lt;&#x2F;path&gt;&lt;&#x2F;svg&gt;
+"></div>
+      
+      <article class="prose">
+        <h1>用 Rust 学 AI Agent——Day 9：让 agent 同时做两件事，我踩了哪些异步的坑</h1>
+        <div id="post-info">
+          <div id="date">
+            <span id="publish">2026-04-03</span>
+            </div>
+
+          
+          <div id="tags">
+            <a class="instant" href="https://blog.cirray.cn/tags/rust"><span>#</span>rust</a><a class="instant" href="https://blog.cirray.cn/tags/tokio"><span>#</span>tokio</a><a class="instant" href="https://blog.cirray.cn/tags/async"><span>#</span>async</a><a class="instant" href="https://blog.cirray.cn/tags/mpsc"><span>#</span>mpsc</a><a class="instant" href="https://blog.cirray.cn/tags/agent"><span>#</span>agent</a><a class="instant" href="https://blog.cirray.cn/tags/learn-agent-rust"><span>#</span>learn-agent-rust</a><a class="instant" href="https://blog.cirray.cn/tags/background-tasks"><span>#</span>background-tasks</a>
+          </div>
+          
+        </div>
+
+        
+        
+
+        
+
+        <blockquote>
+<p>Day 9，目标是让 agent 能「后台跑命令、前台继续聊」。</p>
+<p>核心只有两件事：<code>tokio::spawn</code> 丢任务到后台，<code>mpsc channel</code> 通知结果回来了。
+听起来简单，但这段路上的坑，几乎每个 Rust 异步新手都会踩一遍。</p>
+</blockquote>
+<hr />
+<h2 id="wo-xiang-yao-de-xiao-guo">我想要的效果<a class="zola-anchor" href="#wo-xiang-yao-de-xiao-guo" aria-label="Anchor link for: wo-xiang-yao-de-xiao-guo" style="visibility: hidden;"></a>
+</h2>
+<p>用户说「后台跑 <code>sleep 5 &amp;&amp; echo done</code>，我先去问你别的问题」，agent 回「好，任务 id=bg-1，已启动」——然后继续响应下一个问题。五秒后，主循环打印一行：</p>
+<pre class="giallo z-code"><code data-lang="plain"><span class="giallo-l"><span>[后台通知] bg-1 完成 | done</span></span></code></pre>
+<p>没有阻塞，没有等待，像真正的后台进程一样。</p>
+<hr />
+<h2 id="jia-gou-yi-ju-hua">架构一句话<a class="zola-anchor" href="#jia-gou-yi-ju-hua" aria-label="Anchor link for: jia-gou-yi-ju-hua" style="visibility: hidden;"></a>
+</h2>
+<pre class="giallo z-code"><code data-lang="plain"><span class="giallo-l"><span>用户输入 → agent loop → run_background tool</span></span>
+<span class="giallo-l"><span>                               ↓</span></span>
+<span class="giallo-l"><span>                          tokio::spawn（异步子任务）</span></span>
+<span class="giallo-l"><span>                               ↓（完成后）</span></span>
+<span class="giallo-l"><span>                          tx.send((id, output))</span></span>
+<span class="giallo-l"><span>                               ↓</span></span>
+<span class="giallo-l"><span>主循环 try_recv() → 打印通知</span></span></code></pre>
+<p><code>BgStore</code>（<code>Arc&lt;Mutex&lt;HashMap&gt;&gt;</code>）存任务状态，<code>CompletionTx</code>（<code>mpsc::UnboundedSender</code>）传完成信号。工具执行时注册任务、spawn 后台跑，立即返回任务 id 给 Claude。</p>
+<hr />
+<h2 id="keng-yi-std-process-command-ba-zheng-ge-yun-xing-shi-qia-si-liao">坑一：<code>std::process::Command</code> 把整个运行时卡死了<a class="zola-anchor" href="#keng-yi-std-process-command-ba-zheng-ge-yun-xing-shi-qia-si-liao" aria-label="Anchor link for: keng-yi-std-process-command-ba-zheng-ge-yun-xing-shi-qia-si-liao" style="visibility: hidden;"></a>
+</h2>
+<p>最开始我习惯性地写：</p>
+<pre class="giallo z-code"><code data-lang="rust"><span class="giallo-l"><span class="z-storage z-type">let</span><span class="z-variable z-other"> out</span><span class="z-keyword"> =</span><span class="z-entity z-name"> std</span><span class="z-keyword">::</span><span class="z-entity z-name">process</span><span class="z-keyword">::</span><span class="z-entity z-name">Command</span><span class="z-keyword">::</span><span class="z-entity z-name">new</span><span>(</span><span class="z-punctuation z-definition z-string">&quot;</span><span class="z-string">sh</span><span class="z-punctuation z-definition z-string">&quot;</span><span>)</span></span>
+<span class="giallo-l"><span class="z-keyword">    .</span><span class="z-entity z-name">arg</span><span>(</span><span class="z-punctuation z-definition z-string">&quot;</span><span class="z-string">-c</span><span class="z-punctuation z-definition z-string">&quot;</span><span>)</span><span class="z-keyword">.</span><span class="z-entity z-name">arg</span><span>(</span><span class="z-keyword">&amp;</span><span class="z-variable z-other">command</span><span>)</span></span>
+<span class="giallo-l"><span class="z-keyword">    .</span><span class="z-entity z-name">output</span><span>(</span><span>)</span></span>
+<span class="giallo-l"><span class="z-keyword">    .</span><span class="z-entity z-name">unwrap</span><span>(</span><span>)</span><span>;</span></span></code></pre>
+<p>编译通过，运行也「正常」——但后台任务执行期间整个 agent 完全没有响应。</p>
+<p>原因：<code>std::process::Command::output()</code> 是<strong>同步阻塞</strong>调用。tokio 的线程池虽然是多线程的，但 async 任务调度依赖「任务在 .await 时让出控制权」。一旦某个任务开始同步阻塞，它占着线程不放，直到命令结束。</p>
+<p>正确写法是换成异步版本：</p>
+<pre class="giallo z-code"><code data-lang="rust"><span class="giallo-l"><span class="z-keyword">use</span><span class="z-entity z-name"> tokio</span><span class="z-keyword">::</span><span class="z-entity z-name">process</span><span class="z-keyword">::</span><span class="z-entity z-name">Command</span><span>;</span></span>
+<span class="giallo-l"></span>
+<span class="giallo-l"><span class="z-storage z-type">let</span><span class="z-variable z-other"> out</span><span class="z-keyword"> =</span><span class="z-entity z-name"> Command</span><span class="z-keyword">::</span><span class="z-entity z-name">new</span><span>(</span><span class="z-punctuation z-definition z-string">&quot;</span><span class="z-string">sh</span><span class="z-punctuation z-definition z-string">&quot;</span><span>)</span></span>
+<span class="giallo-l"><span class="z-keyword">    .</span><span class="z-entity z-name">arg</span><span>(</span><span class="z-punctuation z-definition z-string">&quot;</span><span class="z-string">-c</span><span class="z-punctuation z-definition z-string">&quot;</span><span>)</span><span class="z-keyword">.</span><span class="z-entity z-name">arg</span><span>(</span><span class="z-keyword">&amp;</span><span class="z-variable z-other">command</span><span>)</span></span>
+<span class="giallo-l"><span class="z-keyword">    .</span><span class="z-entity z-name">output</span><span>(</span><span>)</span><span class="z-punctuation z-definition z-comment">          //</span><span class="z-comment"> 这里返回的是 Future</span></span>
+<span class="giallo-l"><span class="z-keyword">    .</span><span class="z-keyword">await</span><span>;</span><span class="z-punctuation z-definition z-comment">            //</span><span class="z-comment"> 等待时让出控制权</span></span></code></pre>
+<p><code>tokio::process::Command</code> 在底层用的是 epoll/kqueue，等待子进程时不占线程。<strong>在 tokio 里，所有 I/O 和进程操作都应该用 tokio 的异步版本，而不是标准库的同步版本。</strong></p>
+<hr />
+<h2 id="keng-er-arc-mutex-t-suo-bu-neng-kua-await">坑二：<code>Arc&lt;Mutex&lt;T&gt;&gt;</code> 锁不能跨 <code>.await</code><a class="zola-anchor" href="#keng-er-arc-mutex-t-suo-bu-neng-kua-await" aria-label="Anchor link for: keng-er-arc-mutex-t-suo-bu-neng-kua-await" style="visibility: hidden;"></a>
+</h2>
+<p>把 <code>Arc&lt;Mutex&lt;TaskManager&gt;&gt;</code> 传进 spawn 的闭包，然后在里面写：</p>
+<pre class="giallo z-code"><code data-lang="rust"><span class="giallo-l"><span class="z-entity z-name">tokio</span><span class="z-keyword">::</span><span class="z-entity z-name">spawn</span><span>(</span><span class="z-keyword">async</span><span class="z-keyword"> move</span><span> {</span></span>
+<span class="giallo-l"><span class="z-storage z-type">    let</span><span class="z-storage"> mut</span><span class="z-variable z-other"> store</span><span class="z-keyword"> =</span><span class="z-variable z-language"> self</span><span class="z-keyword">.</span><span>store</span><span class="z-keyword">.</span><span class="z-entity z-name">lock</span><span>(</span><span>)</span><span class="z-keyword">.</span><span class="z-entity z-name">unwrap</span><span>(</span><span>)</span><span>;</span><span class="z-punctuation z-definition z-comment"> //</span><span class="z-comment"> 拿锁</span></span>
+<span class="giallo-l"><span class="z-punctuation z-definition z-comment">    //</span><span class="z-comment"> ... 一些操作</span></span>
+<span class="giallo-l"><span class="z-storage z-type">    let</span><span class="z-variable z-other"> out</span><span class="z-keyword"> =</span><span class="z-entity z-name"> Command</span><span class="z-keyword">::</span><span class="z-entity z-name">new</span><span>(</span><span class="z-punctuation z-definition z-string">&quot;</span><span class="z-string">sh</span><span class="z-punctuation z-definition z-string">&quot;</span><span>)</span><span class="z-keyword">.</span><span class="z-entity z-name">output</span><span>(</span><span>)</span><span class="z-keyword">.</span><span class="z-keyword">await</span><span>;</span><span class="z-punctuation z-definition z-comment"> //</span><span class="z-comment"> ← 编译报错！</span></span>
+<span class="giallo-l"><span class="z-variable z-other">    store</span><span class="z-keyword">.</span><span class="z-entity z-name">entry</span><span>(</span><span class="z-variable z-other">id</span><span>)</span><span class="z-keyword">.</span><span class="z-entity z-name">and_modify</span><span>(</span><span class="z-keyword">|</span><span class="z-variable z-other">t</span><span class="z-keyword">|</span><span class="z-variable z-other"> t</span><span class="z-keyword">.</span><span>status </span><span class="z-keyword">=</span><span class="z-entity z-name"> Done</span><span>)</span><span>;</span></span>
+<span class="giallo-l"><span>}</span><span>)</span><span>;</span></span></code></pre>
+<p>Rust 编译器会报：</p>
+<pre class="giallo z-code"><code data-lang="plain"><span class="giallo-l"><span>`std::sync::MutexGuard&lt;...&gt;` cannot be held across an `await` point</span></span></code></pre>
+<p>原因是：<code>.await</code> 时当前 async 任务可能被挂起，切换到另一个线程继续执行。而 <code>std::sync::MutexGuard</code> 不是 <code>Send</code>——它绑定了原始线程，不能跨线程移动。</p>
+<p>解法有两种：</p>
+<p><strong>方案 A</strong>：拿锁、操作、立刻释放，不跨 await：</p>
+<pre class="giallo z-code"><code data-lang="rust"><span class="giallo-l"><span class="z-entity z-name">tokio</span><span class="z-keyword">::</span><span class="z-entity z-name">spawn</span><span>(</span><span class="z-keyword">async</span><span class="z-keyword"> move</span><span> {</span></span>
+<span class="giallo-l"><span class="z-punctuation z-definition z-comment">    //</span><span class="z-comment"> 先 drop 锁再 await</span></span>
+<span class="giallo-l"><span>    {</span></span>
+<span class="giallo-l"><span class="z-storage z-type">        let</span><span class="z-storage"> mut</span><span class="z-variable z-other"> store</span><span class="z-keyword"> =</span><span class="z-variable z-other"> shared_store</span><span class="z-keyword">.</span><span class="z-entity z-name">lock</span><span>(</span><span>)</span><span class="z-keyword">.</span><span class="z-entity z-name">unwrap</span><span>(</span><span>)</span><span>;</span></span>
+<span class="giallo-l"><span class="z-variable z-other">        store</span><span class="z-keyword">.</span><span class="z-entity z-name">insert</span><span>(</span><span class="z-variable z-other">id</span><span class="z-keyword">.</span><span class="z-entity z-name">clone</span><span>(</span><span>)</span><span>,</span><span class="z-entity z-name"> BgTask</span><span> {</span><span class="z-variable z-other"> status</span><span class="z-keyword">:</span><span class="z-entity z-name"> Running</span><span>,</span><span class="z-keyword"> ..</span><span> }</span><span>)</span><span>;</span></span>
+<span class="giallo-l"><span>    }</span><span class="z-punctuation z-definition z-comment"> //</span><span class="z-comment"> guard 在这里 drop</span></span>
+<span class="giallo-l"></span>
+<span class="giallo-l"><span class="z-storage z-type">    let</span><span class="z-variable z-other"> out</span><span class="z-keyword"> =</span><span class="z-entity z-name"> Command</span><span class="z-keyword">::</span><span class="z-entity z-name">new</span><span>(</span><span class="z-punctuation z-definition z-string">&quot;</span><span class="z-string">sh</span><span class="z-punctuation z-definition z-string">&quot;</span><span>)</span><span class="z-keyword">.</span><span class="z-entity z-name">output</span><span>(</span><span>)</span><span class="z-keyword">.</span><span class="z-keyword">await</span><span>;</span><span class="z-punctuation z-definition z-comment"> //</span><span class="z-comment"> 现在安全</span></span>
+<span class="giallo-l"></span>
+<span class="giallo-l"><span class="z-storage z-type">    let</span><span class="z-storage"> mut</span><span class="z-variable z-other"> store</span><span class="z-keyword"> =</span><span class="z-variable z-other"> shared_store</span><span class="z-keyword">.</span><span class="z-entity z-name">lock</span><span>(</span><span>)</span><span class="z-keyword">.</span><span class="z-entity z-name">unwrap</span><span>(</span><span>)</span><span>;</span><span class="z-punctuation z-definition z-comment"> //</span><span class="z-comment"> 再次拿锁</span></span>
+<span class="giallo-l"><span class="z-variable z-other">    store</span><span class="z-keyword">.</span><span class="z-entity z-name">entry</span><span>(</span><span class="z-variable z-other">id</span><span>)</span><span class="z-keyword">.</span><span class="z-entity z-name">and_modify</span><span>(</span><span class="z-keyword">|</span><span class="z-variable z-other">t</span><span class="z-keyword">|</span><span class="z-variable z-other"> t</span><span class="z-keyword">.</span><span>status </span><span class="z-keyword">=</span><span class="z-entity z-name"> Done</span><span>(</span><span class="z-variable z-other">result</span><span>)</span><span>)</span><span>;</span></span>
+<span class="giallo-l"><span>}</span><span>)</span><span>;</span></span></code></pre>
+<p><strong>方案 B</strong>：换成 <code>tokio::sync::Mutex</code>（异步锁），它的 guard 实现了 <code>Send</code>。代价是每次 lock 要 <code>.await</code>，性能略低。</p>
+<p>我用的是方案 A——锁住、改状态、立刻释放，简单直接。</p>
+<hr />
+<h2 id="keng-san-fa-song-zhe-ti-qian-drop-jie-shou-zhe-li-ke-shou-dao-guan-bi-xin-hao">坑三：发送者提前 drop，接收者立刻收到关闭信号<a class="zola-anchor" href="#keng-san-fa-song-zhe-ti-qian-drop-jie-shou-zhe-li-ke-shou-dao-guan-bi-xin-hao" aria-label="Anchor link for: keng-san-fa-song-zhe-ti-qian-drop-jie-shou-zhe-li-ke-shou-dao-guan-bi-xin-hao" style="visibility: hidden;"></a>
+</h2>
+<p>第一版代码里，<code>tx</code> 是在 <code>main</code> 里创建的，然后 <code>clone</code> 一份传给工具。但我把原始 <code>tx</code> 存在了一个局部变量里，函数执行完就 drop 了：</p>
+<pre class="giallo z-code"><code data-lang="rust"><span class="giallo-l"><span class="z-storage z-type">let</span><span> (</span><span class="z-variable z-other">tx</span><span>,</span><span class="z-storage"> mut</span><span class="z-variable z-other"> rx</span><span>)</span><span class="z-keyword"> =</span><span class="z-entity z-name"> mpsc</span><span class="z-keyword">::</span><span class="z-entity z-name">unbounded_channel</span><span>(</span><span>)</span><span>;</span></span>
+<span class="giallo-l"><span class="z-punctuation z-definition z-comment">//</span><span class="z-comment"> ... 把 tx.clone() 传给工具</span></span>
+<span class="giallo-l"></span>
+<span class="giallo-l"><span class="z-punctuation z-definition z-comment">//</span><span class="z-comment"> tx 本身没有被保留，离开作用域后 drop</span></span>
+<span class="giallo-l"><span class="z-punctuation z-definition z-comment">//</span><span class="z-comment"> 此时 channel 的发送端引用计数归零</span></span>
+<span class="giallo-l"><span class="z-punctuation z-definition z-comment">//</span><span class="z-comment"> rx.recv() 立刻返回 None</span></span></code></pre>
+<p>现象是：后台任务还没跑完，主循环就停止接收通知了。</p>
+<p>修法：把原始 <code>tx</code> 也传进工具结构体，让工具持有一个克隆，<code>main</code> 也持有一份（或者干脆不 drop 原始的）：</p>
+<pre class="giallo z-code"><code data-lang="rust"><span class="giallo-l"><span class="z-storage z-type">let</span><span> (</span><span class="z-variable z-other">tx</span><span>,</span><span class="z-storage"> mut</span><span class="z-variable z-other"> rx</span><span>)</span><span class="z-keyword"> =</span><span class="z-entity z-name"> mpsc</span><span class="z-keyword">::</span><span class="z-entity z-name">unbounded_channel</span><span>(</span><span>)</span><span>;</span></span>
+<span class="giallo-l"></span>
+<span class="giallo-l"><span class="z-variable z-other">tools</span><span class="z-keyword">.</span><span class="z-entity z-name">insert</span><span>(</span><span class="z-punctuation z-definition z-string">&quot;</span><span class="z-string">run_background</span><span class="z-punctuation z-definition z-string">&quot;</span><span class="z-keyword">.</span><span class="z-entity z-name">to_string</span><span>(</span><span>)</span><span>,</span><span class="z-entity z-name"> Box</span><span class="z-keyword">::</span><span class="z-entity z-name">new</span><span>(</span><span class="z-entity z-name">RunBackgroundTool</span><span> {</span></span>
+<span class="giallo-l"><span class="z-variable z-other">    store</span><span class="z-keyword">:</span><span class="z-variable z-other"> store</span><span class="z-keyword">.</span><span class="z-entity z-name">clone</span><span>(</span><span>)</span><span>,</span></span>
+<span class="giallo-l"><span class="z-variable z-other">    tx</span><span>,</span><span class="z-punctuation z-definition z-comment">        //</span><span class="z-comment"> ← 把所有权移进工具，工具活着 tx 就活着</span></span>
+<span class="giallo-l"><span class="z-variable z-other">    next_id</span><span>,</span></span>
+<span class="giallo-l"><span>}</span><span>)</span><span>)</span><span>;</span></span>
+<span class="giallo-l"></span>
+<span class="giallo-l"><span class="z-punctuation z-definition z-comment">//</span><span class="z-comment"> 但注意：工具内部 spawn 时需要 tx.clone()</span></span>
+<span class="giallo-l"><span class="z-punctuation z-definition z-comment">//</span><span class="z-comment"> 因为 spawn 的闭包要 move tx，下次调用就没了</span></span></code></pre>
+<p>工具内部：</p>
+<pre class="giallo z-code"><code data-lang="rust"><span class="giallo-l"><span class="z-keyword">async</span><span class="z-keyword"> fn</span><span class="z-entity z-name"> execute</span><span>(</span><span class="z-keyword">&amp;</span><span class="z-variable z-language">self</span><span>,</span><span class="z-variable z-other"> input</span><span class="z-keyword">:</span><span class="z-entity z-name"> Value</span><span>)</span><span class="z-keyword"> -&gt;</span><span class="z-entity z-name"> String</span><span> {</span></span>
+<span class="giallo-l"><span class="z-storage z-type">    let</span><span class="z-variable z-other"> tx</span><span class="z-keyword"> =</span><span class="z-variable z-language"> self</span><span class="z-keyword">.</span><span>tx</span><span class="z-keyword">.</span><span class="z-entity z-name">clone</span><span>(</span><span>)</span><span>;</span><span class="z-punctuation z-definition z-comment"> //</span><span class="z-comment"> clone 一份给 spawn</span></span>
+<span class="giallo-l"><span class="z-entity z-name">    tokio</span><span class="z-keyword">::</span><span class="z-entity z-name">spawn</span><span>(</span><span class="z-keyword">async</span><span class="z-keyword"> move</span><span> {</span></span>
+<span class="giallo-l"><span class="z-punctuation z-definition z-comment">        //</span><span class="z-comment"> ...</span></span>
+<span class="giallo-l"><span class="z-storage z-type">        let</span><span class="z-variable z-other"> _</span><span class="z-keyword"> =</span><span class="z-variable z-other"> tx</span><span class="z-keyword">.</span><span class="z-entity z-name">send</span><span>(</span><span>(</span><span class="z-variable z-other">id</span><span>,</span><span class="z-variable z-other"> result</span><span>,</span><span class="z-variable z-other"> is_error</span><span>)</span><span>)</span><span>;</span></span>
+<span class="giallo-l"><span>    }</span><span>)</span><span>;</span></span>
+<span class="giallo-l"><span class="z-punctuation z-definition z-string">    &quot;</span><span class="z-string">后台任务已启动</span><span class="z-punctuation z-definition z-string">&quot;</span><span class="z-keyword">.</span><span class="z-entity z-name">to_string</span><span>(</span><span>)</span></span>
+<span class="giallo-l"><span>}</span></span></code></pre>
+<hr />
+<h2 id="keng-si-recv-vs-try-recv-yi-ge-zi-mu-de-qu-bie-rang-zhu-xun-huan-qia-si">坑四：<code>recv()</code> vs <code>try_recv()</code>——一个字母的区别让主循环卡死<a class="zola-anchor" href="#keng-si-recv-vs-try-recv-yi-ge-zi-mu-de-qu-bie-rang-zhu-xun-huan-qia-si" aria-label="Anchor link for: keng-si-recv-vs-try-recv-yi-ge-zi-mu-de-qu-bie-rang-zhu-xun-huan-qia-si" style="visibility: hidden;"></a>
+</h2>
+<p>主循环需要在「等待用户输入」的同时「响应后台通知」。我最初写的是：</p>
+<pre class="giallo z-code"><code data-lang="rust"><span class="giallo-l"><span class="z-keyword">loop</span><span> {</span></span>
+<span class="giallo-l"><span class="z-punctuation z-definition z-comment">    //</span><span class="z-comment"> 检查后台通知</span></span>
+<span class="giallo-l"><span class="z-keyword">    if</span><span class="z-storage z-type"> let</span><span class="z-entity z-name"> Ok</span><span>(</span><span class="z-variable z-other">msg</span><span>)</span><span class="z-keyword"> =</span><span class="z-variable z-other"> rx</span><span class="z-keyword">.</span><span class="z-entity z-name">recv</span><span>(</span><span>)</span><span class="z-keyword">.</span><span class="z-keyword">await</span><span> {</span><span class="z-punctuation z-definition z-comment"> //</span><span class="z-comment"> ← 错了</span></span>
+<span class="giallo-l"><span class="z-entity z-name">        println!</span><span>(</span><span class="z-punctuation z-definition z-string">&quot;</span><span class="z-string">[后台通知] ...</span><span class="z-punctuation z-definition z-string">&quot;</span><span>)</span><span>;</span></span>
+<span class="giallo-l"><span>    }</span></span>
+<span class="giallo-l"></span>
+<span class="giallo-l"><span class="z-punctuation z-definition z-comment">    //</span><span class="z-comment"> 读用户输入</span></span>
+<span class="giallo-l"><span class="z-storage z-type">    let</span><span class="z-storage"> mut</span><span class="z-variable z-other"> line</span><span class="z-keyword"> =</span><span class="z-entity z-name"> String</span><span class="z-keyword">::</span><span class="z-entity z-name">new</span><span>(</span><span>)</span><span>;</span></span>
+<span class="giallo-l"><span class="z-entity z-name">    stdin</span><span>(</span><span>)</span><span class="z-keyword">.</span><span class="z-entity z-name">read_line</span><span>(</span><span class="z-keyword">&amp;</span><span class="z-storage">mut</span><span class="z-variable z-other"> line</span><span>)</span><span class="z-keyword">.</span><span class="z-entity z-name">unwrap</span><span>(</span><span>)</span><span>;</span></span></code></pre>
+<p><code>rx.recv().await</code> 是<strong>异步等待</strong>——如果 channel 里没消息，它会一直挂着，永远不会走到 <code>read_line</code>。</p>
+<p>正确的用法是 <code>try_recv()</code>，非阻塞，没消息立即返回 <code>Err(TryRecvError::Empty)</code>：</p>
+<pre class="giallo z-code"><code data-lang="rust"><span class="giallo-l"><span class="z-keyword">loop</span><span> {</span></span>
+<span class="giallo-l"><span class="z-punctuation z-definition z-comment">    //</span><span class="z-comment"> 非阻塞：有通知就打印，没有就继续</span></span>
+<span class="giallo-l"><span class="z-keyword">    while</span><span class="z-storage z-type"> let</span><span class="z-entity z-name"> Ok</span><span>(</span><span>(</span><span class="z-variable z-other">id</span><span>,</span><span class="z-variable z-other"> out</span><span>,</span><span class="z-variable z-other"> err</span><span>)</span><span>)</span><span class="z-keyword"> =</span><span class="z-variable z-other"> rx</span><span class="z-keyword">.</span><span class="z-entity z-name">try_recv</span><span>(</span><span>)</span><span> {</span></span>
+<span class="giallo-l"><span class="z-storage z-type">        let</span><span class="z-variable z-other"> label</span><span class="z-keyword"> =</span><span class="z-keyword"> if</span><span class="z-variable z-other"> err</span><span> {</span><span class="z-punctuation z-definition z-string"> &quot;</span><span class="z-string">失败</span><span class="z-punctuation z-definition z-string">&quot;</span><span> }</span><span class="z-keyword"> else</span><span> {</span><span class="z-punctuation z-definition z-string"> &quot;</span><span class="z-string">完成</span><span class="z-punctuation z-definition z-string">&quot;</span><span> }</span><span>;</span></span>
+<span class="giallo-l"><span class="z-entity z-name">        println!</span><span>(</span><span class="z-punctuation z-definition z-string">&quot;</span><span class="z-constant">\</span><span class="z-constant">n</span><span class="z-string">[后台通知] </span><span class="z-string">{</span><span class="z-string">}</span><span class="z-string"> {</span><span class="z-string">}</span><span class="z-string"> | </span><span class="z-string">{</span><span class="z-string">}</span><span class="z-punctuation z-definition z-string">&quot;</span><span>,</span><span class="z-variable z-other"> id</span><span>,</span><span class="z-variable z-other"> label</span><span>,</span></span>
+<span class="giallo-l"><span class="z-variable z-other">            out</span><span class="z-keyword">.</span><span class="z-entity z-name">lines</span><span>(</span><span>)</span><span class="z-keyword">.</span><span class="z-entity z-name">next</span><span>(</span><span>)</span><span class="z-keyword">.</span><span class="z-entity z-name">unwrap_or</span><span>(</span><span class="z-punctuation z-definition z-string">&quot;</span><span class="z-punctuation z-definition z-string">&quot;</span><span>)</span><span>)</span><span>;</span></span>
+<span class="giallo-l"><span>    }</span></span>
+<span class="giallo-l"></span>
+<span class="giallo-l"><span class="z-punctuation z-definition z-comment">    //</span><span class="z-comment"> 然后等用户输入</span></span>
+<span class="giallo-l"><span class="z-entity z-name">    print!</span><span>(</span><span class="z-punctuation z-definition z-string">&quot;</span><span class="z-string">&gt; </span><span class="z-punctuation z-definition z-string">&quot;</span><span>)</span><span>;</span></span>
+<span class="giallo-l"><span class="z-storage z-type">    let</span><span class="z-storage"> mut</span><span class="z-variable z-other"> line</span><span class="z-keyword"> =</span><span class="z-entity z-name"> String</span><span class="z-keyword">::</span><span class="z-entity z-name">new</span><span>(</span><span>)</span><span>;</span></span>
+<span class="giallo-l"><span class="z-entity z-name">    stdin</span><span>(</span><span>)</span><span class="z-keyword">.</span><span class="z-entity z-name">read_line</span><span>(</span><span class="z-keyword">&amp;</span><span class="z-storage">mut</span><span class="z-variable z-other"> line</span><span>)</span><span class="z-keyword">.</span><span class="z-entity z-name">unwrap</span><span>(</span><span>)</span><span>;</span></span></code></pre>
+<p>当然，<code>read_line</code> 本身是同步阻塞的，用户不输入就卡在这里，后台通知只有下次用户回车才能打印出来。这是 demo 级别的实现，生产级别会用 <code>tokio::select!</code> 同时监听多个源，但那是 Day 10 以后的事了。</p>
+<hr />
+<h2 id="keng-wu-spawn-yao-qiu-static-send">坑五：spawn 要求 <code>'static</code> + <code>Send</code><a class="zola-anchor" href="#keng-wu-spawn-yao-qiu-static-send" aria-label="Anchor link for: keng-wu-spawn-yao-qiu-static-send" style="visibility: hidden;"></a>
+</h2>
+<p>把本地变量的引用传进 <code>tokio::spawn</code>：</p>
+<pre class="giallo z-code"><code data-lang="rust"><span class="giallo-l"><span class="z-storage z-type">let</span><span class="z-variable z-other"> command</span><span class="z-keyword"> =</span><span class="z-punctuation z-definition z-string"> &quot;</span><span class="z-string">sleep 3</span><span class="z-punctuation z-definition z-string">&quot;</span><span class="z-keyword">.</span><span class="z-entity z-name">to_string</span><span>(</span><span>)</span><span>;</span></span>
+<span class="giallo-l"><span class="z-entity z-name">tokio</span><span class="z-keyword">::</span><span class="z-entity z-name">spawn</span><span>(</span><span class="z-keyword">async</span><span> {</span></span>
+<span class="giallo-l"><span class="z-entity z-name">    println!</span><span>(</span><span class="z-punctuation z-definition z-string">&quot;</span><span class="z-string">{</span><span class="z-string">}</span><span class="z-punctuation z-definition z-string">&quot;</span><span>,</span><span class="z-variable z-other"> command</span><span>)</span><span>;</span><span class="z-punctuation z-definition z-comment"> //</span><span class="z-comment"> ← 借用了外部变量</span></span>
+<span class="giallo-l"><span>}</span><span>)</span><span>;</span></span></code></pre>
+<p>编译报错：</p>
+<pre class="giallo z-code"><code data-lang="plain"><span class="giallo-l"><span>captured variable cannot escape `FnOnce` closure body</span></span></code></pre>
+<p><code>tokio::spawn</code> 要求闭包里的所有数据都是 <code>'static</code>（自己拥有生命周期，不依赖外部引用）且 <code>Send</code>（可以跨线程移动）。</p>
+<p>解法是 <code>move</code> 闭包，把需要的数据 clone 进去：</p>
+<pre class="giallo z-code"><code data-lang="rust"><span class="giallo-l"><span class="z-storage z-type">let</span><span class="z-variable z-other"> command</span><span class="z-keyword"> =</span><span class="z-punctuation z-definition z-string"> &quot;</span><span class="z-string">sleep 3</span><span class="z-punctuation z-definition z-string">&quot;</span><span class="z-keyword">.</span><span class="z-entity z-name">to_string</span><span>(</span><span>)</span><span>;</span></span>
+<span class="giallo-l"><span class="z-storage z-type">let</span><span class="z-variable z-other"> store</span><span class="z-keyword"> =</span><span class="z-variable z-language"> self</span><span class="z-keyword">.</span><span>store</span><span class="z-keyword">.</span><span class="z-entity z-name">clone</span><span>(</span><span>)</span><span>;</span><span class="z-punctuation z-definition z-comment">    //</span><span class="z-comment"> Arc clone</span></span>
+<span class="giallo-l"><span class="z-storage z-type">let</span><span class="z-variable z-other"> tx</span><span class="z-keyword"> =</span><span class="z-variable z-language"> self</span><span class="z-keyword">.</span><span>tx</span><span class="z-keyword">.</span><span class="z-entity z-name">clone</span><span>(</span><span>)</span><span>;</span><span class="z-punctuation z-definition z-comment">         //</span><span class="z-comment"> Sender clone</span></span>
+<span class="giallo-l"><span class="z-storage z-type">let</span><span class="z-variable z-other"> id</span><span class="z-keyword"> =</span><span class="z-variable z-other"> id</span><span class="z-keyword">.</span><span class="z-entity z-name">clone</span><span>(</span><span>)</span><span>;</span></span>
+<span class="giallo-l"></span>
+<span class="giallo-l"><span class="z-entity z-name">tokio</span><span class="z-keyword">::</span><span class="z-entity z-name">spawn</span><span>(</span><span class="z-keyword">async</span><span class="z-keyword"> move</span><span> {</span><span class="z-punctuation z-definition z-comment">         //</span><span class="z-comment"> move：把 command/store/tx/id 全部 move 进来</span></span>
+<span class="giallo-l"><span class="z-punctuation z-definition z-comment">    //</span><span class="z-comment"> 现在这些变量都被 spawn 的任务拥有，&#39;static 满足</span></span>
+<span class="giallo-l"><span>}</span><span>)</span><span>;</span></span></code></pre>
+<p><strong>规律：凡是要进 spawn 的东西，要么是 <code>Arc&lt;T&gt;</code> 克隆引用计数，要么是 <code>Clone</code> 拷一份，要么直接 move 所有权。</strong></p>
+<hr />
+<h2 id="zui-zhong-xiao-guo">最终效果<a class="zola-anchor" href="#zui-zhong-xiao-guo" aria-label="Anchor link for: zui-zhong-xiao-guo" style="visibility: hidden;"></a>
+</h2>
+<pre class="giallo z-code"><code data-lang="plain"><span class="giallo-l"><span>=== S08 Background Tasks ===</span></span>
+<span class="giallo-l"><span>输入 exit 退出</span></span>
+<span class="giallo-l"></span>
+<span class="giallo-l"><span>&gt; 后台跑 sleep 3 &amp;&amp; echo hello</span></span>
+<span class="giallo-l"><span>[工具] run_background</span></span>
+<span class="giallo-l"><span>    -&gt; 后台任务已启动，id=bg-1</span></span>
+<span class="giallo-l"><span>Claude: 好的，已在后台启动命令，任务 id 是 bg-1。你可以继续聊，完成后我会通知你。</span></span>
+<span class="giallo-l"></span>
+<span class="giallo-l"><span>&gt; 今天天气怎么样</span></span>
+<span class="giallo-l"><span>Claude: 我无法获取实时天气信息，不过你可以查手机天气应用...</span></span>
+<span class="giallo-l"></span>
+<span class="giallo-l"><span>[后台通知] bg-1 完成 | hello</span></span></code></pre>
+<p>三秒后通知出来，对话没有卡顿。</p>
+<hr />
+<h2 id="jin-tian-de-rust-shou-huo">今天的 Rust 收获<a class="zola-anchor" href="#jin-tian-de-rust-shou-huo" aria-label="Anchor link for: jin-tian-de-rust-shou-huo" style="visibility: hidden;"></a>
+</h2>
+<table><thead><tr><th>问题</th><th>错误写法</th><th>正确写法</th></tr></thead><tbody>
+<tr><td>后台执行命令</td><td><code>std::process::Command</code></td><td><code>tokio::process::Command</code></td></tr>
+<tr><td>跨 await 持锁</td><td>拿锁后 .await</td><td>拿锁 → 操作 → 立即 drop → await</td></tr>
+<tr><td>channel 发送端消失</td><td>tx 局部变量</td><td>tx 移进工具，spawn 时 clone</td></tr>
+<tr><td>主循环轮询通知</td><td><code>rx.recv().await</code></td><td><code>rx.try_recv()</code></td></tr>
+<tr><td>spawn 捕获变量</td><td>借用引用</td><td>move + clone Arc</td></tr>
+</tbody></table>
+<hr />
+<h2 id="xia-yi-bu">下一步<a class="zola-anchor" href="#xia-yi-bu" aria-label="Anchor link for: xia-yi-bu" style="visibility: hidden;"></a>
+</h2>
+<p>Day 10 是 S09 Agent Teams——多个 agent 并发跑，通过 channel 互相通信。</p>
+<p>到时候 <code>tokio::select!</code> 该登场了，同时监听用户输入、后台通知、队友消息，真正的多路并发。</p>
+<p>代码在：<a rel="nofollow noreferrer external" href="https://github.com/Hamiltonxx/learn-claude-code-rust">https://github.com/Hamiltonxx/learn-claude-code-rust</a></p>
+
+      </article>
+
+      
+      
+
+      
+      
+      <div class="giscus"></div>
+      <style>
+#comments { margin-top: 3rem; }
+.c-item { margin: 1.2rem 0; }
+.c-reply { margin-left: 1.5rem; padding-left: 1rem; border-left: 2px solid var(--text-decoration-color); }
+.c-meta { display: flex; align-items: center; gap: 0.6rem; margin-bottom: 0.3rem; font-size: 0.85em; }
+.c-name { font-weight: bold; color: var(--text-color); }
+.c-time { color: var(--text-pale-color); }
+.c-reply-btn {
+  background: none; border: none; padding: 0;
+  color: var(--primary-color); cursor: pointer;
+  font-size: 0.85em; opacity: 0;
+  transition: opacity 0.15s;
+}
+.c-item:hover .c-reply-btn { opacity: 1; }
+.c-body { color: var(--text-color); line-height: var(--line-height); white-space: pre-wrap; word-break: break-word; }
+.c-loading, .c-empty { color: var(--text-pale-color); font-size: 0.9em; padding: 1rem 0; }
+.c-form { margin-top: 2rem; display: flex; flex-direction: column; gap: 0.6rem; }
+.c-form-row { display: flex; gap: 0.6rem; }
+.c-input {
+  width: 100%; padding: 0.5rem 0.7rem;
+  border: 1.5px solid var(--text-decoration-color);
+  border-radius: 4px;
+  background: var(--bg-color); color: var(--text-color);
+  font-size: 0.9em; font-family: var(--main-font);
+  outline: none; transition: border-color 0.15s;
+}
+.c-input:focus { border-color: var(--primary-color); }
+.c-input-content { resize: vertical; min-height: 100px; }
+.c-reply-tip {
+  font-size: 0.85em; color: var(--primary-color);
+  padding: 0.2rem 0.5rem;
+  background: var(--inline-code-bg-color);
+  border-radius: 4px; align-self: flex-start;
+}
+.c-reply-tip::after { content: " ✕"; opacity: 0.5; }
+.c-form-actions { display: flex; justify-content: flex-end; }
+.c-submit {
+  padding: 0.4rem 1.2rem;
+  background: var(--primary-color); color: var(--bg-color);
+  border: none; border-radius: 4px;
+  cursor: pointer; font-size: 0.9em;
+  transition: opacity 0.15s;
+}
+.c-submit:hover { opacity: 0.85; }
+.c-submit:disabled { opacity: 0.5; cursor: not-allowed; }
+</style>
+<div id="comments" data-page="&#x2F;posts&#x2F;rust-agent-background-tasks-2026-04-03&#x2F;"></div>
+<script src="/comments.js"></script>
+
+
+      
+    </div>
+
+    
+
+
+<footer>
+  <div class="left">
+    <div class="copyright">
+      © 2026 Cirray AI
+      
+      <span>|</span>
+      Built with <a href="https://www.getzola.org" rel="noreferrer" target="_blank">zola</a> and <a href="https://github.com/isunjn/serene" rel="noreferrer" target="_blank">serene</a>
+      
+    </div>
+  </div>
+
+  <div class="right">
+    
+    
+    
+    
+
+    
+    
+    
+    <button id="theme-toggle" aria-label="theme switch">
+      <span class="moon-icon"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="18" height="18"><path d="M10 7C10 10.866 13.134 14 17 14C18.9584 14 20.729 13.1957 21.9995 11.8995C22 11.933 22 11.9665 22 12C22 17.5228 17.5228 22 12 22C6.47715 22 2 17.5228 2 12C2 6.47715 6.47715 2 12 2C12.0335 2 12.067 2 12.1005 2.00049C10.8043 3.27098 10 5.04157 10 7ZM4 12C4 16.4183 7.58172 20 12 20C15.0583 20 17.7158 18.2839 19.062 15.7621C18.3945 15.9187 17.7035 16 17 16C12.0294 16 8 11.9706 8 7C8 6.29648 8.08133 5.60547 8.2379 4.938C5.71611 6.28423 4 8.9417 4 12Z" fill="currentColor"></path></svg>
+</span>
+      <span class="sun-icon"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="18" height="18"><path d="M12 18C8.68629 18 6 15.3137 6 12C6 8.68629 8.68629 6 12 6C15.3137 6 18 8.68629 18 12C18 15.3137 15.3137 18 12 18ZM12 16C14.2091 16 16 14.2091 16 12C16 9.79086 14.2091 8 12 8C9.79086 8 8 9.79086 8 12C8 14.2091 9.79086 16 12 16ZM11 1H13V4H11V1ZM11 20H13V23H11V20ZM3.51472 4.92893L4.92893 3.51472L7.05025 5.63604L5.63604 7.05025L3.51472 4.92893ZM16.9497 18.364L18.364 16.9497L20.4853 19.0711L19.0711 20.4853L16.9497 18.364ZM19.0711 3.51472L20.4853 4.92893L18.364 7.05025L16.9497 5.63604L19.0711 3.51472ZM5.63604 16.9497L7.05025 18.364L4.92893 20.4853L3.51472 19.0711L5.63604 16.9497ZM23 11V13H20V11H23ZM4 11V13H1V11H4Z" fill="currentColor"></path></svg>
+</span>
+    </button>
+    
+  </div>
+</footer>
+
+
+
+
+
+  </main>
+</div>
+
+  
+<script src="/js/lightense.min.js"></script>
+
+
+  <script src="https://blog.cirray.cn/js/main.js"></script>
+</body>
+
+</html>
