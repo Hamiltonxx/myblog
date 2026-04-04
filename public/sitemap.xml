@@ -95,6 +95,10 @@
         <lastmod>2026-03-31</lastmod>
     </url>
     <url>
+        <loc>https://blog.cirray.cn/posts/rust-agent-teams-2026-04-04/</loc>
+        <lastmod>2026-04-04</lastmod>
+    </url>
+    <url>
         <loc>https://blog.cirray.cn/posts/rust-agent-todo-subagent-2026-03-27/</loc>
         <lastmod>2026-03-27</lastmod>
     </url>
@@ -132,6 +136,9 @@
     </url>
     <url>
         <loc>https://blog.cirray.cn/tags/arc-mutex/</loc>
+    </url>
+    <url>
+        <loc>https://blog.cirray.cn/tags/arc/</loc>
     </url>
     <url>
         <loc>https://blog.cirray.cn/tags/async/</loc>
@@ -207,6 +214,9 @@
     </url>
     <url>
         <loc>https://blog.cirray.cn/tags/mpsc/</loc>
+    </url>
+    <url>
+        <loc>https://blog.cirray.cn/tags/multi-agent/</loc>
     </url>
     <url>
         <loc>https://blog.cirray.cn/tags/nginx/</loc>

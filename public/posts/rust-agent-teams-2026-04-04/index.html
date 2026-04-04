@@ -1,0 +1,501 @@
+<!DOCTYPE html>
+
+<html lang="zh">
+
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="color-scheme" content="light dark">
+  
+  
+    
+  
+  <meta name="description" content="今天实现了 Agent Teams——主 agent 只负责协调，把写代码交给 coder，把审查交给 reviewer，每个 teammate 都是独立的 Claude 实例。这才是 multi-agent 的本质。">
+
+  <title>用 Rust 学 AI Agent——Day 10：一个 Claude 不够用，那就用两个</title>
+  <link rel="icon" type="image/png" sizes="32x32" href="https://blog.cirray.cn/img/favicon-32x32.png">
+  <link rel="icon" type="image/png" sizes="16x16" href="https://blog.cirray.cn/img/favicon-16x16.png">
+  <link rel="apple-touch-icon" sizes="180x180" href="https://blog.cirray.cn/img/apple-touch-icon.png">
+  
+  <style>
+
+  /* light mode colors */
+  body {
+    --primary-color: #5871a2;
+    --primary-pale-color: #5871a233;
+    --primary-decoration-color: #5871a210;
+    --bg-color: #ffffff;
+    --text-color: #2f3030;
+    --text-pale-color: #767676;
+    --text-decoration-color: #a9a9a9;
+    --highlight-mark-color: #5f75b020;
+
+    --callout-note-color: #5871a2;
+    --callout-tip-color: #268556;
+    --callout-important-color: #885fc9;
+    --callout-warning-color: #ab6632;
+    --callout-caution-color: #c64e4e;
+  }
+
+  /* dark mode colors */
+  body.dark {
+    --primary-color: #6f8fd1;
+    --primary-pale-color: #6f8fd166;
+    --primary-decoration-color: #6f8fd112;
+    --bg-color: #1c1c1c;
+    --text-color: #c1c1c1;
+    --text-pale-color: #848484;
+    --text-decoration-color: #5f5f5f;
+    --highlight-mark-color: #8296cb3b;
+
+    --callout-note-color: #6f8fd1;
+    --callout-tip-color: #47976f;
+    --callout-important-color: #9776cd;
+    --callout-warning-color: #ad7a52;
+    --callout-caution-color: #d06161;
+  }
+
+  /* typography */
+  body {
+    --main-font: ui-sans-serif, system-ui, sans-serif, 'Apple Color Emoji', 'Segoe UI Emoji', 'Segoe UI Symbol', 'Noto Color Emoji';
+    --code-font: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, 'Liberation Mono', 'Courier New', monospace;
+    --homepage-max-width: 768px;
+    --main-max-width: 768px;
+    --avatar-size: 60px;
+    --font-size: 16px;
+    --line-height: 1.75;
+    --img-border-radius: 0px;
+    --detail-border-radius: 0px;
+    --dark-mode-img-brightness: 0.75;
+    --dark-mode-chart-brightness: 0.75;
+    --inline-code-border-radius: 2px;
+    --inline-code-bg-color: var(--primary-decoration-color);
+    --block-code-border-radius: 0px;
+    --block-code-border-color: var(--primary-color);
+    --detail-border-color: var(--primary-color);
+  }
+
+</style>
+
+  <link rel="stylesheet" href="https://blog.cirray.cn/main.css">
+  
+
+<link id="hl" rel="stylesheet" type="text/css" href="/giallo-light.css" />
+
+
+
+  
+</head>
+
+<body class="post">
+  
+  <script>
+    const theme = sessionStorage.getItem('theme');
+    const match = window.matchMedia("(prefers-color-scheme: dark)").matches;
+    if ((theme && theme == 'dark') || (!theme && match)) {
+      document.body.classList.add('dark');
+      const hl = document.querySelector('link#hl');
+      if (hl) hl.href = 'https://blog.cirray.cn/giallo-dark.css';
+    }
+  </script>
+  
+  
+<div id="wrapper">
+  <div id="blank"></div>
+  <aside>
+    
+    
+    <nav>
+      <ul>
+        
+        <li>
+          <a class="h2" href="#wei-shen-me-yi-ge-agent-bu-gou">为什么一个 agent 不够</a>
+          
+        </li>
+        
+        <li>
+          <a class="h2" href="#jia-gou-yi-ju-hua">架构一句话</a>
+          
+        </li>
+        
+        <li>
+          <a class="h2" href="#guan-jian-she-ji-teammate-shi-shen-me">关键设计：Teammate 是什么</a>
+          
+        </li>
+        
+        <li>
+          <a class="h2" href="#send-message-zhu-agent-de-wei-yi-gong-ju">send_message：主 agent 的唯一工具</a>
+          
+        </li>
+        
+        <li>
+          <a class="h2" href="#shang-xia-wen-ge-chi-shi-he-xin-bu-shi-xi-jie">上下文隔离是核心，不是细节</a>
+          
+        </li>
+        
+        <li>
+          <a class="h2" href="#arc-de-yong-fa-gong-xiang-dan-bu-ke-bian">Arc 的用法：共享但不可变</a>
+          
+        </li>
+        
+        <li>
+          <a class="h2" href="#zhu-agent-de-system-prompt-xie-diao-zhe-si-wei">主 agent 的 system prompt：协调者思维</a>
+          
+        </li>
+        
+        <li>
+          <a class="h2" href="#shi-ji-yun-xing-xiao-guo">实际运行效果</a>
+          
+        </li>
+        
+        <li>
+          <a class="h2" href="#he-s04-subagent-de-qu-bie">和 s04 subagent 的区别</a>
+          
+        </li>
+        
+        <li>
+          <a class="h2" href="#zhe-ge-mo-shi-neng-kuo-zhan-dao-na-li">这个模式能扩展到哪里</a>
+          
+        </li>
+        
+        <li>
+          <a class="h2" href="#jin-tian-de-rust-shou-huo">今天的 Rust 收获</a>
+          
+        </li>
+        
+        <li>
+          <a class="h2" href="#xia-yi-bu">下一步</a>
+          
+        </li>
+        
+      </ul>
+    </nav>
+    
+    
+    <button id="back-to-top" aria-label="back to top">
+      
+      <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="feather feather-arrow-up"><line x1="12" y1="19" x2="12" y2="5"></line><polyline points="5 12 12 5 19 12"></polyline></svg>
+
+    </button>
+    
+  </aside>
+  <main>
+    
+<header>
+  <nav>
+    <a id="back-link" href="https:&#x2F;&#x2F;blog.cirray.cn&#x2F;posts">← Back</a>
+  </nav>
+</header>
+
+
+    <div>
+      
+      
+      
+      
+      <div id="copy-cfg" style="display: none;" data-copy-icon="&lt;svg xmlns=&quot;http:&#x2F;&#x2F;www.w3.org&#x2F;2000&#x2F;svg&quot; viewBox=&quot;0 0 24 24&quot; width=&quot;18&quot; height=&quot;18&quot;&gt;&lt;path d=&quot;M6.9998 6V3C6.9998 2.44772 7.44752 2 7.9998 2H19.9998C20.5521 2 20.9998 2.44772 20.9998 3V17C20.9998 17.5523 20.5521 18 19.9998 18H16.9998V20.9991C16.9998 21.5519 16.5499 22 15.993 22H4.00666C3.45059 22 3 21.5554 3 20.9991L3.0026 7.00087C3.0027 6.44811 3.45264 6 4.00942 6H6.9998ZM5.00242 8L5.00019 20H14.9998V8H5.00242ZM8.9998 6H16.9998V16H18.9998V4H8.9998V6Z&quot; fill=&quot;currentColor&quot;&gt;&lt;&#x2F;path&gt;&lt;&#x2F;svg&gt;
+" data-check-icon="&lt;svg xmlns=&quot;http:&#x2F;&#x2F;www.w3.org&#x2F;2000&#x2F;svg&quot; viewBox=&quot;0 0 24 24&quot; width=&quot;18&quot; height=&quot;18&quot;&gt;&lt;path d=&quot;M10.0007 15.1709L19.1931 5.97852L20.6073 7.39273L10.0007 17.9993L3.63672 11.6354L5.05093 10.2212L10.0007 15.1709Z&quot; fill=&quot;currentColor&quot;&gt;&lt;&#x2F;path&gt;&lt;&#x2F;svg&gt;
+"></div>
+      
+      <article class="prose">
+        <h1>用 Rust 学 AI Agent——Day 10：一个 Claude 不够用，那就用两个</h1>
+        <div id="post-info">
+          <div id="date">
+            <span id="publish">2026-04-04</span>
+            </div>
+
+          
+          <div id="tags">
+            <a class="instant" href="https://blog.cirray.cn/tags/rust"><span>#</span>rust</a><a class="instant" href="https://blog.cirray.cn/tags/agent"><span>#</span>agent</a><a class="instant" href="https://blog.cirray.cn/tags/multi-agent"><span>#</span>multi-agent</a><a class="instant" href="https://blog.cirray.cn/tags/tokio"><span>#</span>tokio</a><a class="instant" href="https://blog.cirray.cn/tags/arc"><span>#</span>arc</a><a class="instant" href="https://blog.cirray.cn/tags/learn-agent-rust"><span>#</span>learn-agent-rust</a><a class="instant" href="https://blog.cirray.cn/tags/llm"><span>#</span>llm</a>
+          </div>
+          
+        </div>
+
+        
+        
+
+        
+
+        <blockquote>
+<p>Day 10，目标是让多个 agent 组成团队协作。</p>
+<p>核心问题只有一个：<strong>怎么让 Claude 管理其他 Claude？</strong>
+答案比你想的简单——一个工具调用，一个独立的 agent loop，一个不同的 system prompt。</p>
+</blockquote>
+<hr />
+<h2 id="wei-shen-me-yi-ge-agent-bu-gou">为什么一个 agent 不够<a class="zola-anchor" href="#wei-shen-me-yi-ge-agent-bu-gou" aria-label="Anchor link for: wei-shen-me-yi-ge-agent-bu-gou" style="visibility: hidden;"></a>
+</h2>
+<p>做了前 9 天的 agent 开发后，我有一个越来越强烈的感受：<strong>单个 agent 的问题不是能力，是注意力</strong>。</p>
+<p>给一个 agent 塞满工具、塞满上下文，它什么都能做——但它会把精力分散在所有事情上。就像让一个程序员既要写代码、又要审查代码、又要写文档、又要部署，每件事都做，但每件事都做不好。</p>
+<p>真实的软件团队是怎么工作的？分工。</p>
+<p>这就是 Agent Teams 的核心思想：<strong>每个 agent 只做一件事，只持有做那件事所需的上下文。</strong></p>
+<hr />
+<h2 id="jia-gou-yi-ju-hua">架构一句话<a class="zola-anchor" href="#jia-gou-yi-ju-hua" aria-label="Anchor link for: jia-gou-yi-ju-hua" style="visibility: hidden;"></a>
+</h2>
+<pre class="giallo z-code"><code data-lang="plain"><span class="giallo-l"><span>用户</span></span>
+<span class="giallo-l"><span>  └─ 主 agent（协调者）</span></span>
+<span class="giallo-l"><span>        └─ send_message(&quot;coder&quot;, &quot;写一个 fibonacci 函数&quot;)</span></span>
+<span class="giallo-l"><span>              └─ coder agent（独立 loop）→ 返回代码</span></span>
+<span class="giallo-l"><span>        └─ send_message(&quot;reviewer&quot;, &quot;审查这段代码: ...&quot;)</span></span>
+<span class="giallo-l"><span>              └─ reviewer agent（独立 loop）→ 返回建议</span></span>
+<span class="giallo-l"><span>  └─ 主 agent 综合两者，给用户最终答案</span></span></code></pre>
+<p>主 agent 不写代码，不审查代码——它只管「把任务分配给对的人」。</p>
+<hr />
+<h2 id="guan-jian-she-ji-teammate-shi-shen-me">关键设计：Teammate 是什么<a class="zola-anchor" href="#guan-jian-she-ji-teammate-shi-shen-me" aria-label="Anchor link for: guan-jian-she-ji-teammate-shi-shen-me" style="visibility: hidden;"></a>
+</h2>
+<pre class="giallo z-code"><code data-lang="rust"><span class="giallo-l"><span class="z-storage z-type">struct</span><span class="z-entity z-name"> Teammate</span><span> {</span></span>
+<span class="giallo-l"><span class="z-variable z-other">    name</span><span class="z-keyword">:</span><span class="z-entity z-name"> String</span><span>,</span></span>
+<span class="giallo-l"><span class="z-variable z-other">    role</span><span class="z-keyword">:</span><span class="z-entity z-name"> String</span><span>,</span></span>
+<span class="giallo-l"><span class="z-variable z-other">    system_prompt</span><span class="z-keyword">:</span><span class="z-entity z-name"> String</span><span>,</span><span class="z-punctuation z-definition z-comment">  //</span><span class="z-comment"> ← 这是 teammate 的&quot;灵魂&quot;</span></span>
+<span class="giallo-l"><span>}</span></span></code></pre>
+<p><code>system_prompt</code> 决定了这个 teammate 的专长和行为。coder 的 system prompt 是：</p>
+<blockquote>
+<p>你是一个 Rust 代码生成专家。收到需求后，直接给出简洁、正确的 Rust 代码实现，并简要说明思路。</p>
+</blockquote>
+<p>reviewer 的是：</p>
+<blockquote>
+<p>你是一个严格的代码审查专家。收到代码后，找出潜在的 bug、性能问题、不符合 Rust 惯用法的写法，给出具体的改进建议。</p>
+</blockquote>
+<p>同样是 Claude，但因为 system prompt 不同，它们的「性格」完全不同——一个激进生产，一个挑剔审查。这就是 <strong>prompt 作为角色定义</strong> 的威力。</p>
+<hr />
+<h2 id="send-message-zhu-agent-de-wei-yi-gong-ju">send_message：主 agent 的唯一工具<a class="zola-anchor" href="#send-message-zhu-agent-de-wei-yi-gong-ju" aria-label="Anchor link for: send-message-zhu-agent-de-wei-yi-gong-ju" style="visibility: hidden;"></a>
+</h2>
+<p>主 agent 只暴露一个工具：<code>send_message</code>。</p>
+<pre class="giallo z-code"><code data-lang="rust"><span class="giallo-l"><span class="z-storage z-type">struct</span><span class="z-entity z-name"> SendMessageTool</span><span> {</span></span>
+<span class="giallo-l"><span class="z-variable z-other">    client</span><span class="z-keyword">:</span><span class="z-entity z-name"> Arc</span><span>&lt;</span><span class="z-variable z-other">reqwest</span><span class="z-keyword">::</span><span class="z-entity z-name">Client</span><span>&gt;</span><span>,</span></span>
+<span class="giallo-l"><span class="z-variable z-other">    api_key</span><span class="z-keyword">:</span><span class="z-entity z-name"> Arc</span><span>&lt;</span><span class="z-entity z-name">String</span><span>&gt;</span><span>,</span></span>
+<span class="giallo-l"><span class="z-variable z-other">    teammates</span><span class="z-keyword">:</span><span class="z-entity z-name"> Arc</span><span>&lt;</span><span class="z-entity z-name">HashMap</span><span>&lt;</span><span class="z-entity z-name">String</span><span>,</span><span class="z-entity z-name"> Teammate</span><span>&gt;</span><span>&gt;</span><span>,</span><span class="z-punctuation z-definition z-comment">  //</span><span class="z-comment"> 注册表</span></span>
+<span class="giallo-l"><span>}</span></span></code></pre>
+<p>当主 agent 决定要找 coder 帮忙时，它调用：</p>
+<pre class="giallo z-code"><code data-lang="json"><span class="giallo-l"><span>{</span></span>
+<span class="giallo-l"><span class="z-support">  &quot;</span><span class="z-support">to</span><span class="z-support">&quot;</span><span>:</span><span class="z-punctuation z-definition z-string"> &quot;</span><span class="z-string">coder</span><span class="z-punctuation z-definition z-string">&quot;</span><span>,</span></span>
+<span class="giallo-l"><span class="z-support">  &quot;</span><span class="z-support">message</span><span class="z-support">&quot;</span><span>:</span><span class="z-punctuation z-definition z-string"> &quot;</span><span class="z-string">写一个用迭代法计算 fibonacci(n) 的 Rust 函数</span><span class="z-punctuation z-definition z-string">&quot;</span></span>
+<span class="giallo-l"><span>}</span></span></code></pre>
+<p>工具的 <code>execute</code> 做三件事：</p>
+<ol>
+<li>从注册表里找到 <code>coder</code> 这个 Teammate</li>
+<li>用它的 <code>system_prompt</code> 启动一个<strong>全新的 agent loop</strong>（干净的 messages，完全隔离）</li>
+<li>等 loop 跑完，把最终文本结果返回给主 agent</li>
+</ol>
+<pre class="giallo z-code"><code data-lang="rust"><span class="giallo-l"><span class="z-keyword">async</span><span class="z-keyword"> fn</span><span class="z-entity z-name"> execute</span><span>(</span><span class="z-keyword">&amp;</span><span class="z-variable z-language">self</span><span>,</span><span class="z-variable z-other"> input</span><span class="z-keyword">:</span><span class="z-entity z-name"> Value</span><span>)</span><span class="z-keyword"> -&gt;</span><span class="z-entity z-name"> String</span><span> {</span></span>
+<span class="giallo-l"><span class="z-storage z-type">    let</span><span class="z-variable z-other"> to</span><span class="z-keyword"> =</span><span class="z-variable z-other"> input</span><span>[</span><span class="z-punctuation z-definition z-string">&quot;</span><span class="z-string">to</span><span class="z-punctuation z-definition z-string">&quot;</span><span>]</span><span class="z-keyword">.</span><span class="z-entity z-name">as_str</span><span>(</span><span>)</span><span class="z-keyword">.</span><span class="z-entity z-name">unwrap_or</span><span>(</span><span class="z-punctuation z-definition z-string">&quot;</span><span class="z-punctuation z-definition z-string">&quot;</span><span>)</span><span>;</span></span>
+<span class="giallo-l"><span class="z-storage z-type">    let</span><span class="z-variable z-other"> message</span><span class="z-keyword"> =</span><span class="z-variable z-other"> input</span><span>[</span><span class="z-punctuation z-definition z-string">&quot;</span><span class="z-string">message</span><span class="z-punctuation z-definition z-string">&quot;</span><span>]</span><span class="z-keyword">.</span><span class="z-entity z-name">as_str</span><span>(</span><span>)</span><span class="z-keyword">.</span><span class="z-entity z-name">unwrap_or</span><span>(</span><span class="z-punctuation z-definition z-string">&quot;</span><span class="z-punctuation z-definition z-string">&quot;</span><span>)</span><span>;</span></span>
+<span class="giallo-l"></span>
+<span class="giallo-l"><span class="z-storage z-type">    let</span><span class="z-entity z-name"> Some</span><span>(</span><span class="z-variable z-other">teammate</span><span>)</span><span class="z-keyword"> =</span><span class="z-variable z-language"> self</span><span class="z-keyword">.</span><span>teammates</span><span class="z-keyword">.</span><span class="z-entity z-name">get</span><span>(</span><span class="z-variable z-other">to</span><span>)</span><span class="z-keyword"> else</span><span> {</span></span>
+<span class="giallo-l"><span class="z-keyword">        return</span><span class="z-entity z-name"> format!</span><span>(</span><span class="z-punctuation z-definition z-string">&quot;</span><span class="z-string">未找到队友: </span><span class="z-string">{</span><span class="z-string">}</span><span class="z-punctuation z-definition z-string">&quot;</span><span>,</span><span class="z-variable z-other"> to</span><span>)</span><span>;</span></span>
+<span class="giallo-l"><span>    }</span><span>;</span></span>
+<span class="giallo-l"></span>
+<span class="giallo-l"><span class="z-punctuation z-definition z-comment">    //</span><span class="z-comment"> teammate 的工具集（可以按角色定制）</span></span>
+<span class="giallo-l"><span class="z-storage z-type">    let</span><span class="z-storage"> mut</span><span class="z-variable z-other"> tools</span><span class="z-keyword">:</span><span class="z-entity z-name"> HashMap</span><span>&lt;</span><span class="z-entity z-name">String</span><span>,</span><span class="z-entity z-name"> Box</span><span>&lt;</span><span class="z-keyword">dyn</span><span class="z-entity z-name"> Tool</span><span>&gt;</span><span>&gt;</span><span class="z-keyword"> =</span><span class="z-entity z-name"> HashMap</span><span class="z-keyword">::</span><span class="z-entity z-name">new</span><span>(</span><span>)</span><span>;</span></span>
+<span class="giallo-l"><span class="z-variable z-other">    tools</span><span class="z-keyword">.</span><span class="z-entity z-name">insert</span><span>(</span><span class="z-punctuation z-definition z-string">&quot;</span><span class="z-string">bash</span><span class="z-punctuation z-definition z-string">&quot;</span><span class="z-keyword">.</span><span class="z-entity z-name">to_string</span><span>(</span><span>)</span><span>,</span><span class="z-entity z-name"> Box</span><span class="z-keyword">::</span><span class="z-entity z-name">new</span><span>(</span><span class="z-entity z-name">BashTool</span><span>)</span><span>)</span><span>;</span></span>
+<span class="giallo-l"><span class="z-storage z-type">    let</span><span class="z-variable z-other"> tool_defs</span><span class="z-keyword"> =</span><span class="z-variable z-other"> tools</span><span class="z-keyword">.</span><span class="z-entity z-name">values</span><span>(</span><span>)</span><span class="z-keyword">.</span><span class="z-entity z-name">map</span><span>(</span><span class="z-keyword">|</span><span class="z-variable z-other">t</span><span class="z-keyword">|</span><span class="z-variable z-other"> t</span><span class="z-keyword">.</span><span class="z-entity z-name">definition</span><span>(</span><span>)</span><span>)</span><span class="z-keyword">.</span><span class="z-entity z-name">collect</span><span class="z-keyword">::</span><span>&lt;</span><span class="z-entity z-name">Vec</span><span>&lt;</span><span class="z-variable z-other">_</span><span>&gt;</span><span>&gt;</span><span>(</span><span>)</span><span>;</span></span>
+<span class="giallo-l"></span>
+<span class="giallo-l"><span class="z-punctuation z-definition z-comment">    //</span><span class="z-comment"> 独立的 agent loop，messages 完全隔离</span></span>
+<span class="giallo-l"><span class="z-entity z-name">    teammate_loop</span><span>(</span></span>
+<span class="giallo-l"><span class="z-keyword">        &amp;</span><span class="z-variable z-language">self</span><span class="z-keyword">.</span><span>client</span><span>,</span><span class="z-keyword"> &amp;</span><span class="z-variable z-language">self</span><span class="z-keyword">.</span><span>api_key</span><span>,</span></span>
+<span class="giallo-l"><span class="z-keyword">        &amp;</span><span class="z-variable z-other">teammate</span><span class="z-keyword">.</span><span>system_prompt</span><span>,</span></span>
+<span class="giallo-l"><span class="z-variable z-other">        message</span><span>,</span></span>
+<span class="giallo-l"><span class="z-keyword">        &amp;</span><span class="z-variable z-other">tools</span><span>,</span><span class="z-keyword"> &amp;</span><span class="z-variable z-other">tool_defs</span><span>,</span></span>
+<span class="giallo-l"><span>    )</span><span class="z-keyword">.</span><span class="z-keyword">await</span></span>
+<span class="giallo-l"><span>}</span></span></code></pre>
+<hr />
+<h2 id="shang-xia-wen-ge-chi-shi-he-xin-bu-shi-xi-jie">上下文隔离是核心，不是细节<a class="zola-anchor" href="#shang-xia-wen-ge-chi-shi-he-xin-bu-shi-xi-jie" aria-label="Anchor link for: shang-xia-wen-ge-chi-shi-he-xin-bu-shi-xi-jie" style="visibility: hidden;"></a>
+</h2>
+<p>这一点值得单独说。</p>
+<p><code>teammate_loop</code> 和 s04 的 <code>agent_loop</code> 几乎一模一样，<strong>区别只是 messages 是函数内的局部变量</strong>：</p>
+<pre class="giallo z-code"><code data-lang="rust"><span class="giallo-l"><span class="z-keyword">async</span><span class="z-keyword"> fn</span><span class="z-entity z-name"> teammate_loop</span><span>(</span><span class="z-comment">/*</span><span class="z-comment"> ... </span><span class="z-comment">*/</span><span class="z-variable z-other"> task</span><span class="z-keyword">:</span><span class="z-keyword"> &amp;</span><span class="z-entity z-name">str</span><span class="z-comment"> /*</span><span class="z-comment"> ... </span><span class="z-comment">*/</span><span>)</span><span class="z-keyword"> -&gt;</span><span class="z-entity z-name"> String</span><span> {</span></span>
+<span class="giallo-l"><span class="z-storage z-type">    let</span><span class="z-storage"> mut</span><span class="z-variable z-other"> messages</span><span class="z-keyword"> =</span><span class="z-entity z-name"> vec!</span><span>[</span><span class="z-entity z-name">Message</span><span> {</span><span class="z-punctuation z-definition z-comment">    //</span><span class="z-comment"> ← 局部变量！</span></span>
+<span class="giallo-l"><span class="z-variable z-other">        role</span><span class="z-keyword">:</span><span class="z-punctuation z-definition z-string"> &quot;</span><span class="z-string">user</span><span class="z-punctuation z-definition z-string">&quot;</span><span class="z-keyword">.</span><span class="z-entity z-name">to_string</span><span>(</span><span>)</span><span>,</span></span>
+<span class="giallo-l"><span class="z-variable z-other">        content</span><span class="z-keyword">:</span><span class="z-entity z-name"> json!</span><span>(</span><span class="z-variable z-other">task</span><span>)</span><span>,</span></span>
+<span class="giallo-l"><span>    }</span><span>]</span><span>;</span></span>
+<span class="giallo-l"></span>
+<span class="giallo-l"><span class="z-keyword">    loop</span><span> {</span></span>
+<span class="giallo-l"><span class="z-punctuation z-definition z-comment">        //</span><span class="z-comment"> ... 标准 agent loop</span></span>
+<span class="giallo-l"><span>    }</span></span>
+<span class="giallo-l"><span>}</span></span></code></pre>
+<p>每次调用 <code>teammate_loop</code>，都是一个全新的对话历史。</p>
+<p>为什么这很重要？想象一下反例：如果 coder 和 reviewer 共享同一个 messages 数组，coder 写代码时的所有推理过程（"我考虑了三种方案，最终选了这个"）都会出现在 reviewer 的上下文里。reviewer 会被 coder 的思路「污染」，更容易认同它而不是批判它。</p>
+<p><strong>上下文隔离不只是工程实现，也是认知隔离。</strong> 这是 multi-agent 的设计哲学。</p>
+<hr />
+<h2 id="arc-de-yong-fa-gong-xiang-dan-bu-ke-bian">Arc 的用法：共享但不可变<a class="zola-anchor" href="#arc-de-yong-fa-gong-xiang-dan-bu-ke-bian" aria-label="Anchor link for: arc-de-yong-fa-gong-xiang-dan-bu-ke-bian" style="visibility: hidden;"></a>
+</h2>
+<p>注册表 <code>teammates</code> 同时被 main 和 SendMessageTool 持有：</p>
+<pre class="giallo z-code"><code data-lang="rust"><span class="giallo-l"><span class="z-storage z-type">let</span><span class="z-variable z-other"> teammates</span><span class="z-keyword"> =</span><span class="z-entity z-name"> Arc</span><span class="z-keyword">::</span><span class="z-entity z-name">new</span><span>(</span><span class="z-variable z-other">teammate_map</span><span>)</span><span>;</span></span>
+<span class="giallo-l"></span>
+<span class="giallo-l"><span class="z-variable z-other">tools</span><span class="z-keyword">.</span><span class="z-entity z-name">insert</span><span>(</span><span class="z-punctuation z-definition z-string">&quot;</span><span class="z-string">send_message</span><span class="z-punctuation z-definition z-string">&quot;</span><span class="z-keyword">.</span><span class="z-entity z-name">to_string</span><span>(</span><span>)</span><span>,</span><span class="z-entity z-name"> Box</span><span class="z-keyword">::</span><span class="z-entity z-name">new</span><span>(</span><span class="z-entity z-name">SendMessageTool</span><span> {</span></span>
+<span class="giallo-l"><span class="z-variable z-other">    teammates</span><span class="z-keyword">:</span><span class="z-variable z-other"> teammates</span><span class="z-keyword">.</span><span class="z-entity z-name">clone</span><span>(</span><span>)</span><span>,</span><span class="z-punctuation z-definition z-comment">   //</span><span class="z-comment"> Arc clone：引用计数 +1，数据不复制</span></span>
+<span class="giallo-l"><span class="z-punctuation z-definition z-comment">    //</span><span class="z-comment"> ...</span></span>
+<span class="giallo-l"><span>}</span><span>)</span><span>)</span><span>;</span></span></code></pre>
+<p><code>Arc</code>（Atomic Reference Counted）的语义：<strong>多个所有者，但数据只有一份，且不可变</strong>。</p>
+<p>因为 teammates 注册表只读不写，不需要 <code>Mutex</code>，直接 <code>Arc&lt;HashMap&gt;</code> 就够了。<code>Arc::clone()</code> 只是增加引用计数，代价几乎为零。</p>
+<hr />
+<h2 id="zhu-agent-de-system-prompt-xie-diao-zhe-si-wei">主 agent 的 system prompt：协调者思维<a class="zola-anchor" href="#zhu-agent-de-system-prompt-xie-diao-zhe-si-wei" aria-label="Anchor link for: zhu-agent-de-system-prompt-xie-diao-zhe-si-wei" style="visibility: hidden;"></a>
+</h2>
+<pre class="giallo z-code"><code data-lang="rust"><span class="giallo-l"><span class="z-storage z-type">let</span><span class="z-variable z-other"> system</span><span class="z-keyword"> =</span><span class="z-punctuation z-definition z-string"> &quot;</span><span class="z-string">你是一个技术团队的协调者。你有两个队友：</span></span>
+<span class="giallo-l"><span class="z-string">    - coder：负责写代码</span></span>
+<span class="giallo-l"><span class="z-string">    - reviewer：负责审查代码</span></span>
+<span class="giallo-l"><span class="z-string">    收到任务后，先让 coder 实现，再把代码发给 reviewer 审查，最后综合两人的结果给出完整回答。</span><span class="z-punctuation z-definition z-string">&quot;</span><span>;</span></span></code></pre>
+<p>这里有一个微妙之处：主 agent 的 system prompt 告诉它<strong>工作流程</strong>，不只是工具列表。</p>
+<p>"先让 coder 实现，再把代码发给 reviewer 审查"——这是协调模式，不是并发模式。主 agent 会串行地先等 coder 返回，然后把代码作为 message 发给 reviewer。这是用自然语言描述的工作流编排。</p>
+<hr />
+<h2 id="shi-ji-yun-xing-xiao-guo">实际运行效果<a class="zola-anchor" href="#shi-ji-yun-xing-xiao-guo" aria-label="Anchor link for: shi-ji-yun-xing-xiao-guo" style="visibility: hidden;"></a>
+</h2>
+<pre class="giallo z-code"><code data-lang="plain"><span class="giallo-l"><span>任务&gt; 帮我写一个计算斐波那契数列的 Rust 函数</span></span>
+<span class="giallo-l"></span>
+<span class="giallo-l"><span>[主agent 调用工具] send_message</span></span>
+<span class="giallo-l"><span>[主agent -&gt; coder(代码生成专家)] 写一个计算斐波那契数列的 Rust 函数</span></span>
+<span class="giallo-l"><span>  [teammate 工具] bash  ← coder 运行了一下验证</span></span>
+<span class="giallo-l"><span>[coder -&gt; 主agent] 完成</span></span>
+<span class="giallo-l"></span>
+<span class="giallo-l"><span>[主agent 调用工具] send_message</span></span>
+<span class="giallo-l"><span>[主agent -&gt; reviewer(代码审查专家)] 请审查这段代码: fn fib(n: u64) -&gt; u64 { ... }</span></span>
+<span class="giallo-l"><span>[reviewer -&gt; 主agent] 完成</span></span>
+<span class="giallo-l"></span>
+<span class="giallo-l"><span>Claude: 以下是完整实现和审查意见...</span></span></code></pre>
+<p>三层 agent，两次 API 调用链，但对用户来说只是一次对话。</p>
+<hr />
+<h2 id="he-s04-subagent-de-qu-bie">和 s04 subagent 的区别<a class="zola-anchor" href="#he-s04-subagent-de-qu-bie" aria-label="Anchor link for: he-s04-subagent-de-qu-bie" style="visibility: hidden;"></a>
+</h2>
+<table><thead><tr><th></th><th>s04 subagent</th><th>s09 teammate</th></tr></thead><tbody>
+<tr><td>身份</td><td>一次性任务执行者</td><td>持久的角色定义</td></tr>
+<tr><td>触发</td><td>主 agent 认为需要时派发</td><td>用名字 send_message</td></tr>
+<tr><td>system prompt</td><td>通用助手</td><td>专属角色定义</td></tr>
+<tr><td>适合</td><td>拆分独立子任务</td><td>专业分工协作</td></tr>
+</tbody></table>
+<p>subagent 是「外包一个任务」，teammate 是「和一个专家合作」。</p>
+<hr />
+<h2 id="zhe-ge-mo-shi-neng-kuo-zhan-dao-na-li">这个模式能扩展到哪里<a class="zola-anchor" href="#zhe-ge-mo-shi-neng-kuo-zhan-dao-na-li" aria-label="Anchor link for: zhe-ge-mo-shi-neng-kuo-zhan-dao-na-li" style="visibility: hidden;"></a>
+</h2>
+<p>现在的实现是串行的：主 agent 依次等 coder → reviewer。</p>
+<p>但稍加修改，可以做到：</p>
+<ul>
+<li><strong>并发</strong>：用 <code>tokio::spawn</code> 同时问多个 teammate，<code>join_all</code> 等结果</li>
+<li><strong>专业化工具集</strong>：coder 有 write_file/bash，reviewer 只有 read_file，权限分离</li>
+<li><strong>链式协作</strong>：coder 写 → tester 测 → reviewer 审，流水线</li>
+<li><strong>动态注册</strong>：运行时 <code>register_teammate</code>，按需加入新专家</li>
+</ul>
+<p>这些都是 Day 11（S10 Protocols）会触碰到的方向。</p>
+<hr />
+<h2 id="jin-tian-de-rust-shou-huo">今天的 Rust 收获<a class="zola-anchor" href="#jin-tian-de-rust-shou-huo" aria-label="Anchor link for: jin-tian-de-rust-shou-huo" style="visibility: hidden;"></a>
+</h2>
+<table><thead><tr><th>概念</th><th>用在哪</th></tr></thead><tbody>
+<tr><td><code>Arc&lt;T&gt;</code></td><td>多处共享 client、api_key、teammates 注册表</td></tr>
+<tr><td><code>Arc&lt;HashMap&lt;K,V&gt;&gt;</code></td><td>只读共享数据，不需要 Mutex</td></tr>
+<tr><td><code>async fn</code> 嵌套</td><td><code>send_message.execute()</code> 内部 await <code>teammate_loop</code></td></tr>
+<tr><td>函数局部 Vec</td><td>用局部 <code>messages</code> 实现对话历史隔离</td></tr>
+</tbody></table>
+<hr />
+<h2 id="xia-yi-bu">下一步<a class="zola-anchor" href="#xia-yi-bu" aria-label="Anchor link for: xia-yi-bu" style="visibility: hidden;"></a>
+</h2>
+<p>Day 11 是 S10 Protocols——给 agent 之间的通信加上统一的消息格式和状态机（enum 表示 Running/Idle/Shutdown），以及 <code>tokio::select!</code> 同时监听多个消息源。</p>
+<p>从今天起，agent 不再是孤立的个体，而是真正的团队。</p>
+<p>代码在：<a rel="nofollow noreferrer external" href="https://github.com/Hamiltonxx/learn-claude-code-rust">https://github.com/Hamiltonxx/learn-claude-code-rust</a></p>
+
+      </article>
+
+      
+      
+
+      
+      
+      <div class="giscus"></div>
+      <style>
+#comments { margin-top: 3rem; }
+.c-item { margin: 1.2rem 0; }
+.c-reply { margin-left: 1.5rem; padding-left: 1rem; border-left: 2px solid var(--text-decoration-color); }
+.c-meta { display: flex; align-items: center; gap: 0.6rem; margin-bottom: 0.3rem; font-size: 0.85em; }
+.c-name { font-weight: bold; color: var(--text-color); }
+.c-time { color: var(--text-pale-color); }
+.c-reply-btn {
+  background: none; border: none; padding: 0;
+  color: var(--primary-color); cursor: pointer;
+  font-size: 0.85em; opacity: 0;
+  transition: opacity 0.15s;
+}
+.c-item:hover .c-reply-btn { opacity: 1; }
+.c-body { color: var(--text-color); line-height: var(--line-height); white-space: pre-wrap; word-break: break-word; }
+.c-loading, .c-empty { color: var(--text-pale-color); font-size: 0.9em; padding: 1rem 0; }
+.c-form { margin-top: 2rem; display: flex; flex-direction: column; gap: 0.6rem; }
+.c-form-row { display: flex; gap: 0.6rem; }
+.c-input {
+  width: 100%; padding: 0.5rem 0.7rem;
+  border: 1.5px solid var(--text-decoration-color);
+  border-radius: 4px;
+  background: var(--bg-color); color: var(--text-color);
+  font-size: 0.9em; font-family: var(--main-font);
+  outline: none; transition: border-color 0.15s;
+}
+.c-input:focus { border-color: var(--primary-color); }
+.c-input-content { resize: vertical; min-height: 100px; }
+.c-reply-tip {
+  font-size: 0.85em; color: var(--primary-color);
+  padding: 0.2rem 0.5rem;
+  background: var(--inline-code-bg-color);
+  border-radius: 4px; align-self: flex-start;
+}
+.c-reply-tip::after { content: " ✕"; opacity: 0.5; }
+.c-form-actions { display: flex; justify-content: flex-end; }
+.c-submit {
+  padding: 0.4rem 1.2rem;
+  background: var(--primary-color); color: var(--bg-color);
+  border: none; border-radius: 4px;
+  cursor: pointer; font-size: 0.9em;
+  transition: opacity 0.15s;
+}
+.c-submit:hover { opacity: 0.85; }
+.c-submit:disabled { opacity: 0.5; cursor: not-allowed; }
+</style>
+<div id="comments" data-page="&#x2F;posts&#x2F;rust-agent-teams-2026-04-04&#x2F;"></div>
+<script src="/comments.js"></script>
+
+
+      
+    </div>
+
+    
+
+
+<footer>
+  <div class="left">
+    <div class="copyright">
+      © 2026 Cirray AI
+      
+      <span>|</span>
+      Built with <a href="https://www.getzola.org" rel="noreferrer" target="_blank">zola</a> and <a href="https://github.com/isunjn/serene" rel="noreferrer" target="_blank">serene</a>
+      
+    </div>
+  </div>
+
+  <div class="right">
+    
+    
+    
+    
+
+    
+    
+    
+    <button id="theme-toggle" aria-label="theme switch">
+      <span class="moon-icon"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="18" height="18"><path d="M10 7C10 10.866 13.134 14 17 14C18.9584 14 20.729 13.1957 21.9995 11.8995C22 11.933 22 11.9665 22 12C22 17.5228 17.5228 22 12 22C6.47715 22 2 17.5228 2 12C2 6.47715 6.47715 2 12 2C12.0335 2 12.067 2 12.1005 2.00049C10.8043 3.27098 10 5.04157 10 7ZM4 12C4 16.4183 7.58172 20 12 20C15.0583 20 17.7158 18.2839 19.062 15.7621C18.3945 15.9187 17.7035 16 17 16C12.0294 16 8 11.9706 8 7C8 6.29648 8.08133 5.60547 8.2379 4.938C5.71611 6.28423 4 8.9417 4 12Z" fill="currentColor"></path></svg>
+</span>
+      <span class="sun-icon"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="18" height="18"><path d="M12 18C8.68629 18 6 15.3137 6 12C6 8.68629 8.68629 6 12 6C15.3137 6 18 8.68629 18 12C18 15.3137 15.3137 18 12 18ZM12 16C14.2091 16 16 14.2091 16 12C16 9.79086 14.2091 8 12 8C9.79086 8 8 9.79086 8 12C8 14.2091 9.79086 16 12 16ZM11 1H13V4H11V1ZM11 20H13V23H11V20ZM3.51472 4.92893L4.92893 3.51472L7.05025 5.63604L5.63604 7.05025L3.51472 4.92893ZM16.9497 18.364L18.364 16.9497L20.4853 19.0711L19.0711 20.4853L16.9497 18.364ZM19.0711 3.51472L20.4853 4.92893L18.364 7.05025L16.9497 5.63604L19.0711 3.51472ZM5.63604 16.9497L7.05025 18.364L4.92893 20.4853L3.51472 19.0711L5.63604 16.9497ZM23 11V13H20V11H23ZM4 11V13H1V11H4Z" fill="currentColor"></path></svg>
+</span>
+    </button>
+    
+  </div>
+</footer>
+
+
+
+
+
+  </main>
+</div>
+
+  
+<script src="/js/lightense.min.js"></script>
+
+
+  <script src="https://blog.cirray.cn/js/main.js"></script>
+</body>
+
+</html>
