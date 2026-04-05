@@ -22,7 +22,7 @@ toc = true
 
 今天把这件事做成了。
 
-![最终效果：Pixel 8a 上运行的 Claude，已登录我的 Pro 账号](screenshot-claude-android-2026-04-05.png)
+![最终效果：Pixel 8a 上运行的 Claude，已登录我的 Pro 账号](/images/claude-android-2026-04-05.png)
 
 打开即是 "Back at it, Cirray"，Sonnet 4.6 完整可用。
 
