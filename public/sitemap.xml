@@ -87,6 +87,10 @@
         <lastmod>2026-04-03</lastmod>
     </url>
     <url>
+        <loc>https://blog.cirray.cn/posts/rust-agent-protocols-autonomous-2026-04-05/</loc>
+        <lastmod>2026-04-05</lastmod>
+    </url>
+    <url>
         <loc>https://blog.cirray.cn/posts/rust-agent-skill-compact-2026-03-29/</loc>
         <lastmod>2026-03-29</lastmod>
     </url>
@@ -241,6 +245,9 @@
     </url>
     <url>
         <loc>https://blog.cirray.cn/tags/skill-loading/</loc>
+    </url>
+    <url>
+        <loc>https://blog.cirray.cn/tags/state-machine/</loc>
     </url>
     <url>
         <loc>https://blog.cirray.cn/tags/task-system/</loc>
