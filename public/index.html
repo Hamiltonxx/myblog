@@ -52,6 +52,17 @@
     --callout-caution-color: #d06161;
   }
 
+  /* mobile: prevent table overflow from expanding page width */
+  body.post main {
+    min-width: 0;
+  }
+  .prose table {
+    display: block;
+    max-width: 100%;
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+  }
+
   /* typography */
   body {
     --main-font: ui-sans-serif, system-ui, sans-serif, 'Apple Color Emoji', 'Segoe UI Emoji', 'Segoe UI Symbol', 'Noto Color Emoji';
