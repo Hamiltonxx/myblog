@@ -1,0 +1,415 @@
+<!DOCTYPE html>
+
+<html lang="zh">
+
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="color-scheme" content="light dark">
+  
+  
+    
+  
+  <meta name="description" content="国产 AI 乱说一气被我妈卸载，Claude 才是她需要的。但网络和支付把她挡在门外——我决定自己动手解决这个问题。">
+
+  <title>把 Claude 送给我妈：用自己的 Pro 账号给家人做一个开箱即用的 App</title>
+  <link rel="icon" type="image/png" sizes="32x32" href="https://blog.cirray.cn/img/favicon-32x32.png">
+  <link rel="icon" type="image/png" sizes="16x16" href="https://blog.cirray.cn/img/favicon-16x16.png">
+  <link rel="apple-touch-icon" sizes="180x180" href="https://blog.cirray.cn/img/apple-touch-icon.png">
+  
+  <style>
+
+  /* light mode colors */
+  body {
+    --primary-color: #5871a2;
+    --primary-pale-color: #5871a233;
+    --primary-decoration-color: #5871a210;
+    --bg-color: #ffffff;
+    --text-color: #2f3030;
+    --text-pale-color: #767676;
+    --text-decoration-color: #a9a9a9;
+    --highlight-mark-color: #5f75b020;
+
+    --callout-note-color: #5871a2;
+    --callout-tip-color: #268556;
+    --callout-important-color: #885fc9;
+    --callout-warning-color: #ab6632;
+    --callout-caution-color: #c64e4e;
+  }
+
+  /* dark mode colors */
+  body.dark {
+    --primary-color: #6f8fd1;
+    --primary-pale-color: #6f8fd166;
+    --primary-decoration-color: #6f8fd112;
+    --bg-color: #1c1c1c;
+    --text-color: #c1c1c1;
+    --text-pale-color: #848484;
+    --text-decoration-color: #5f5f5f;
+    --highlight-mark-color: #8296cb3b;
+
+    --callout-note-color: #6f8fd1;
+    --callout-tip-color: #47976f;
+    --callout-important-color: #9776cd;
+    --callout-warning-color: #ad7a52;
+    --callout-caution-color: #d06161;
+  }
+
+  /* typography */
+  body {
+    --main-font: ui-sans-serif, system-ui, sans-serif, 'Apple Color Emoji', 'Segoe UI Emoji', 'Segoe UI Symbol', 'Noto Color Emoji';
+    --code-font: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, 'Liberation Mono', 'Courier New', monospace;
+    --homepage-max-width: 768px;
+    --main-max-width: 768px;
+    --avatar-size: 60px;
+    --font-size: 16px;
+    --line-height: 1.75;
+    --img-border-radius: 0px;
+    --detail-border-radius: 0px;
+    --dark-mode-img-brightness: 0.75;
+    --dark-mode-chart-brightness: 0.75;
+    --inline-code-border-radius: 2px;
+    --inline-code-bg-color: var(--primary-decoration-color);
+    --block-code-border-radius: 0px;
+    --block-code-border-color: var(--primary-color);
+    --detail-border-color: var(--primary-color);
+  }
+
+</style>
+
+  <link rel="stylesheet" href="https://blog.cirray.cn/main.css">
+  
+
+<link id="hl" rel="stylesheet" type="text/css" href="/giallo-light.css" />
+
+
+
+  
+</head>
+
+<body class="post">
+  
+  <script>
+    const theme = sessionStorage.getItem('theme');
+    const match = window.matchMedia("(prefers-color-scheme: dark)").matches;
+    if ((theme && theme == 'dark') || (!theme && match)) {
+      document.body.classList.add('dark');
+      const hl = document.querySelector('link#hl');
+      if (hl) hl.href = 'https://blog.cirray.cn/giallo-dark.css';
+    }
+  </script>
+  
+  
+<div id="wrapper">
+  <div id="blank"></div>
+  <aside>
+    
+    
+    <nav>
+      <ul>
+        
+        <li>
+          <a class="h2" href="#zheng-ti-si-lu">整体思路</a>
+          
+        </li>
+        
+        <li>
+          <a class="h2" href="#cookie-ti-qu-po-jie-chrome-de-jia-mi">Cookie 提取：破解 Chrome 的加密</a>
+          
+          <ul>
+            
+            <li>
+              <a class="h3" href="#mi-yao-cong-na-lai">密钥从哪来</a>
+            </li>
+            
+            <li>
+              <a class="h3" href="#jia-mi-ge-shi-wang-shang-zi-liao-shi-cuo-de">加密格式：网上资料是错的</a>
+            </li>
+            
+          </ul>
+          
+        </li>
+        
+        <li>
+          <a class="h2" href="#android-duan-zhu-ru-cookie">Android 端：注入 Cookie</a>
+          
+        </li>
+        
+        <li>
+          <a class="h2" href="#nei-zhi-dai-li-sing-box-trojan">内置代理：sing-box + Trojan</a>
+          
+          <ul>
+            
+            <li>
+              <a class="h3" href="#keng-1-filesdir-bu-ke-zhi-xing">坑1：filesDir 不可执行</a>
+            </li>
+            
+            <li>
+              <a class="h3" href="#keng-2-so-bei-apk-ya-suo">坑2：.so 被 APK 压缩</a>
+            </li>
+            
+          </ul>
+          
+        </li>
+        
+        <li>
+          <a class="h2" href="#ju-xian-xing">局限性</a>
+          
+        </li>
+        
+      </ul>
+    </nav>
+    
+    
+    <button id="back-to-top" aria-label="back to top">
+      
+      <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="feather feather-arrow-up"><line x1="12" y1="19" x2="12" y2="5"></line><polyline points="5 12 12 5 19 12"></polyline></svg>
+
+    </button>
+    
+  </aside>
+  <main>
+    
+<header>
+  <nav>
+    <a id="back-link" href="https:&#x2F;&#x2F;blog.cirray.cn&#x2F;posts">← Back</a>
+  </nav>
+</header>
+
+
+    <div>
+      
+      
+      
+      
+      <div id="copy-cfg" style="display: none;" data-copy-icon="&lt;svg xmlns=&quot;http:&#x2F;&#x2F;www.w3.org&#x2F;2000&#x2F;svg&quot; viewBox=&quot;0 0 24 24&quot; width=&quot;18&quot; height=&quot;18&quot;&gt;&lt;path d=&quot;M6.9998 6V3C6.9998 2.44772 7.44752 2 7.9998 2H19.9998C20.5521 2 20.9998 2.44772 20.9998 3V17C20.9998 17.5523 20.5521 18 19.9998 18H16.9998V20.9991C16.9998 21.5519 16.5499 22 15.993 22H4.00666C3.45059 22 3 21.5554 3 20.9991L3.0026 7.00087C3.0027 6.44811 3.45264 6 4.00942 6H6.9998ZM5.00242 8L5.00019 20H14.9998V8H5.00242ZM8.9998 6H16.9998V16H18.9998V4H8.9998V6Z&quot; fill=&quot;currentColor&quot;&gt;&lt;&#x2F;path&gt;&lt;&#x2F;svg&gt;
+" data-check-icon="&lt;svg xmlns=&quot;http:&#x2F;&#x2F;www.w3.org&#x2F;2000&#x2F;svg&quot; viewBox=&quot;0 0 24 24&quot; width=&quot;18&quot; height=&quot;18&quot;&gt;&lt;path d=&quot;M10.0007 15.1709L19.1931 5.97852L20.6073 7.39273L10.0007 17.9993L3.63672 11.6354L5.05093 10.2212L10.0007 15.1709Z&quot; fill=&quot;currentColor&quot;&gt;&lt;&#x2F;path&gt;&lt;&#x2F;svg&gt;
+"></div>
+      
+      <article class="prose">
+        <h1>把 Claude 送给我妈：用自己的 Pro 账号给家人做一个开箱即用的 App</h1>
+        <div id="post-info">
+          <div id="date">
+            <span id="publish">2026-04-05</span>
+            </div>
+
+          
+          <div id="tags">
+            <a class="instant" href="https://blog.cirray.cn/tags/android"><span>#</span>android</a><a class="instant" href="https://blog.cirray.cn/tags/webview"><span>#</span>webview</a><a class="instant" href="https://blog.cirray.cn/tags/cookie"><span>#</span>cookie</a><a class="instant" href="https://blog.cirray.cn/tags/sing-box"><span>#</span>sing-box</a><a class="instant" href="https://blog.cirray.cn/tags/trojan"><span>#</span>trojan</a><a class="instant" href="https://blog.cirray.cn/tags/aes-cbc"><span>#</span>aes-cbc</a>
+          </div>
+          
+        </div>
+
+        
+        
+
+        
+
+        <p>我妈问了一个病理问题，豆包乱说一气，被她立马卸载了。</p>
+<p>我知道如果她用的是 Claude，绝对不会这样。Claude Code 是我用过的最强 Agent，没有之一。它回答问题的质量、态度、边界感，都是我见过最让人满意的。我非常想把它推荐给我的家人，甚至农村里的朋友。</p>
+<p>但现实是：Claude 在国内访问不了，注册要境外手机号，付款要境外信用卡。这三道门，把我妈、我的朋友，还有无数普通人，全挡在外面。他们最多只能接触"豆包"这种国产垃圾 App。</p>
+<p>所以我突发奇想：<strong>用我自己的 Pro 账号，把登录状态克隆进一个 Android App，打包给她装上，打开就能用。</strong> 不需要注册，不需要翻墙，不需要懂任何东西。</p>
+<p>今天把这件事做成了。</p>
+<p><img src="https://blog.cirray.cn/posts/android-claude-webview-cookie-crack-2026-04-05/screenshot-claude-android-2026-04-05.png" alt="最终效果：Pixel 8a 上运行的 Claude，已登录我的 Pro 账号" /></p>
+<p>打开即是 "Back at it, Cirray"，Sonnet 4.6 完整可用。</p>
+<hr />
+<h2 id="zheng-ti-si-lu">整体思路<a class="zola-anchor" href="#zheng-ti-si-lu" aria-label="Anchor link for: zheng-ti-si-lu" style="visibility: hidden;"></a>
+</h2>
+<ol>
+<li>从 Mac 的 Chrome 里提取 claude.ai 的 Cookie / Session</li>
+<li>打包成 Android WebView App，启动时自动注入 Cookie</li>
+<li>App 内置 sing-box + Trojan 代理，自动翻墙</li>
+<li>发给家人安装，打开即用</li>
+</ol>
+<hr />
+<h2 id="cookie-ti-qu-po-jie-chrome-de-jia-mi">Cookie 提取：破解 Chrome 的加密<a class="zola-anchor" href="#cookie-ti-qu-po-jie-chrome-de-jia-mi" aria-label="Anchor link for: cookie-ti-qu-po-jie-chrome-de-jia-mi" style="visibility: hidden;"></a>
+</h2>
+<p>Chrome 的 Cookie 存在 SQLite 里：</p>
+<pre class="giallo z-code"><code data-lang="plain"><span class="giallo-l"><span>~/Library/Application Support/Google/Chrome/Default/Cookies</span></span></code></pre>
+<p>所有值都是加密的，<code>value</code> 字段为空，真正的内容在 <code>encrypted_value</code> 里。</p>
+<h3 id="mi-yao-cong-na-lai">密钥从哪来<a class="zola-anchor" href="#mi-yao-cong-na-lai" aria-label="Anchor link for: mi-yao-cong-na-lai" style="visibility: hidden;"></a>
+</h3>
+<p>macOS Chrome 把加密密钥存在系统 Keychain，用 <code>security</code> 命令取出来：</p>
+<pre class="giallo z-code"><code data-lang="python"><span class="giallo-l"><span>result</span><span class="z-keyword"> =</span><span> subprocess</span><span>.</span><span>run</span><span>(</span></span>
+<span class="giallo-l"><span>    [</span><span class="z-punctuation z-definition z-string">&quot;</span><span class="z-string">security</span><span class="z-punctuation z-definition z-string">&quot;</span><span>,</span><span class="z-punctuation z-definition z-string"> &quot;</span><span class="z-string">find-generic-password</span><span class="z-punctuation z-definition z-string">&quot;</span><span>,</span><span class="z-punctuation z-definition z-string"> &quot;</span><span class="z-string">-w</span><span class="z-punctuation z-definition z-string">&quot;</span><span>,</span></span>
+<span class="giallo-l"><span class="z-punctuation z-definition z-string">     &quot;</span><span class="z-string">-a</span><span class="z-punctuation z-definition z-string">&quot;</span><span>,</span><span class="z-punctuation z-definition z-string"> &quot;</span><span class="z-string">Chrome</span><span class="z-punctuation z-definition z-string">&quot;</span><span>,</span><span class="z-punctuation z-definition z-string"> &quot;</span><span class="z-string">-s</span><span class="z-punctuation z-definition z-string">&quot;</span><span>,</span><span class="z-punctuation z-definition z-string"> &quot;</span><span class="z-string">Chrome Safe Storage</span><span class="z-punctuation z-definition z-string">&quot;</span><span>]</span><span>,</span></span>
+<span class="giallo-l"><span class="z-variable">    capture_output</span><span class="z-keyword">=</span><span class="z-constant">True</span><span>,</span><span class="z-variable"> text</span><span class="z-keyword">=</span><span class="z-constant">True</span></span>
+<span class="giallo-l"><span>)</span></span>
+<span class="giallo-l"><span>password</span><span class="z-keyword"> =</span><span> result</span><span>.</span><span>stdout</span><span>.</span><span>strip</span><span>(</span><span>)</span></span></code></pre>
+<p>然后 PBKDF2 派生 16 字节 AES 密钥：</p>
+<pre class="giallo z-code"><code data-lang="python"><span class="giallo-l"><span class="z-keyword">from</span><span> cryptography</span><span>.</span><span>hazmat</span><span>.</span><span>primitives</span><span>.</span><span>kdf</span><span>.</span><span>pbkdf2</span><span class="z-keyword"> import</span><span class="z-constant"> PBKDF2HMAC</span></span>
+<span class="giallo-l"><span class="z-keyword">from</span><span> cryptography</span><span>.</span><span>hazmat</span><span>.</span><span>primitives</span><span class="z-keyword"> import</span><span> hashes</span></span>
+<span class="giallo-l"></span>
+<span class="giallo-l"><span>kdf</span><span class="z-keyword"> =</span><span> PBKDF2HMAC</span><span>(</span><span class="z-variable">algorithm</span><span class="z-keyword">=</span><span>hashes</span><span>.</span><span>SHA1</span><span>(</span><span>)</span><span>,</span><span class="z-variable"> length</span><span class="z-keyword">=</span><span class="z-constant">16</span><span>,</span></span>
+<span class="giallo-l"><span class="z-variable">                 salt</span><span class="z-keyword">=</span><span class="z-storage z-type">b</span><span class="z-punctuation z-definition z-string">&quot;</span><span class="z-string">saltysalt</span><span class="z-punctuation z-definition z-string">&quot;</span><span>,</span><span class="z-variable"> iterations</span><span class="z-keyword">=</span><span class="z-constant">1003</span><span>)</span></span>
+<span class="giallo-l"><span>key</span><span class="z-keyword"> =</span><span> kdf</span><span>.</span><span>derive</span><span>(</span><span>password</span><span>.</span><span>encode</span><span>(</span><span class="z-punctuation z-definition z-string">&quot;</span><span class="z-string">utf8</span><span class="z-punctuation z-definition z-string">&quot;</span><span>)</span><span>)</span></span></code></pre><h3 id="jia-mi-ge-shi-wang-shang-zi-liao-shi-cuo-de">加密格式：网上资料是错的<a class="zola-anchor" href="#jia-mi-ge-shi-wang-shang-zi-liao-shi-cuo-de" aria-label="Anchor link for: jia-mi-ge-shi-wang-shang-zi-liao-shi-cuo-de" style="visibility: hidden;"></a>
+</h3>
+<p>网上普遍说格式是：</p>
+<pre class="giallo z-code"><code data-lang="plain"><span class="giallo-l"><span>v10 + AES-CBC(key, IV=&quot; &quot;*16, plaintext)</span></span></code></pre>
+<p>按这个写完，解密出来前面一堆乱码。调试后发现<strong>实际格式是</strong>：</p>
+<pre class="giallo z-code"><code data-lang="plain"><span class="giallo-l"><span>v10（3字节） + 明文IV（16字节） + AES-CBC密文</span></span></code></pre>
+<p>而且密文解密后，<strong>第一个 AES 块（16字节）是随机 nonce，要跳过</strong>，剩下的才是真正的 Cookie 值：</p>
+<pre class="giallo z-code"><code data-lang="python"><span class="giallo-l"><span class="z-storage z-type">def</span><span class="z-entity z-name"> decrypt_cookie</span><span>(</span><span class="z-variable z-parameter z-function">encrypted_value</span><span>,</span><span class="z-variable z-parameter z-function"> key</span><span>)</span><span>:</span></span>
+<span class="giallo-l"><span>    payload</span><span class="z-keyword"> =</span><span> encrypted_value</span><span>[</span><span class="z-constant">3</span><span>:</span><span>]</span><span class="z-punctuation z-definition z-comment">      #</span><span class="z-comment"> 去掉 v10 前缀</span></span>
+<span class="giallo-l"><span>    iv</span><span class="z-keyword"> =</span><span> payload</span><span>[</span><span>:</span><span class="z-constant">16</span><span>]</span><span class="z-punctuation z-definition z-comment">                  #</span><span class="z-comment"> 真实 IV（明文存储）</span></span>
+<span class="giallo-l"><span>    ciphertext</span><span class="z-keyword"> =</span><span> payload</span><span>[</span><span class="z-constant">16</span><span>:</span><span>]</span><span class="z-punctuation z-definition z-comment">          #</span><span class="z-comment"> 真实密文</span></span>
+<span class="giallo-l"></span>
+<span class="giallo-l"><span>    cipher</span><span class="z-keyword"> =</span><span> Cipher</span><span>(</span><span>algorithms</span><span>.</span><span>AES</span><span>(</span><span>key</span><span>)</span><span>,</span><span> modes</span><span>.</span><span>CBC</span><span>(</span><span>iv</span><span>)</span><span>)</span></span>
+<span class="giallo-l"><span>    decrypted</span><span class="z-keyword"> =</span><span> (</span><span>cipher</span><span>.</span><span>decryptor</span><span>(</span><span>)</span><span>.</span><span>update</span><span>(</span><span>ciphertext</span><span>)</span></span>
+<span class="giallo-l"><span class="z-keyword">                 +</span><span> cipher</span><span>.</span><span>decryptor</span><span>(</span><span>)</span><span>.</span><span>finalize</span><span>(</span><span>)</span><span>)</span></span>
+<span class="giallo-l"></span>
+<span class="giallo-l"><span>    padding</span><span class="z-keyword"> =</span><span> decrypted</span><span>[</span><span class="z-keyword">-</span><span class="z-constant">1</span><span>]</span></span>
+<span class="giallo-l"><span>    raw</span><span class="z-keyword"> =</span><span> decrypted</span><span>[</span><span class="z-constant">16</span><span>:</span><span class="z-keyword">-</span><span>padding</span><span>]</span><span class="z-punctuation z-definition z-comment">       #</span><span class="z-comment"> 跳过第一个 16 字节随机 nonce</span></span>
+<span class="giallo-l"><span class="z-keyword">    return</span><span> raw</span><span>.</span><span>decode</span><span>(</span><span class="z-punctuation z-definition z-string">&#39;</span><span class="z-string">utf-8</span><span class="z-punctuation z-definition z-string">&#39;</span><span>,</span><span class="z-variable"> errors</span><span class="z-keyword">=</span><span class="z-punctuation z-definition z-string">&#39;</span><span class="z-string">replace</span><span class="z-punctuation z-definition z-string">&#39;</span><span>)</span></span></code></pre>
+<p>跑完拿到 35 条 claude.ai 的 Cookie，包括 <code>sessionKey</code>、<code>routingHint</code>、<code>anthropic-device-id</code> 等关键字段。</p>
+<hr />
+<h2 id="android-duan-zhu-ru-cookie">Android 端：注入 Cookie<a class="zola-anchor" href="#android-duan-zhu-ru-cookie" aria-label="Anchor link for: android-duan-zhu-ru-cookie" style="visibility: hidden;"></a>
+</h2>
+<p>把提取的 Cookie JSON 放进 <code>assets/cookies.json</code>，App 启动时用 <code>CookieManager</code> 注入：</p>
+<pre class="giallo z-code"><code data-lang="kotlin"><span class="giallo-l"><span class="z-keyword">val</span><span> cookieManager </span><span class="z-keyword">=</span><span> CookieManager</span><span>.</span><span class="z-entity z-name">getInstance</span><span>()</span></span>
+<span class="giallo-l"><span class="z-keyword">for</span><span> (cookie </span><span class="z-keyword">in</span><span> cookies) {</span></span>
+<span class="giallo-l"><span>    cookieManager</span><span>.</span><span class="z-entity z-name">setCookie</span><span>(</span><span class="z-string">&quot;</span><span class="z-string">https://</span><span class="z-string">${</span><span class="z-string">domain</span><span class="z-string">}</span><span class="z-string">&quot;</span><span>, </span><span class="z-entity z-name">buildCookieString</span><span>(cookie))</span></span>
+<span class="giallo-l"><span>}</span></span>
+<span class="giallo-l"><span>cookieManager</span><span>.</span><span class="z-entity z-name">flush</span><span>()</span></span>
+<span class="giallo-l"><span>webView</span><span>.</span><span class="z-entity z-name">loadUrl</span><span>(</span><span class="z-string">&quot;</span><span class="z-string">https://claude.ai</span><span class="z-string">&quot;</span><span>)</span></span></code></pre>
+<p>Cookie 里的 expires 是 Chrome 时间戳（微秒，从 1601-01-01 起算），转 Unix 时间要减偏移：</p>
+<pre class="giallo z-code"><code data-lang="kotlin"><span class="giallo-l"><span class="z-keyword">val</span><span> unixMillis </span><span class="z-keyword">=</span><span> (cookie.expires </span><span class="z-keyword">/</span><span class="z-constant"> 1000</span><span>) </span><span class="z-keyword">-</span><span class="z-constant"> 11644473600000L</span></span></code></pre>
+<hr />
+<h2 id="nei-zhi-dai-li-sing-box-trojan">内置代理：sing-box + Trojan<a class="zola-anchor" href="#nei-zhi-dai-li-sing-box-trojan" aria-label="Anchor link for: nei-zhi-dai-li-sing-box-trojan" style="visibility: hidden;"></a>
+</h2>
+<p>claude.ai 国内不通，所以 App 里内置了 sing-box，启动时在本地跑一个 HTTP 代理（127.0.0.1:10809），WebView 流量全走 Trojan 节点出去。</p>
+<p>WebView 走代理用 <code>androidx.webkit.ProxyController</code>（Android 10+）：</p>
+<pre class="giallo z-code"><code data-lang="kotlin"><span class="giallo-l"><span>ProxyController</span><span>.</span><span class="z-entity z-name">getInstance</span><span>()</span><span>.</span><span class="z-entity z-name">setProxyOverride</span><span>(</span></span>
+<span class="giallo-l"><span>    ProxyConfig</span><span>.</span><span class="z-entity z-name">Builder</span><span>()</span><span>.</span><span class="z-entity z-name">addProxyRule</span><span>(</span><span class="z-string">&quot;</span><span class="z-string">127.0.0.1:10809</span><span class="z-string">&quot;</span><span>)</span><span>.</span><span class="z-entity z-name">build</span><span>(),</span></span>
+<span class="giallo-l"><span>    Executors</span><span>.</span><span class="z-entity z-name">newSingleThreadExecutor</span><span>()</span></span>
+<span class="giallo-l"><span>) { </span><span class="z-entity z-name">loadPage</span><span>() }</span></span></code></pre><h3 id="keng-1-filesdir-bu-ke-zhi-xing">坑1：filesDir 不可执行<a class="zola-anchor" href="#keng-1-filesdir-bu-ke-zhi-xing" aria-label="Anchor link for: keng-1-filesdir-bu-ke-zhi-xing" style="visibility: hidden;"></a>
+</h3>
+<p>把 sing-box 二进制复制到 <code>filesDir</code> 再执行，直接失败。Android 的 <code>filesDir</code> 挂载了 <code>noexec</code>，不允许执行任何程序。</p>
+<p>解决：把 sing-box 改名为 <code>libsingbox.so</code>，放进 <code>jniLibs/arm64-v8a/</code>。Android 会把它安装到 <code>nativeLibraryDir</code>，这个目录可以执行：</p>
+<pre class="giallo z-code"><code data-lang="kotlin"><span class="giallo-l"><span class="z-keyword">val</span><span> binary </span><span class="z-keyword">=</span><span class="z-entity z-name"> File</span><span>(context.applicationInfo.nativeLibraryDir, </span><span class="z-string">&quot;</span><span class="z-string">libsingbox.so</span><span class="z-string">&quot;</span><span>)</span></span>
+<span class="giallo-l"><span>binary</span><span>.</span><span class="z-entity z-name">setExecutable</span><span>(</span><span class="z-constant">true</span><span>)</span></span></code></pre><h3 id="keng-2-so-bei-apk-ya-suo">坑2：.so 被 APK 压缩<a class="zola-anchor" href="#keng-2-so-bei-apk-ya-suo" aria-label="Anchor link for: keng-2-so-bei-apk-ya-suo" style="visibility: hidden;"></a>
+</h3>
+<p><code>jniLibs</code> 里的文件默认会被压缩，安装后文件不完整导致无法运行。在 <code>build.gradle</code> 里关掉：</p>
+<pre class="giallo z-code"><code data-lang="groovy"><span class="giallo-l"><span>packagingOptions </span><span>{</span></span>
+<span class="giallo-l"><span>    doNotStrip </span><span class="z-punctuation z-definition z-string">&quot;</span><span class="z-string">**/*.so</span><span class="z-punctuation z-definition z-string">&quot;</span></span>
+<span class="giallo-l"><span>    jniLibs </span><span>{</span></span>
+<span class="giallo-l"><span>        useLegacyPackaging </span><span class="z-constant">true</span></span>
+<span class="giallo-l"><span>    }</span></span>
+<span class="giallo-l"><span>}</span></span></code></pre>
+<hr />
+<h2 id="ju-xian-xing">局限性<a class="zola-anchor" href="#ju-xian-xing" aria-label="Anchor link for: ju-xian-xing" style="visibility: hidden;"></a>
+</h2>
+<p>Cookie 有过期时间。Cloudflare 相关的 token 几小时就失效，<code>sessionKey</code> 相对长效。失效了我在 Mac 上重新跑一次提取脚本，重新 build 发给她就行——对我来说不麻烦，对她来说完全无感。</p>
+<hr />
+<p>豆包让我妈失望的那一刻，我就在想这件事。今天终于做完了。</p>
+<p>技术从来不是目的，能让她用上一个真正靠谱的工具，才是。</p>
+
+      </article>
+
+      
+      
+
+      
+      
+      <div class="giscus"></div>
+      <style>
+#comments { margin-top: 3rem; padding: 0 15px; }
+.c-item { margin: 1.2rem 0; }
+.c-reply { margin-left: 1.5rem; padding-left: 1rem; border-left: 2px solid var(--text-decoration-color); }
+.c-meta { display: flex; align-items: center; gap: 0.6rem; margin-bottom: 0.3rem; font-size: 0.85em; }
+.c-name { font-weight: bold; color: var(--text-color); }
+.c-time { color: var(--text-pale-color); }
+.c-reply-btn {
+  background: none; border: none; padding: 0;
+  color: var(--primary-color); cursor: pointer;
+  font-size: 0.85em; opacity: 0;
+  transition: opacity 0.15s;
+}
+.c-item:hover .c-reply-btn { opacity: 1; }
+.c-body { color: var(--text-color); line-height: var(--line-height); white-space: pre-wrap; word-break: break-word; }
+.c-loading, .c-empty { color: var(--text-pale-color); font-size: 0.9em; padding: 1rem 0; }
+.c-form { margin-top: 2rem; display: flex; flex-direction: column; gap: 0.6rem; }
+.c-form-row { display: flex; gap: 0.6rem; }
+.c-input {
+  width: 100%; padding: 0.5rem 0.7rem;
+  border: 1.5px solid var(--text-decoration-color);
+  border-radius: 4px;
+  background: var(--bg-color); color: var(--text-color);
+  font-size: 0.9em; font-family: var(--main-font);
+  outline: none; transition: border-color 0.15s;
+}
+.c-input:focus { border-color: var(--primary-color); }
+.c-input-content { resize: vertical; min-height: 100px; }
+.c-reply-tip {
+  font-size: 0.85em; color: var(--primary-color);
+  padding: 0.2rem 0.5rem;
+  background: var(--inline-code-bg-color);
+  border-radius: 4px; align-self: flex-start;
+}
+.c-reply-tip::after { content: " ✕"; opacity: 0.5; }
+.c-form-actions { display: flex; justify-content: flex-end; }
+.c-submit {
+  padding: 0.4rem 1.2rem;
+  background: var(--primary-color); color: var(--bg-color);
+  border: none; border-radius: 4px;
+  cursor: pointer; font-size: 0.9em;
+  transition: opacity 0.15s;
+}
+.c-submit:hover { opacity: 0.85; }
+.c-submit:disabled { opacity: 0.5; cursor: not-allowed; }
+</style>
+<div id="comments" data-page="&#x2F;posts&#x2F;android-claude-webview-cookie-crack-2026-04-05&#x2F;"></div>
+<script src="/comments.js"></script>
+
+
+      
+    </div>
+
+    
+
+
+<footer>
+  <div class="left">
+    <div class="copyright">
+      © 2026 Cirray AI
+      
+      <span>|</span>
+      Built with <a href="https://www.getzola.org" rel="noreferrer" target="_blank">zola</a> and <a href="https://github.com/isunjn/serene" rel="noreferrer" target="_blank">serene</a>
+      
+    </div>
+  </div>
+
+  <div class="right">
+    
+    
+    
+    
+
+    
+    
+    
+    <button id="theme-toggle" aria-label="theme switch">
+      <span class="moon-icon"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="18" height="18"><path d="M10 7C10 10.866 13.134 14 17 14C18.9584 14 20.729 13.1957 21.9995 11.8995C22 11.933 22 11.9665 22 12C22 17.5228 17.5228 22 12 22C6.47715 22 2 17.5228 2 12C2 6.47715 6.47715 2 12 2C12.0335 2 12.067 2 12.1005 2.00049C10.8043 3.27098 10 5.04157 10 7ZM4 12C4 16.4183 7.58172 20 12 20C15.0583 20 17.7158 18.2839 19.062 15.7621C18.3945 15.9187 17.7035 16 17 16C12.0294 16 8 11.9706 8 7C8 6.29648 8.08133 5.60547 8.2379 4.938C5.71611 6.28423 4 8.9417 4 12Z" fill="currentColor"></path></svg>
+</span>
+      <span class="sun-icon"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="18" height="18"><path d="M12 18C8.68629 18 6 15.3137 6 12C6 8.68629 8.68629 6 12 6C15.3137 6 18 8.68629 18 12C18 15.3137 15.3137 18 12 18ZM12 16C14.2091 16 16 14.2091 16 12C16 9.79086 14.2091 8 12 8C9.79086 8 8 9.79086 8 12C8 14.2091 9.79086 16 12 16ZM11 1H13V4H11V1ZM11 20H13V23H11V20ZM3.51472 4.92893L4.92893 3.51472L7.05025 5.63604L5.63604 7.05025L3.51472 4.92893ZM16.9497 18.364L18.364 16.9497L20.4853 19.0711L19.0711 20.4853L16.9497 18.364ZM19.0711 3.51472L20.4853 4.92893L18.364 7.05025L16.9497 5.63604L19.0711 3.51472ZM5.63604 16.9497L7.05025 18.364L4.92893 20.4853L3.51472 19.0711L5.63604 16.9497ZM23 11V13H20V11H23ZM4 11V13H1V11H4Z" fill="currentColor"></path></svg>
+</span>
+    </button>
+    
+  </div>
+</footer>
+
+
+
+
+
+  </main>
+</div>
+
+  
+<script src="/js/lightense.min.js"></script>
+
+
+  <script src="https://blog.cirray.cn/js/main.js"></script>
+</body>
+
+</html>
