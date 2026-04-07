@@ -1,7 +1,7 @@
 +++
 title = "用 Rust 学 AI Agent——Day 12：两个 Agent 把对方文件覆盖了，git worktree 三行解决"
 description = "多 Agent 并发写文件会互相覆盖，worktree 隔离是最简单的解法——顺便今天把 12 天的 Rust Agent 框架全合进了一个文件，收官。"
-date = 2026-04-07
+date = 2026-04-06
 
 [taxonomies]
 categories = ["项目"]
