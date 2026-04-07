@@ -1,0 +1,406 @@
+<!DOCTYPE html>
+
+<html lang="zh">
+
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="color-scheme" content="light dark">
+  
+  
+    
+  
+  <meta name="description" content="多 Agent 并发写文件会互相覆盖，worktree 隔离是最简单的解法——顺便今天把 12 天的 Rust Agent 框架全合进了一个文件，收官。">
+
+  <title>用 Rust 学 AI Agent——Day 12：两个 Agent 把对方文件覆盖了，git worktree 三行解决</title>
+  <link rel="icon" type="image/png" sizes="32x32" href="https://blog.cirray.cn/img/favicon-32x32.png">
+  <link rel="icon" type="image/png" sizes="16x16" href="https://blog.cirray.cn/img/favicon-16x16.png">
+  <link rel="apple-touch-icon" sizes="180x180" href="https://blog.cirray.cn/img/apple-touch-icon.png">
+  
+  <style>
+
+  /* light mode colors */
+  body {
+    --primary-color: #5871a2;
+    --primary-pale-color: #5871a233;
+    --primary-decoration-color: #5871a210;
+    --bg-color: #ffffff;
+    --text-color: #2f3030;
+    --text-pale-color: #767676;
+    --text-decoration-color: #a9a9a9;
+    --highlight-mark-color: #5f75b020;
+
+    --callout-note-color: #5871a2;
+    --callout-tip-color: #268556;
+    --callout-important-color: #885fc9;
+    --callout-warning-color: #ab6632;
+    --callout-caution-color: #c64e4e;
+  }
+
+  /* dark mode colors */
+  body.dark {
+    --primary-color: #6f8fd1;
+    --primary-pale-color: #6f8fd166;
+    --primary-decoration-color: #6f8fd112;
+    --bg-color: #1c1c1c;
+    --text-color: #c1c1c1;
+    --text-pale-color: #848484;
+    --text-decoration-color: #5f5f5f;
+    --highlight-mark-color: #8296cb3b;
+
+    --callout-note-color: #6f8fd1;
+    --callout-tip-color: #47976f;
+    --callout-important-color: #9776cd;
+    --callout-warning-color: #ad7a52;
+    --callout-caution-color: #d06161;
+  }
+
+  /* typography */
+  body {
+    --main-font: ui-sans-serif, system-ui, sans-serif, 'Apple Color Emoji', 'Segoe UI Emoji', 'Segoe UI Symbol', 'Noto Color Emoji';
+    --code-font: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, 'Liberation Mono', 'Courier New', monospace;
+    --homepage-max-width: 768px;
+    --main-max-width: 768px;
+    --avatar-size: 60px;
+    --font-size: 16px;
+    --line-height: 1.75;
+    --img-border-radius: 0px;
+    --detail-border-radius: 0px;
+    --dark-mode-img-brightness: 0.75;
+    --dark-mode-chart-brightness: 0.75;
+    --inline-code-border-radius: 2px;
+    --inline-code-bg-color: var(--primary-decoration-color);
+    --block-code-border-radius: 0px;
+    --block-code-border-color: var(--primary-color);
+    --detail-border-color: var(--primary-color);
+  }
+
+</style>
+
+  <link rel="stylesheet" href="https://blog.cirray.cn/main.css">
+  
+
+<link id="hl" rel="stylesheet" type="text/css" href="/giallo-light.css" />
+
+
+
+  
+</head>
+
+<body class="post">
+  
+  <script>
+    const theme = sessionStorage.getItem('theme');
+    const match = window.matchMedia("(prefers-color-scheme: dark)").matches;
+    if ((theme && theme == 'dark') || (!theme && match)) {
+      document.body.classList.add('dark');
+      const hl = document.querySelector('link#hl');
+      if (hl) hl.href = 'https://blog.cirray.cn/giallo-dark.css';
+    }
+  </script>
+  
+  
+<div id="wrapper">
+  <div id="blank"></div>
+  <aside>
+    
+    
+    <nav>
+      <ul>
+        
+        <li>
+          <a class="h2" href="#wen-ti-liang-ge-agent-xie-wen-jian-hui-da-jia">问题：两个 Agent 写文件会打架</a>
+          
+        </li>
+        
+        <li>
+          <a class="h2" href="#git-worktree-shi-shen-me">git worktree 是什么</a>
+          
+        </li>
+        
+        <li>
+          <a class="h2" href="#zai-rust-li-zen-me-shi-xian">在 Rust 里怎么实现</a>
+          
+        </li>
+        
+        <li>
+          <a class="h2" href="#zui-hou-de-s-full-rs-12-ge-ji-zhi-yi-ge-wen-jian">最后的 s_full.rs：12 个机制，一个文件</a>
+          
+        </li>
+        
+        <li>
+          <a class="h2" href="#12-tian-xue-dao-de-zui-zhong-yao-de-shi">12 天学到的最重要的事</a>
+          
+        </li>
+        
+        <li>
+          <a class="h2" href="#xia-yi-bu">下一步</a>
+          
+        </li>
+        
+      </ul>
+    </nav>
+    
+    
+    <button id="back-to-top" aria-label="back to top">
+      
+      <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="feather feather-arrow-up"><line x1="12" y1="19" x2="12" y2="5"></line><polyline points="5 12 12 5 19 12"></polyline></svg>
+
+    </button>
+    
+  </aside>
+  <main>
+    
+<header>
+  <nav>
+    <a id="back-link" href="https:&#x2F;&#x2F;blog.cirray.cn&#x2F;posts">← Back</a>
+  </nav>
+</header>
+
+
+    <div>
+      
+      
+      
+      
+      <div id="copy-cfg" style="display: none;" data-copy-icon="&lt;svg xmlns=&quot;http:&#x2F;&#x2F;www.w3.org&#x2F;2000&#x2F;svg&quot; viewBox=&quot;0 0 24 24&quot; width=&quot;18&quot; height=&quot;18&quot;&gt;&lt;path d=&quot;M6.9998 6V3C6.9998 2.44772 7.44752 2 7.9998 2H19.9998C20.5521 2 20.9998 2.44772 20.9998 3V17C20.9998 17.5523 20.5521 18 19.9998 18H16.9998V20.9991C16.9998 21.5519 16.5499 22 15.993 22H4.00666C3.45059 22 3 21.5554 3 20.9991L3.0026 7.00087C3.0027 6.44811 3.45264 6 4.00942 6H6.9998ZM5.00242 8L5.00019 20H14.9998V8H5.00242ZM8.9998 6H16.9998V16H18.9998V4H8.9998V6Z&quot; fill=&quot;currentColor&quot;&gt;&lt;&#x2F;path&gt;&lt;&#x2F;svg&gt;
+" data-check-icon="&lt;svg xmlns=&quot;http:&#x2F;&#x2F;www.w3.org&#x2F;2000&#x2F;svg&quot; viewBox=&quot;0 0 24 24&quot; width=&quot;18&quot; height=&quot;18&quot;&gt;&lt;path d=&quot;M10.0007 15.1709L19.1931 5.97852L20.6073 7.39273L10.0007 17.9993L3.63672 11.6354L5.05093 10.2212L10.0007 15.1709Z&quot; fill=&quot;currentColor&quot;&gt;&lt;&#x2F;path&gt;&lt;&#x2F;svg&gt;
+"></div>
+      
+      <article class="prose">
+        <h1>用 Rust 学 AI Agent——Day 12：两个 Agent 把对方文件覆盖了，git worktree 三行解决</h1>
+        <div id="post-info">
+          <div id="date">
+            <span id="publish">2026-04-07</span>
+            </div>
+
+          
+          <div id="tags">
+            <a class="instant" href="https://blog.cirray.cn/tags/rust"><span>#</span>rust</a><a class="instant" href="https://blog.cirray.cn/tags/ai-agent"><span>#</span>ai-agent</a><a class="instant" href="https://blog.cirray.cn/tags/concurrency"><span>#</span>concurrency</a><a class="instant" href="https://blog.cirray.cn/tags/worktree"><span>#</span>worktree</a><a class="instant" href="https://blog.cirray.cn/tags/tokio"><span>#</span>tokio</a><a class="instant" href="https://blog.cirray.cn/tags/pathbuf"><span>#</span>pathbuf</a>
+          </div>
+          
+        </div>
+
+        
+        
+
+        
+
+        <p>今天是 <a rel="nofollow noreferrer external" href="https://github.com/Hamiltonxx/learn-claude-code-rust">learn-agent-rust</a> 的第 12 天，也是最后一个技术 session。做了两件事：让多个 AI Agent 不再互相踩脚，然后把前 11 天写的所有机制合进了一个文件。</p>
+<hr />
+<h2 id="wen-ti-liang-ge-agent-xie-wen-jian-hui-da-jia">问题：两个 Agent 写文件会打架<a class="zola-anchor" href="#wen-ti-liang-ge-agent-xie-wen-jian-hui-da-jia" aria-label="Anchor link for: wen-ti-liang-ge-agent-xie-wen-jian-hui-da-jia" style="visibility: hidden;"></a>
+</h2>
+<p>想象这个场景——</p>
+<p>你启动了两个 AI Agent 同时干活：一个写代码，一个做代码审查。它们都勤勤恳恳，但都往同一个目录写文件，结果：</p>
+<pre class="giallo z-code"><code data-lang="plain"><span class="giallo-l"><span># coder 写了</span></span>
+<span class="giallo-l"><span>output.txt → &quot;fn hello() { println!(\&quot;Hello\&quot;) }&quot;</span></span>
+<span class="giallo-l"></span>
+<span class="giallo-l"><span># reviewer 紧跟着写</span></span>
+<span class="giallo-l"><span>output.txt → &quot;# 审查意见：缺少注释&quot;</span></span>
+<span class="giallo-l"></span>
+<span class="giallo-l"><span># coder 的成果：消失了</span></span></code></pre>
+<p>这不是假设，是真实会发生的 race condition。文件系统不像数据库，没有事务，后写的直接覆盖前面的。</p>
+<hr />
+<h2 id="git-worktree-shi-shen-me">git worktree 是什么<a class="zola-anchor" href="#git-worktree-shi-shen-me" aria-label="Anchor link for: git-worktree-shi-shen-me" style="visibility: hidden;"></a>
+</h2>
+<p><code>git worktree</code> 是 Git 自带的一个功能，很多人没用过。</p>
+<p>通常你只有一个工作目录：</p>
+<pre class="giallo z-code"><code data-lang="plain"><span class="giallo-l"><span>my-repo/     ← 只能在这一个地方工作</span></span>
+<span class="giallo-l"><span>  .git/</span></span>
+<span class="giallo-l"><span>  src/</span></span></code></pre>
+<p>用 worktree 之后，同一个仓库可以同时 checkout 到多个目录，<strong>各自独立，共享同一个 <code>.git</code></strong>：</p>
+<pre class="giallo z-code"><code data-lang="shellscript"><span class="giallo-l"><span class="z-entity z-name">git</span><span class="z-string"> worktree</span><span class="z-string"> add</span><span class="z-string"> ../my-repo-coder</span><span class="z-constant">    -</span><span class="z-constant">b</span><span class="z-string"> coder-work</span></span>
+<span class="giallo-l"><span class="z-entity z-name">git</span><span class="z-string"> worktree</span><span class="z-string"> add</span><span class="z-string"> ../my-repo-reviewer</span><span class="z-constant"> -</span><span class="z-constant">b</span><span class="z-string"> reviewer-work</span></span></code></pre><pre class="giallo z-code"><code data-lang="plain"><span class="giallo-l"><span>my-repo/          ← main 分支</span></span>
+<span class="giallo-l"><span>my-repo-coder/    ← coder 在这里工作，独立分支</span></span>
+<span class="giallo-l"><span>my-repo-reviewer/ ← reviewer 在这里工作，独立分支</span></span></code></pre>
+<p>每个 Agent 待在自己的目录里，写什么文件都不会影响别人，最后再 merge 回主分支。</p>
+<hr />
+<h2 id="zai-rust-li-zen-me-shi-xian">在 Rust 里怎么实现<a class="zola-anchor" href="#zai-rust-li-zen-me-shi-xian" aria-label="Anchor link for: zai-rust-li-zen-me-shi-xian" style="visibility: hidden;"></a>
+</h2>
+<p>核心改动只有一处：给工具加一个 <code>cwd: PathBuf</code> 字段，执行命令时用 <code>.current_dir()</code> 限定范围。</p>
+<pre class="giallo z-code"><code data-lang="rust"><span class="giallo-l"><span class="z-storage z-type">struct</span><span class="z-entity z-name"> BashTool</span><span> {</span></span>
+<span class="giallo-l"><span class="z-variable z-other">    cwd</span><span class="z-keyword">:</span><span class="z-entity z-name"> PathBuf</span><span>,</span><span class="z-punctuation z-definition z-comment">  //</span><span class="z-comment"> 这个 Agent 专属的工作目录</span></span>
+<span class="giallo-l"><span>}</span></span>
+<span class="giallo-l"></span>
+<span class="giallo-l"><span class="z-keyword">impl</span><span class="z-entity z-name"> Tool</span><span class="z-keyword"> for</span><span class="z-entity z-name"> BashTool</span><span> {</span></span>
+<span class="giallo-l"><span class="z-keyword">    async</span><span class="z-keyword"> fn</span><span class="z-entity z-name"> execute</span><span>(</span><span class="z-keyword">&amp;</span><span class="z-variable z-language">self</span><span>,</span><span class="z-variable z-other"> input</span><span class="z-keyword">:</span><span class="z-entity z-name"> Value</span><span>)</span><span class="z-keyword"> -&gt;</span><span class="z-entity z-name"> String</span><span> {</span></span>
+<span class="giallo-l"><span class="z-entity z-name">        std</span><span class="z-keyword">::</span><span class="z-entity z-name">process</span><span class="z-keyword">::</span><span class="z-entity z-name">Command</span><span class="z-keyword">::</span><span class="z-entity z-name">new</span><span>(</span><span class="z-punctuation z-definition z-string">&quot;</span><span class="z-string">sh</span><span class="z-punctuation z-definition z-string">&quot;</span><span>)</span></span>
+<span class="giallo-l"><span class="z-keyword">            .</span><span class="z-entity z-name">arg</span><span>(</span><span class="z-punctuation z-definition z-string">&quot;</span><span class="z-string">-c</span><span class="z-punctuation z-definition z-string">&quot;</span><span>)</span></span>
+<span class="giallo-l"><span class="z-keyword">            .</span><span class="z-entity z-name">arg</span><span>(</span><span class="z-variable z-other">input</span><span>[</span><span class="z-punctuation z-definition z-string">&quot;</span><span class="z-string">command</span><span class="z-punctuation z-definition z-string">&quot;</span><span>]</span><span class="z-keyword">.</span><span class="z-entity z-name">as_str</span><span>(</span><span>)</span><span class="z-keyword">.</span><span class="z-entity z-name">unwrap_or</span><span>(</span><span class="z-punctuation z-definition z-string">&quot;</span><span class="z-punctuation z-definition z-string">&quot;</span><span>)</span><span>)</span></span>
+<span class="giallo-l"><span class="z-keyword">            .</span><span class="z-entity z-name">current_dir</span><span>(</span><span class="z-keyword">&amp;</span><span class="z-variable z-language">self</span><span class="z-keyword">.</span><span>cwd</span><span>)</span><span class="z-punctuation z-definition z-comment">   //</span><span class="z-comment"> ← 命令只在自己的目录里跑</span></span>
+<span class="giallo-l"><span class="z-keyword">            .</span><span class="z-entity z-name">output</span><span>(</span><span>)</span></span>
+<span class="giallo-l"><span class="z-punctuation z-definition z-comment">            //</span><span class="z-comment"> ...</span></span>
+<span class="giallo-l"><span>    }</span></span>
+<span class="giallo-l"><span>}</span></span></code></pre>
+<p>启动 Agent 时各给一个独立目录：</p>
+<pre class="giallo z-code"><code data-lang="rust"><span class="giallo-l"><span class="z-storage z-type">let</span><span class="z-variable z-other"> coder_dir</span><span class="z-keyword">    =</span><span class="z-entity z-name"> temp_dir</span><span>(</span><span>)</span><span class="z-keyword">.</span><span class="z-entity z-name">join</span><span>(</span><span class="z-punctuation z-definition z-string">&quot;</span><span class="z-string">worktree/coder</span><span class="z-punctuation z-definition z-string">&quot;</span><span>)</span><span>;</span></span>
+<span class="giallo-l"><span class="z-storage z-type">let</span><span class="z-variable z-other"> reviewer_dir</span><span class="z-keyword"> =</span><span class="z-entity z-name"> temp_dir</span><span>(</span><span>)</span><span class="z-keyword">.</span><span class="z-entity z-name">join</span><span>(</span><span class="z-punctuation z-definition z-string">&quot;</span><span class="z-string">worktree/reviewer</span><span class="z-punctuation z-definition z-string">&quot;</span><span>)</span><span>;</span></span>
+<span class="giallo-l"><span class="z-entity z-name">std</span><span class="z-keyword">::</span><span class="z-entity z-name">fs</span><span class="z-keyword">::</span><span class="z-entity z-name">create_dir_all</span><span>(</span><span class="z-keyword">&amp;</span><span class="z-variable z-other">coder_dir</span><span>)</span><span class="z-keyword">.</span><span class="z-entity z-name">unwrap</span><span>(</span><span>)</span><span>;</span></span>
+<span class="giallo-l"><span class="z-entity z-name">std</span><span class="z-keyword">::</span><span class="z-entity z-name">fs</span><span class="z-keyword">::</span><span class="z-entity z-name">create_dir_all</span><span>(</span><span class="z-keyword">&amp;</span><span class="z-variable z-other">reviewer_dir</span><span>)</span><span class="z-keyword">.</span><span class="z-entity z-name">unwrap</span><span>(</span><span>)</span><span>;</span></span>
+<span class="giallo-l"></span>
+<span class="giallo-l"><span class="z-entity z-name">tokio</span><span class="z-keyword">::</span><span class="z-entity z-name">spawn</span><span>(</span><span class="z-entity z-name">teammate_worker</span><span>(</span><span class="z-punctuation z-definition z-string">&quot;</span><span class="z-string">coder</span><span class="z-punctuation z-definition z-string">&quot;</span><span>,</span><span class="z-variable z-other">    coder_dir</span><span>,</span><span class="z-keyword"> ...</span><span>)</span><span>)</span><span>;</span></span>
+<span class="giallo-l"><span class="z-entity z-name">tokio</span><span class="z-keyword">::</span><span class="z-entity z-name">spawn</span><span>(</span><span class="z-entity z-name">teammate_worker</span><span>(</span><span class="z-punctuation z-definition z-string">&quot;</span><span class="z-string">reviewer</span><span class="z-punctuation z-definition z-string">&quot;</span><span>,</span><span class="z-variable z-other"> reviewer_dir</span><span>,</span><span class="z-keyword"> ...</span><span>)</span><span>)</span><span>;</span></span></code></pre>
+<p>不一定要用真正的 <code>git worktree</code> 命令——临时目录效果完全一样，而且简单很多。真正生产级别的场景才需要 git worktree，因为那样每个 Agent 的改动都有完整 git 历史，方便 review 和合并。</p>
+<hr />
+<h2 id="zui-hou-de-s-full-rs-12-ge-ji-zhi-yi-ge-wen-jian">最后的 s_full.rs：12 个机制，一个文件<a class="zola-anchor" href="#zui-hou-de-s-full-rs-12-ge-ji-zhi-yi-ge-wen-jian" aria-label="Anchor link for: zui-hou-de-s-full-rs-12-ge-ji-zhi-yi-ge-wen-jian" style="visibility: hidden;"></a>
+</h2>
+<p>12 天写了 12 个独立的 session 文件，今天最后的任务是把它们全部组合进 <code>s_full.rs</code>，端到端跑通。</p>
+<table><thead><tr><th>机制</th><th>作用</th></tr></thead><tbody>
+<tr><td>S01 agent loop</td><td>对话记忆，多轮交互</td></tr>
+<tr><td>S02 tool dispatch</td><td><code>HashMap&lt;String, Box&lt;dyn Tool&gt;&gt;</code> 动态分发</td></tr>
+<tr><td>S03 TodoManager</td><td>先列计划再执行</td></tr>
+<tr><td>S04 subagent</td><td>独立 messages，子任务隔离</td></tr>
+<tr><td>S05 skill loading</td><td>按需从文件注入知识</td></tr>
+<tr><td>S06 context compact</td><td>超 20 条消息自动压缩成摘要</td></tr>
+<tr><td>S07 task system</td><td>依赖拓扑排序，按序执行</td></tr>
+<tr><td>S08 background tasks</td><td><code>tokio::spawn</code> + <code>mpsc</code> 后台通知</td></tr>
+<tr><td>S09 agent teams</td><td>多 teammate 并发协作</td></tr>
+<tr><td>S10 protocols</td><td>统一消息格式 + shutdown 协议</td></tr>
+<tr><td>S11 autonomous</td><td>teammate 自主扫描任务板，自动认领</td></tr>
+<tr><td>S12 worktree</td><td>每个 teammate 独立 CWD，不打架</td></tr>
+</tbody></table>
+<p>跑起来的效果：</p>
+<pre class="giallo z-code"><code data-lang="plain"><span class="giallo-l"><span>=== s_full — 12 个机制综合演示 ===</span></span>
+<span class="giallo-l"><span>[coder] 上线 | 目录: /tmp/s_full_worktree/coder</span></span>
+<span class="giallo-l"><span>[reviewer] 上线 | 目录: /tmp/s_full_worktree/reviewer</span></span>
+<span class="giallo-l"></span>
+<span class="giallo-l"><span>用户&gt; 帮我写一个冒泡排序的 Rust 实现，然后让人审查一下</span></span>
+<span class="giallo-l"></span>
+<span class="giallo-l"><span>[工具] add_board_task</span></span>
+<span class="giallo-l"><span>[工具] add_board_task</span></span>
+<span class="giallo-l"><span>Agent: 已分配两个任务：coder 写实现，reviewer 负责审查。</span></span>
+<span class="giallo-l"></span>
+<span class="giallo-l"><span>[coder] 认领 #1: 用 Rust 实现冒泡排序</span></span>
+<span class="giallo-l"><span>[reviewer] 认领 #2: 审查冒泡排序代码</span></span>
+<span class="giallo-l"><span>[后台通知] [coder] 完成任务 #1</span></span>
+<span class="giallo-l"><span>[后台通知] [reviewer] 完成任务 #2</span></span></code></pre>
+<p>两个 Agent 各自在自己的目录里工作，主 Agent 继续和用户对话，后台通知实时弹出——整个系统是活的。</p>
+<hr />
+<h2 id="12-tian-xue-dao-de-zui-zhong-yao-de-shi">12 天学到的最重要的事<a class="zola-anchor" href="#12-tian-xue-dao-de-zui-zhong-yao-de-shi" aria-label="Anchor link for: 12-tian-xue-dao-de-zui-zhong-yao-de-shi" style="visibility: hidden;"></a>
+</h2>
+<p>做这个项目之前，我对"AI Agent"的理解停留在"调 API 拿回答"。12 天之后才明白，Agent 的核心根本不是 AI，而是<strong>围绕 AI 的那一套工程结构</strong>：</p>
+<ul>
+<li>怎么让它记住上下文（消息列表）</li>
+<li>怎么让它使用工具（tool dispatch）</li>
+<li>怎么让多个它协作（任务板 + channel）</li>
+<li>怎么让它不崩溃（压缩、隔离、shutdown）</li>
+</ul>
+<p>Rust 在这里的价值也很真实——不是因为"快"，而是 <code>Arc&lt;Mutex&lt;T&gt;&gt;</code>、<code>mpsc</code>、<code>PathBuf</code>、<code>async/await</code> 这些原语让并发协作的结构变得<strong>显式且可信赖</strong>。编译器会阻止你写出竞争条件，而不是等到 runtime 翻车。</p>
+<hr />
+<h2 id="xia-yi-bu">下一步<a class="zola-anchor" href="#xia-yi-bu" aria-label="Anchor link for: xia-yi-bu" style="visibility: hidden;"></a>
+</h2>
+<ul>
+<li>Day 13：改网站，把源码展示从 Python 换成 Rust</li>
+<li>Day 14：发布，去 r/rust 和 V2EX 讲讲这个项目</li>
+</ul>
+<p>项目地址：<a rel="nofollow noreferrer external" href="https://github.com/Hamiltonxx/learn-claude-code-rust">github.com/Hamiltonxx/learn-claude-code-rust</a></p>
+
+      </article>
+
+      
+      
+
+      
+      
+      <div class="giscus"></div>
+      <style>
+#comments { margin-top: 3rem; padding: 0 15px; }
+.c-item { margin: 1.2rem 0; }
+.c-reply { margin-left: 1.5rem; padding-left: 1rem; border-left: 2px solid var(--text-decoration-color); }
+.c-meta { display: flex; align-items: center; gap: 0.6rem; margin-bottom: 0.3rem; font-size: 0.85em; }
+.c-name { font-weight: bold; color: var(--text-color); }
+.c-time { color: var(--text-pale-color); }
+.c-reply-btn {
+  background: none; border: none; padding: 0;
+  color: var(--primary-color); cursor: pointer;
+  font-size: 0.85em; opacity: 0;
+  transition: opacity 0.15s;
+}
+.c-item:hover .c-reply-btn { opacity: 1; }
+.c-body { color: var(--text-color); line-height: var(--line-height); white-space: pre-wrap; word-break: break-word; }
+.c-loading, .c-empty { color: var(--text-pale-color); font-size: 0.9em; padding: 1rem 0; }
+.c-form { margin-top: 2rem; display: flex; flex-direction: column; gap: 0.6rem; }
+.c-form-row { display: flex; gap: 0.6rem; }
+.c-input {
+  width: 100%; padding: 0.5rem 0.7rem;
+  border: 1.5px solid var(--text-decoration-color);
+  border-radius: 4px;
+  background: var(--bg-color); color: var(--text-color);
+  font-size: 0.9em; font-family: var(--main-font);
+  outline: none; transition: border-color 0.15s;
+}
+.c-input:focus { border-color: var(--primary-color); }
+.c-input-content { resize: vertical; min-height: 100px; }
+.c-reply-tip {
+  font-size: 0.85em; color: var(--primary-color);
+  padding: 0.2rem 0.5rem;
+  background: var(--inline-code-bg-color);
+  border-radius: 4px; align-self: flex-start;
+}
+.c-reply-tip::after { content: " ✕"; opacity: 0.5; }
+.c-form-actions { display: flex; justify-content: flex-end; }
+.c-submit {
+  padding: 0.4rem 1.2rem;
+  background: var(--primary-color); color: var(--bg-color);
+  border: none; border-radius: 4px;
+  cursor: pointer; font-size: 0.9em;
+  transition: opacity 0.15s;
+}
+.c-submit:hover { opacity: 0.85; }
+.c-submit:disabled { opacity: 0.5; cursor: not-allowed; }
+</style>
+<div id="comments" data-page="&#x2F;posts&#x2F;rust-agent-worktree-day12-2026-04-07&#x2F;"></div>
+<script src="/comments.js"></script>
+
+
+      
+    </div>
+
+    
+
+
+<footer>
+  <div class="left">
+    <div class="copyright">
+      © 2026 Cirray AI
+      
+      <span>|</span>
+      Built with <a href="https://www.getzola.org" rel="noreferrer" target="_blank">zola</a> and <a href="https://github.com/isunjn/serene" rel="noreferrer" target="_blank">serene</a>
+      
+    </div>
+  </div>
+
+  <div class="right">
+    
+    
+    
+    
+
+    
+    
+    
+    <button id="theme-toggle" aria-label="theme switch">
+      <span class="moon-icon"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="18" height="18"><path d="M10 7C10 10.866 13.134 14 17 14C18.9584 14 20.729 13.1957 21.9995 11.8995C22 11.933 22 11.9665 22 12C22 17.5228 17.5228 22 12 22C6.47715 22 2 17.5228 2 12C2 6.47715 6.47715 2 12 2C12.0335 2 12.067 2 12.1005 2.00049C10.8043 3.27098 10 5.04157 10 7ZM4 12C4 16.4183 7.58172 20 12 20C15.0583 20 17.7158 18.2839 19.062 15.7621C18.3945 15.9187 17.7035 16 17 16C12.0294 16 8 11.9706 8 7C8 6.29648 8.08133 5.60547 8.2379 4.938C5.71611 6.28423 4 8.9417 4 12Z" fill="currentColor"></path></svg>
+</span>
+      <span class="sun-icon"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="18" height="18"><path d="M12 18C8.68629 18 6 15.3137 6 12C6 8.68629 8.68629 6 12 6C15.3137 6 18 8.68629 18 12C18 15.3137 15.3137 18 12 18ZM12 16C14.2091 16 16 14.2091 16 12C16 9.79086 14.2091 8 12 8C9.79086 8 8 9.79086 8 12C8 14.2091 9.79086 16 12 16ZM11 1H13V4H11V1ZM11 20H13V23H11V20ZM3.51472 4.92893L4.92893 3.51472L7.05025 5.63604L5.63604 7.05025L3.51472 4.92893ZM16.9497 18.364L18.364 16.9497L20.4853 19.0711L19.0711 20.4853L16.9497 18.364ZM19.0711 3.51472L20.4853 4.92893L18.364 7.05025L16.9497 5.63604L19.0711 3.51472ZM5.63604 16.9497L7.05025 18.364L4.92893 20.4853L3.51472 19.0711L5.63604 16.9497ZM23 11V13H20V11H23ZM4 11V13H1V11H4Z" fill="currentColor"></path></svg>
+</span>
+    </button>
+    
+  </div>
+</footer>
+
+
+
+
+
+  </main>
+</div>
+
+  
+<script src="/js/lightense.min.js"></script>
+
+
+  <script src="https://blog.cirray.cn/js/main.js"></script>
+</body>
+
+</html>

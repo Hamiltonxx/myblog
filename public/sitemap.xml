@@ -111,6 +111,10 @@
         <lastmod>2026-03-27</lastmod>
     </url>
     <url>
+        <loc>https://blog.cirray.cn/posts/rust-agent-worktree-day12-2026-04-07/</loc>
+        <lastmod>2026-04-07</lastmod>
+    </url>
+    <url>
         <loc>https://blog.cirray.cn/posts/rust-daily-quiz-agent-2026-03-30/</loc>
         <lastmod>2026-03-30</lastmod>
     </url>
@@ -138,6 +142,9 @@
     </url>
     <url>
         <loc>https://blog.cirray.cn/tags/agent/</loc>
+    </url>
+    <url>
+        <loc>https://blog.cirray.cn/tags/ai-agent/</loc>
     </url>
     <url>
         <loc>https://blog.cirray.cn/tags/ai/</loc>
@@ -177,6 +184,9 @@
     </url>
     <url>
         <loc>https://blog.cirray.cn/tags/cli/</loc>
+    </url>
+    <url>
+        <loc>https://blog.cirray.cn/tags/concurrency/</loc>
     </url>
     <url>
         <loc>https://blog.cirray.cn/tags/context/</loc>
@@ -236,6 +246,9 @@
         <loc>https://blog.cirray.cn/tags/nginx/</loc>
     </url>
     <url>
+        <loc>https://blog.cirray.cn/tags/pathbuf/</loc>
+    </url>
+    <url>
         <loc>https://blog.cirray.cn/tags/pixel/</loc>
     </url>
     <url>
@@ -291,6 +304,9 @@
     </url>
     <url>
         <loc>https://blog.cirray.cn/tags/wechat/</loc>
+    </url>
+    <url>
+        <loc>https://blog.cirray.cn/tags/worktree/</loc>
     </url>
     <url>
         <loc>https://blog.cirray.cn/tags/xiao-lu/</loc>
