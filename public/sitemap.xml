@@ -91,6 +91,10 @@
         <lastmod>2026-04-03</lastmod>
     </url>
     <url>
+        <loc>https://blog.cirray.cn/posts/rust-agent-day13-14-python-zero-2026-04-07/</loc>
+        <lastmod>2026-04-07</lastmod>
+    </url>
+    <url>
         <loc>https://blog.cirray.cn/posts/rust-agent-protocols-autonomous-2026-04-05/</loc>
         <lastmod>2026-04-05</lastmod>
     </url>
@@ -195,6 +199,9 @@
         <loc>https://blog.cirray.cn/tags/cookie/</loc>
     </url>
     <url>
+        <loc>https://blog.cirray.cn/tags/documentation/</loc>
+    </url>
+    <url>
         <loc>https://blog.cirray.cn/tags/enterprise/</loc>
     </url>
     <url>
@@ -256,6 +263,9 @@
     </url>
     <url>
         <loc>https://blog.cirray.cn/tags/rag/</loc>
+    </url>
+    <url>
+        <loc>https://blog.cirray.cn/tags/refactor/</loc>
     </url>
     <url>
         <loc>https://blog.cirray.cn/tags/remote-agent/</loc>
