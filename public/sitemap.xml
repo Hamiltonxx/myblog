@@ -119,6 +119,10 @@
         <lastmod>2026-04-06</lastmod>
     </url>
     <url>
+        <loc>https://blog.cirray.cn/posts/rust-crypto-arbitrage-2026-04-08/</loc>
+        <lastmod>2026-04-08</lastmod>
+    </url>
+    <url>
         <loc>https://blog.cirray.cn/posts/rust-daily-quiz-agent-2026-03-30/</loc>
         <lastmod>2026-03-30</lastmod>
     </url>
@@ -155,6 +159,9 @@
     </url>
     <url>
         <loc>https://blog.cirray.cn/tags/android/</loc>
+    </url>
+    <url>
+        <loc>https://blog.cirray.cn/tags/arbitrage/</loc>
     </url>
     <url>
         <loc>https://blog.cirray.cn/tags/arc-mutex/</loc>
@@ -197,6 +204,9 @@
     </url>
     <url>
         <loc>https://blog.cirray.cn/tags/cookie/</loc>
+    </url>
+    <url>
+        <loc>https://blog.cirray.cn/tags/crypto/</loc>
     </url>
     <url>
         <loc>https://blog.cirray.cn/tags/documentation/</loc>
@@ -253,6 +263,9 @@
         <loc>https://blog.cirray.cn/tags/nginx/</loc>
     </url>
     <url>
+        <loc>https://blog.cirray.cn/tags/okx/</loc>
+    </url>
+    <url>
         <loc>https://blog.cirray.cn/tags/pathbuf/</loc>
     </url>
     <url>
@@ -296,6 +309,9 @@
     </url>
     <url>
         <loc>https://blog.cirray.cn/tags/topological-sort/</loc>
+    </url>
+    <url>
+        <loc>https://blog.cirray.cn/tags/trading-bot/</loc>
     </url>
     <url>
         <loc>https://blog.cirray.cn/tags/trait/</loc>
