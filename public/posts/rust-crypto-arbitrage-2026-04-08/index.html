@@ -12,7 +12,7 @@
   
   <meta name="description" content="从零开始做资金费率套利：策略选择、OKX API 接入、账户踩坑全记录，小白也能看懂。">
 
-  <title>用 Rust 写了个自动套利机器人，第一天就真实开仓了</title>
+  <title>写了个自动套利机器人，首次开仓</title>
   <link rel="icon" type="image/png" sizes="32x32" href="https://blog.cirray.cn/img/favicon-32x32.png">
   <link rel="icon" type="image/png" sizes="16x16" href="https://blog.cirray.cn/img/favicon-16x16.png">
   <link rel="apple-touch-icon" sizes="180x180" href="https://blog.cirray.cn/img/apple-touch-icon.png">
@@ -129,12 +129,12 @@
         </li>
         
         <li>
-          <a class="h2" href="#shi-ji-kai-cang-jie-guo">实际开仓结果</a>
+          <a class="h2" href="#shi-ji-kai-cang-yu-ping-cang">实际开仓与平仓</a>
           
         </li>
         
         <li>
-          <a class="h2" href="#shou-yi-yu-qi">收益预期</a>
+          <a class="h2" href="#fu-pan">复盘</a>
           
         </li>
         
@@ -173,7 +173,7 @@
 "></div>
       
       <article class="prose">
-        <h1>用 Rust 写了个自动套利机器人，第一天就真实开仓了</h1>
+        <h1>写了个自动套利机器人，首次开仓</h1>
         <div id="post-info">
           <div id="date">
             <span id="publish">2026-04-08</span>
@@ -262,23 +262,29 @@
 <p>BTC-USD-SWAP 每张 = 100 USD，不是按 BTC 数量算的。</p>
 <p>0.01 BTC × $71,600 ≈ $716 ÷ 100 = <strong>7 张</strong></p>
 <hr />
-<h2 id="shi-ji-kai-cang-jie-guo">实际开仓结果<a class="zola-anchor" href="#shi-ji-kai-cang-jie-guo" aria-label="Anchor link for: shi-ji-kai-cang-jie-guo" style="visibility: hidden;"></a>
+<h2 id="shi-ji-kai-cang-yu-ping-cang">实际开仓与平仓<a class="zola-anchor" href="#shi-ji-kai-cang-yu-ping-cang" aria-label="Anchor link for: shi-ji-kai-cang-yu-ping-cang" style="visibility: hidden;"></a>
 </h2>
-<pre class="giallo z-code"><code data-lang="json"><span class="giallo-l"><span>{</span></span>
-<span class="giallo-l"><span class="z-support">  &quot;</span><span class="z-support">ordId</span><span class="z-support">&quot;</span><span>:</span><span class="z-punctuation z-definition z-string"> &quot;</span><span class="z-string">3461036017797177344</span><span class="z-punctuation z-definition z-string">&quot;</span><span>,</span></span>
-<span class="giallo-l"><span class="z-support">  &quot;</span><span class="z-support">sCode</span><span class="z-support">&quot;</span><span>:</span><span class="z-punctuation z-definition z-string"> &quot;</span><span class="z-string">0</span><span class="z-punctuation z-definition z-string">&quot;</span><span>,</span></span>
-<span class="giallo-l"><span class="z-support">  &quot;</span><span class="z-support">sMsg</span><span class="z-support">&quot;</span><span>:</span><span class="z-punctuation z-definition z-string"> &quot;</span><span class="z-string">Order placed</span><span class="z-punctuation z-definition z-string">&quot;</span></span>
-<span class="giallo-l"><span>}</span></span></code></pre>
-<p>开仓成功。现在机器人在跑，每分钟监控一次费率，等着收第一笔资金费。</p>
-<p>下次结算：北京时间今晚 00:00。</p>
+<p>19:00 开仓，7 张 BTC-USD-SWAP 空单，对应 0.01 BTC 现货：</p>
+<pre class="giallo z-code"><code data-lang="json"><span class="giallo-l"><span>{</span><span class="z-support"> &quot;</span><span class="z-support">ordId</span><span class="z-support">&quot;</span><span>:</span><span class="z-punctuation z-definition z-string"> &quot;</span><span class="z-string">3461036017797177344</span><span class="z-punctuation z-definition z-string">&quot;</span><span>,</span><span class="z-support"> &quot;</span><span class="z-support">sMsg</span><span class="z-support">&quot;</span><span>:</span><span class="z-punctuation z-definition z-string"> &quot;</span><span class="z-string">Order placed</span><span class="z-punctuation z-definition z-string">&quot;</span><span> }</span></span></code></pre>
+<p>机器人开始每分钟监控费率。</p>
+<p>23:00，费率转负，自动平仓：</p>
+<pre class="giallo z-code"><code data-lang="plain"><span class="giallo-l"><span>&gt;&gt;&gt; 费率转负，平仓...</span></span>
+<span class="giallo-l"><span>&gt;&gt;&gt; 平仓成功，订单号: 3461422255951816352</span></span></code></pre>
+<p><strong>持仓 4 小时，首战失败。</strong></p>
 <hr />
-<h2 id="shou-yi-yu-qi">收益预期<a class="zola-anchor" href="#shou-yi-yu-qi" aria-label="Anchor link for: shou-yi-yu-qi" style="visibility: hidden;"></a>
+<h2 id="fu-pan">复盘<a class="zola-anchor" href="#fu-pan" aria-label="Anchor link for: fu-pan" style="visibility: hidden;"></a>
 </h2>
-<p>以 0.01 BTC（约 ¥4900）为例：</p>
-<pre class="giallo z-code"><code data-lang="plain"><span class="giallo-l"><span>每次结算：4900 × 0.01% = 0.49 元</span></span>
-<span class="giallo-l"><span>每天 3 次：约 1.47 元</span></span>
-<span class="giallo-l"><span>年化：约 ¥537，收益率 ~11%</span></span></code></pre>
-<p>金额不大，但这是验证策略可行性的第一步。跑通之后加仓就是了。</p>
+<pre class="giallo z-code"><code data-lang="plain"><span class="giallo-l"><span>开仓手续费：约 ¥3.5</span></span>
+<span class="giallo-l"><span>平仓手续费：约 ¥3.5</span></span>
+<span class="giallo-l"><span>期间收到资金费：0（4小时内没有结算点）</span></span>
+<span class="giallo-l"><span>净亏损：约 ¥7</span></span></code></pre>
+<p>亏在哪：进场后费率就一路跌，4 小时内没遇到结算时间（每 8 小时一次），手续费还没捂热就被止损出场了。</p>
+<p><strong>但 ¥7 换来的东西：</strong></p>
+<ul>
+<li>整套流程从零跑通：API 签名、账户模式、合约类型、开平仓</li>
+<li>自动止损逻辑真实验证有效，费率转负机器人自己跑路，没有手动干预</li>
+<li>踩完了所有坑，下次可以直接用</li>
+</ul>
 <hr />
 <h2 id="xia-yi-bu">下一步<a class="zola-anchor" href="#xia-yi-bu" aria-label="Anchor link for: xia-yi-bu" style="visibility: hidden;"></a>
 </h2>
