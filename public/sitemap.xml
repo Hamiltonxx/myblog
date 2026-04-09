@@ -35,6 +35,10 @@
         <lastmod>2026-03-22</lastmod>
     </url>
     <url>
+        <loc>https://blog.cirray.cn/posts/cirray-chat-frontend-backend-2026-04-09/</loc>
+        <lastmod>2026-04-09</lastmod>
+    </url>
+    <url>
         <loc>https://blog.cirray.cn/posts/claude-code-guide/</loc>
         <lastmod>2026-03-20</lastmod>
     </url>
@@ -173,6 +177,9 @@
         <loc>https://blog.cirray.cn/tags/async/</loc>
     </url>
     <url>
+        <loc>https://blog.cirray.cn/tags/authentication/</loc>
+    </url>
+    <url>
         <loc>https://blog.cirray.cn/tags/automation/</loc>
     </url>
     <url>
@@ -183,6 +190,9 @@
     </url>
     <url>
         <loc>https://blog.cirray.cn/tags/bu-shu/</loc>
+    </url>
+    <url>
+        <loc>https://blog.cirray.cn/tags/chat/</loc>
     </url>
     <url>
         <loc>https://blog.cirray.cn/tags/china-unicom/</loc>
@@ -260,6 +270,9 @@
         <loc>https://blog.cirray.cn/tags/multi-agent/</loc>
     </url>
     <url>
+        <loc>https://blog.cirray.cn/tags/nextjs/</loc>
+    </url>
+    <url>
         <loc>https://blog.cirray.cn/tags/nginx/</loc>
     </url>
     <url>
@@ -294,6 +307,12 @@
     </url>
     <url>
         <loc>https://blog.cirray.cn/tags/skill-loading/</loc>
+    </url>
+    <url>
+        <loc>https://blog.cirray.cn/tags/sqlite/</loc>
+    </url>
+    <url>
+        <loc>https://blog.cirray.cn/tags/sse/</loc>
     </url>
     <url>
         <loc>https://blog.cirray.cn/tags/state-machine/</loc>
