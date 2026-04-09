@@ -232,7 +232,7 @@
 这里有几步步骤: 1. 安装Trojan 2. 用acme.sh申请TLS证书(前提是已准备好域名) 3. 配置Trojan文件 4. 配置伪装站(Nginx) 5. 启动服务</p>
 <h2 id="3-ke-hu-duan">3. 客户端<a class="zola-anchor" href="#3-ke-hu-duan" aria-label="Anchor link for: 3-ke-hu-duan" style="visibility: hidden;"></a>
 </h2>
-<p>以笔者的Mac系统为例，客户端选择Clash Verge，它有TUN选项，保证所有网络流量都走美国服务器。</p>
+<p>以笔者的Mac系统为例，客户端选择Clash Verge，配置好 Trojan 节点，开启 TUN 模式，保证所有网络流量都走美国服务器。</p>
 <p>当这些都准备好后，可以访问claude.ai网站试试。能访问就说明网络问题已解决。</p>
 <h1 id="shou-ji-hao">手机号<a class="zola-anchor" href="#shou-ji-hao" aria-label="Anchor link for: shou-ji-hao" style="visibility: hidden;"></a>
 </h1>
@@ -260,9 +260,36 @@
 </h2>
 <p>这是笔者的最佳实践跑通，或者是笔者认为最具性价比的跑通。并不是最省钱的跑通。</p>
 <p>VPS 50刀/年，加上接码平台充值3刀(使用了一个号码，消费掉0.2刀)，加上买了Claude Pro一个月20刀。总共73刀。</p>
+<h3 id="ri-chang-shi-yong-claude-code-bu-xiang-mei-ci-kai-tun-zen-me-ban">日常使用 Claude Code 不想每次开 TUN 怎么办？<a class="zola-anchor" href="#ri-chang-shi-yong-claude-code-bu-xiang-mei-ci-kai-tun-zen-me-ban" aria-label="Anchor link for: ri-chang-shi-yong-claude-code-bu-xiang-mei-ci-kai-tun-zen-me-ban" style="visibility: hidden;"></a>
+</h3>
+<p>TUN 是虚拟网卡层代理，开了之后所有流量都走代理，用完最好关掉。但频繁开关很烦。</p>
+<p>Claude Code 本质上是 Node.js 进程，Node.js 支持 HTTP 代理（<code>HTTPS_PROXY</code> 环境变量），但<strong>不支持 SOCKS5 代理</strong>。而 Trojan 客户端本地只暴露 SOCKS5，所以需要在中间加一层转换。</p>
+<p>解决方案：用 <strong>Privoxy</strong> 把本地 SOCKS5 转成 HTTP 代理。</p>
+<pre class="giallo z-code"><code data-lang="shellscript"><span class="giallo-l"><span class="z-punctuation z-definition z-comment">#</span><span class="z-comment"> 安装 privoxy</span></span>
+<span class="giallo-l"><span class="z-entity z-name">brew</span><span class="z-string"> install</span><span class="z-string"> privoxy</span></span>
+<span class="giallo-l"></span>
+<span class="giallo-l"><span class="z-punctuation z-definition z-comment">#</span><span class="z-comment"> 写入最简配置（把 1080 换成你的 Trojan SOCKS5 端口）</span></span>
+<span class="giallo-l"><span class="z-entity z-name">cat</span><span class="z-keyword"> &gt;</span><span class="z-string"> /opt/homebrew/etc/privoxy/config</span><span class="z-keyword"> &lt;&lt;</span><span class="z-punctuation z-definition z-string"> &#39;</span><span class="z-punctuation z-definition z-string">EOF</span><span class="z-punctuation z-definition z-string">&#39;</span></span>
+<span class="giallo-l"><span class="z-string">listen-address 127.0.0.1:8118</span></span>
+<span class="giallo-l"><span class="z-string">forward-socks5 / 127.0.0.1:1080 .</span></span>
+<span class="giallo-l"><span class="z-punctuation z-definition z-string">EOF</span></span>
+<span class="giallo-l"></span>
+<span class="giallo-l"><span class="z-punctuation z-definition z-comment">#</span><span class="z-comment"> 启动（开机自启）</span></span>
+<span class="giallo-l"><span class="z-entity z-name">brew</span><span class="z-string"> services</span><span class="z-string"> start</span><span class="z-string"> privoxy</span></span></code></pre>
+<p>验证是否生效（应返回 Trojan 服务器的 IP，而不是本地 IP）：</p>
+<pre class="giallo z-code"><code data-lang="shellscript"><span class="giallo-l"><span class="z-entity z-name">curl</span><span class="z-constant"> -</span><span class="z-constant">x</span><span class="z-string"> http://127.0.0.1:8118</span><span class="z-string"> https://ifconfig.me</span></span></code></pre>
+<p>然后把代理写进 Claude Code 配置，永久生效，不用每次 export：</p>
+<pre class="giallo z-code"><code data-lang="shellscript"><span class="giallo-l"><span class="z-punctuation z-definition z-comment">#</span><span class="z-comment"> ~/.claude/settings.json</span></span>
+<span class="giallo-l"><span>{</span></span>
+<span class="giallo-l"><span class="z-entity z-name">  &quot;</span><span class="z-entity z-name">env</span><span class="z-entity z-name">&quot;</span><span class="z-support">:</span><span class="z-string"> {</span></span>
+<span class="giallo-l"><span class="z-entity z-name">    &quot;</span><span class="z-entity z-name">HTTP_PROXY</span><span class="z-entity z-name">&quot;</span><span class="z-support">:</span><span class="z-punctuation z-definition z-string"> &quot;</span><span class="z-string">http://127.0.0.1:8118</span><span class="z-punctuation z-definition z-string">&quot;</span><span class="z-string">,</span></span>
+<span class="giallo-l"><span class="z-entity z-name">    &quot;</span><span class="z-entity z-name">HTTPS_PROXY</span><span class="z-entity z-name">&quot;</span><span class="z-support">:</span><span class="z-punctuation z-definition z-string"> &quot;</span><span class="z-string">http://127.0.0.1:8118</span><span class="z-punctuation z-definition z-string">&quot;</span></span>
+<span class="giallo-l"><span>  }</span></span>
+<span class="giallo-l"><span>}</span></span></code></pre>
+<p>之后直接在终端运行 <code>claude</code>，无需开 TUN，Privoxy 常驻后台即可。</p>
 <h2 id="hui-you-feng-hao-zhe-lei-feng-xian-ma">会有封号这类风险吗？<a class="zola-anchor" href="#hui-you-feng-hao-zhe-lei-feng-xian-ma" aria-label="Anchor link for: hui-you-feng-hao-zhe-lei-feng-xian-ma" style="visibility: hidden;"></a>
 </h2>
-<p>笔者目前正常使用。确保打开Claude Code之前开启Clash Verge的TUN模式。</p>
+<p>笔者目前正常使用。浏览器正常使用需要开启 Clash Verge 的 TUN 模式；Claude Code 则可以用上面的 Privoxy 方案，不需要 TUN。</p>
 <h2 id="zhe-ge-liu-cheng-dui-xin-shou-lai-shuo-tai-nan-liao-ba">这个流程对新手来说太难了吧？<a class="zola-anchor" href="#zhe-ge-liu-cheng-dui-xin-shou-lai-shuo-tai-nan-liao-ba" aria-label="Anchor link for: zhe-ge-liu-cheng-dui-xin-shou-lai-shuo-tai-nan-liao-ba" style="visibility: hidden;"></a>
 </h2>
 <p>确实，国内严防死守，你是想认命还是想拨云见日。</p>

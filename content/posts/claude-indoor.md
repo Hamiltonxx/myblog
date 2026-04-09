@@ -29,9 +29,10 @@ toc = true
 这里有几步步骤: 1. 安装Trojan 2. 用acme.sh申请TLS证书(前提是已准备好域名) 3. 配置Trojan文件 4. 配置伪装站(Nginx) 5. 启动服务
 
 ## 3. 客户端
-以笔者的Mac系统为例，客户端选择Clash Verge，它有TUN选项，保证所有网络流量都走美国服务器。
+以笔者的Mac系统为例，客户端选择Clash Verge，配置好 Trojan 节点，开启 TUN 模式，保证所有网络流量都走美国服务器。
 
 当这些都准备好后，可以访问claude.ai网站试试。能访问就说明网络问题已解决。
+
 
 # 手机号
 并不是要你购买美国的手机号，而是在claude.ai注册时，接收短信验证码。国内手机号不行。
@@ -66,8 +67,51 @@ toc = true
 这是笔者的最佳实践跑通，或者是笔者认为最具性价比的跑通。并不是最省钱的跑通。
 
 VPS 50刀/年，加上接码平台充值3刀(使用了一个号码，消费掉0.2刀)，加上买了Claude Pro一个月20刀。总共73刀。
+
+
+### 日常使用 Claude Code 不想每次开 TUN 怎么办？
+TUN 是虚拟网卡层代理，开了之后所有流量都走代理，用完最好关掉。但频繁开关很烦。
+
+Claude Code 本质上是 Node.js 进程，Node.js 支持 HTTP 代理（`HTTPS_PROXY` 环境变量），但**不支持 SOCKS5 代理**。而 Trojan 客户端本地只暴露 SOCKS5，所以需要在中间加一层转换。
+
+解决方案：用 **Privoxy** 把本地 SOCKS5 转成 HTTP 代理。
+
+```bash
+# 安装 privoxy
+brew install privoxy
+
+# 写入最简配置（把 1080 换成你的 Trojan SOCKS5 端口）
+cat > /opt/homebrew/etc/privoxy/config << 'EOF'
+listen-address 127.0.0.1:8118
+forward-socks5 / 127.0.0.1:1080 .
+EOF
+
+# 启动（开机自启）
+brew services start privoxy
+```
+
+验证是否生效（应返回 Trojan 服务器的 IP，而不是本地 IP）：
+
+```bash
+curl -x http://127.0.0.1:8118 https://ifconfig.me
+```
+
+然后把代理写进 Claude Code 配置，永久生效，不用每次 export：
+
+```bash
+# ~/.claude/settings.json
+{
+  "env": {
+    "HTTP_PROXY": "http://127.0.0.1:8118",
+    "HTTPS_PROXY": "http://127.0.0.1:8118"
+  }
+}
+```
+
+之后直接在终端运行 `claude`，无需开 TUN，Privoxy 常驻后台即可。
+
 ## 会有封号这类风险吗？
-笔者目前正常使用。确保打开Claude Code之前开启Clash Verge的TUN模式。
+笔者目前正常使用。浏览器正常使用需要开启 Clash Verge 的 TUN 模式；Claude Code 则可以用上面的 Privoxy 方案，不需要 TUN。
 ## 这个流程对新手来说太难了吧？
 确实，国内严防死守，你是想认命还是想拨云见日。
 ## 这些步骤可以讲的更详细些吗？
