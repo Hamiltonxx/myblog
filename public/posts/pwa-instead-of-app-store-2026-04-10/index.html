@@ -1,0 +1,368 @@
+<!DOCTYPE html>
+
+<html lang="zh">
+
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="color-scheme" content="light dark">
+  
+  
+    
+  
+  <meta name="description" content="苹果开发者账号续费卡住了，逼出了一套更快触达用户的方案——反而比 App 更顺滑。">
+
+  <title>用PWA赶紧让用户体验起来</title>
+  <link rel="icon" type="image/png" sizes="32x32" href="https://blog.cirray.cn/img/favicon-32x32.png">
+  <link rel="icon" type="image/png" sizes="16x16" href="https://blog.cirray.cn/img/favicon-16x16.png">
+  <link rel="apple-touch-icon" sizes="180x180" href="https://blog.cirray.cn/img/apple-touch-icon.png">
+  
+  <style>
+
+  /* light mode colors */
+  body {
+    --primary-color: #5871a2;
+    --primary-pale-color: #5871a233;
+    --primary-decoration-color: #5871a210;
+    --bg-color: #ffffff;
+    --text-color: #2f3030;
+    --text-pale-color: #767676;
+    --text-decoration-color: #a9a9a9;
+    --highlight-mark-color: #5f75b020;
+
+    --callout-note-color: #5871a2;
+    --callout-tip-color: #268556;
+    --callout-important-color: #885fc9;
+    --callout-warning-color: #ab6632;
+    --callout-caution-color: #c64e4e;
+  }
+
+  /* dark mode colors */
+  body.dark {
+    --primary-color: #6f8fd1;
+    --primary-pale-color: #6f8fd166;
+    --primary-decoration-color: #6f8fd112;
+    --bg-color: #1c1c1c;
+    --text-color: #c1c1c1;
+    --text-pale-color: #848484;
+    --text-decoration-color: #5f5f5f;
+    --highlight-mark-color: #8296cb3b;
+
+    --callout-note-color: #6f8fd1;
+    --callout-tip-color: #47976f;
+    --callout-important-color: #9776cd;
+    --callout-warning-color: #ad7a52;
+    --callout-caution-color: #d06161;
+  }
+
+  /* typography */
+  body {
+    --main-font: ui-sans-serif, system-ui, sans-serif, 'Apple Color Emoji', 'Segoe UI Emoji', 'Segoe UI Symbol', 'Noto Color Emoji';
+    --code-font: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, 'Liberation Mono', 'Courier New', monospace;
+    --homepage-max-width: 768px;
+    --main-max-width: 768px;
+    --avatar-size: 60px;
+    --font-size: 16px;
+    --line-height: 1.75;
+    --img-border-radius: 0px;
+    --detail-border-radius: 0px;
+    --dark-mode-img-brightness: 0.75;
+    --dark-mode-chart-brightness: 0.75;
+    --inline-code-border-radius: 2px;
+    --inline-code-bg-color: var(--primary-decoration-color);
+    --block-code-border-radius: 0px;
+    --block-code-border-color: var(--primary-color);
+    --detail-border-color: var(--primary-color);
+  }
+
+</style>
+
+  <link rel="stylesheet" href="https://blog.cirray.cn/main.css">
+  
+
+<link id="hl" rel="stylesheet" type="text/css" href="/giallo-light.css" />
+
+
+
+  
+</head>
+
+<body class="post">
+  
+  <script>
+    const theme = sessionStorage.getItem('theme');
+    const match = window.matchMedia("(prefers-color-scheme: dark)").matches;
+    if ((theme && theme == 'dark') || (!theme && match)) {
+      document.body.classList.add('dark');
+      const hl = document.querySelector('link#hl');
+      if (hl) hl.href = 'https://blog.cirray.cn/giallo-dark.css';
+    }
+  </script>
+  
+  
+<div id="wrapper">
+  <div id="blank"></div>
+  <aside>
+    
+    
+    <nav>
+      <ul>
+        
+        <li>
+          <a class="h2" href="#xiang-shang-jia-app-store-ran-hou-bei-xian-shi-jiao-yu-liao">想上架 App Store，然后被现实教育了</a>
+          
+        </li>
+        
+        <li>
+          <a class="h2" href="#zhuan-xiang-pwa-bi-wo-xiang-xiang-de-shun-duo-liao">转向 PWA：比我想象的顺多了</a>
+          
+        </li>
+        
+        <li>
+          <a class="h2" href="#yi-dong-duan-bug-yi-guo-duan">移动端 bug 一锅端</a>
+          
+        </li>
+        
+        <li>
+          <a class="h2" href="#yong-hu-yin-dao-wei-xin-sao-ma-pwa">用户引导：微信扫码 → PWA</a>
+          
+        </li>
+        
+        <li>
+          <a class="h2" href="#tu-biao-ye-zhong-xin-she-ji-liao">图标也重新设计了</a>
+          
+        </li>
+        
+        <li>
+          <a class="h2" href="#zhe-tiao-lu-bi-app-store-geng-gua-he-xian-zai">这条路比 App Store 更适合现在</a>
+          
+        </li>
+        
+      </ul>
+    </nav>
+    
+    
+    <button id="back-to-top" aria-label="back to top">
+      
+      <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="feather feather-arrow-up"><line x1="12" y1="19" x2="12" y2="5"></line><polyline points="5 12 12 5 19 12"></polyline></svg>
+
+    </button>
+    
+  </aside>
+  <main>
+    
+<header>
+  <nav>
+    <a id="back-link" href="https:&#x2F;&#x2F;blog.cirray.cn&#x2F;posts">← Back</a>
+  </nav>
+</header>
+
+
+    <div>
+      
+      
+      
+      
+      <div id="copy-cfg" style="display: none;" data-copy-icon="&lt;svg xmlns=&quot;http:&#x2F;&#x2F;www.w3.org&#x2F;2000&#x2F;svg&quot; viewBox=&quot;0 0 24 24&quot; width=&quot;18&quot; height=&quot;18&quot;&gt;&lt;path d=&quot;M6.9998 6V3C6.9998 2.44772 7.44752 2 7.9998 2H19.9998C20.5521 2 20.9998 2.44772 20.9998 3V17C20.9998 17.5523 20.5521 18 19.9998 18H16.9998V20.9991C16.9998 21.5519 16.5499 22 15.993 22H4.00666C3.45059 22 3 21.5554 3 20.9991L3.0026 7.00087C3.0027 6.44811 3.45264 6 4.00942 6H6.9998ZM5.00242 8L5.00019 20H14.9998V8H5.00242ZM8.9998 6H16.9998V16H18.9998V4H8.9998V6Z&quot; fill=&quot;currentColor&quot;&gt;&lt;&#x2F;path&gt;&lt;&#x2F;svg&gt;
+" data-check-icon="&lt;svg xmlns=&quot;http:&#x2F;&#x2F;www.w3.org&#x2F;2000&#x2F;svg&quot; viewBox=&quot;0 0 24 24&quot; width=&quot;18&quot; height=&quot;18&quot;&gt;&lt;path d=&quot;M10.0007 15.1709L19.1931 5.97852L20.6073 7.39273L10.0007 17.9993L3.63672 11.6354L5.05093 10.2212L10.0007 15.1709Z&quot; fill=&quot;currentColor&quot;&gt;&lt;&#x2F;path&gt;&lt;&#x2F;svg&gt;
+"></div>
+      
+      <article class="prose">
+        <h1>用PWA赶紧让用户体验起来</h1>
+        <div id="post-info">
+          <div id="date">
+            <span id="publish">2026-04-10</span>
+            </div>
+
+          
+          <div id="tags">
+            <a class="instant" href="https://blog.cirray.cn/tags/pwa"><span>#</span>pwa</a><a class="instant" href="https://blog.cirray.cn/tags/mobile"><span>#</span>mobile</a><a class="instant" href="https://blog.cirray.cn/tags/next-js"><span>#</span>next.js</a><a class="instant" href="https://blog.cirray.cn/tags/debug"><span>#</span>debug</a><a class="instant" href="https://blog.cirray.cn/tags/ios"><span>#</span>ios</a><a class="instant" href="https://blog.cirray.cn/tags/ux"><span>#</span>ux</a>
+          </div>
+          
+        </div>
+
+        
+        
+
+        
+
+        <p>今天本来打算把 Cirray 的 AI 对话页面上架 App Store。结果卡在了第一步——开发者账号续费。 我的apple id是美区的，住址是中国的。要我改信息。去改呢又说得让Holder同意!? 去申请了客户，要两个工作日回复。</p>
+<p>放弃了。转头做 PWA。现在反而觉得这条路更对。</p>
+<hr />
+<h2 id="xiang-shang-jia-app-store-ran-hou-bei-xian-shi-jiao-yu-liao">想上架 App Store，然后被现实教育了<a class="zola-anchor" href="#xiang-shang-jia-app-store-ran-hou-bei-xian-shi-jiao-yu-liao" aria-label="Anchor link for: xiang-shang-jia-app-store-ran-hou-bei-xian-shi-jiao-yu-liao" style="visibility: hidden;"></a>
+</h2>
+<p>计划很美好：把 <code>/chat</code> 页面包一层 WebView，走审核，上架，用户下载，完美。</p>
+<p>现实是：苹果开发者账号 $99/年，续费页面报错，客服要等 2 个工作日回复，还不知啥时能解决。</p>
+<p>等不起。Agent一天，世上一年。我不能因为一个上架问题把发布卡死。我得尽快让用户体验反馈。</p>
+<hr />
+<h2 id="zhuan-xiang-pwa-bi-wo-xiang-xiang-de-shun-duo-liao">转向 PWA：比我想象的顺多了<a class="zola-anchor" href="#zhuan-xiang-pwa-bi-wo-xiang-xiang-de-shun-duo-liao" aria-label="Anchor link for: zhuan-xiang-pwa-bi-wo-xiang-xiang-de-shun-duo-liao" style="visibility: hidden;"></a>
+</h2>
+<p>PWA（Progressive Web App）的核心是：让网页能像 App 一样安装到主屏幕，全屏运行，有图标，有启动画面。</p>
+<p>需要的东西：</p>
+<ol>
+<li><code>manifest.json</code> — 告诉浏览器这是个可安装的 App</li>
+<li>HTTPS — 已经有了</li>
+<li>图标 — 重新设计了一个黑洞风格的 SVG</li>
+</ol>
+<pre class="giallo z-code"><code data-lang="json"><span class="giallo-l"><span>{</span></span>
+<span class="giallo-l"><span class="z-support">  &quot;</span><span class="z-support">name</span><span class="z-support">&quot;</span><span>:</span><span class="z-punctuation z-definition z-string"> &quot;</span><span class="z-string">Cirray</span><span class="z-punctuation z-definition z-string">&quot;</span><span>,</span></span>
+<span class="giallo-l"><span class="z-support">  &quot;</span><span class="z-support">start_url</span><span class="z-support">&quot;</span><span>:</span><span class="z-punctuation z-definition z-string"> &quot;</span><span class="z-string">/chat</span><span class="z-punctuation z-definition z-string">&quot;</span><span>,</span></span>
+<span class="giallo-l"><span class="z-support">  &quot;</span><span class="z-support">display</span><span class="z-support">&quot;</span><span>:</span><span class="z-punctuation z-definition z-string"> &quot;</span><span class="z-string">standalone</span><span class="z-punctuation z-definition z-string">&quot;</span><span>,</span></span>
+<span class="giallo-l"><span class="z-support">  &quot;</span><span class="z-support">background_color</span><span class="z-support">&quot;</span><span>:</span><span class="z-punctuation z-definition z-string"> &quot;</span><span class="z-string">#020617</span><span class="z-punctuation z-definition z-string">&quot;</span><span>,</span></span>
+<span class="giallo-l"><span class="z-support">  &quot;</span><span class="z-support">theme_color</span><span class="z-support">&quot;</span><span>:</span><span class="z-punctuation z-definition z-string"> &quot;</span><span class="z-string">#020617</span><span class="z-punctuation z-definition z-string">&quot;</span></span>
+<span class="giallo-l"><span>}</span></span></code></pre>
+<p><code>display: standalone</code> 这一行是关键——加了它，从主屏幕打开就没有浏览器地址栏，和原生 App 视觉上没区别。</p>
+<hr />
+<h2 id="yi-dong-duan-bug-yi-guo-duan">移动端 bug 一锅端<a class="zola-anchor" href="#yi-dong-duan-bug-yi-guo-duan" aria-label="Anchor link for: yi-dong-duan-bug-yi-guo-duan" style="visibility: hidden;"></a>
+</h2>
+<p>把产品推给第一批用户之前，我在移动端实测了一遍，发现了几个让人抓狂的问题：</p>
+<p><strong>1. 点输入框，整个页面放大</strong></p>
+<p>iOS 的"贴心"设计：input 字体小于 16px，自动触发页面缩放。</p>
+<p>修法很简单，但不明显——所有 input 和 textarea 从 <code>text-sm</code>（14px）改成 <code>text-base</code>（16px）。同时在 layout 里加：</p>
+<pre class="giallo z-code"><code data-lang="typescript"><span class="giallo-l"><span class="z-keyword">export</span><span class="z-storage z-type"> const</span><span class="z-variable z-other z-constant"> viewport</span><span class="z-keyword">:</span><span class="z-entity z-name"> Viewport</span><span class="z-keyword"> =</span><span> {</span></span>
+<span class="giallo-l"><span>  maximumScale</span><span>:</span><span class="z-constant"> 1</span><span>,</span></span>
+<span class="giallo-l"><span>}</span><span>;</span></span></code></pre>
+<p><strong>2. 三指拖动选文本失败</strong>
+这个花了不少时间，还是没解决。 Claude Code对一些前端和移动端的细节问题稍有欠缺。
+先跳过吧，不太严重。</p>
+<p><strong>3. iPhone 底部 Home 条遮挡输入栏</strong></p>
+<p>用 <code>env(safe-area-inset-bottom)</code> 处理安全区域：</p>
+<pre class="giallo z-code"><code data-lang="css"><span class="giallo-l"><span class="z-entity">.</span><span class="z-entity">pb-safe</span><span> {</span></span>
+<span class="giallo-l"><span class="z-support">  padding-bottom</span><span>:</span><span class="z-support"> max</span><span>(</span><span class="z-constant">12</span><span class="z-keyword">px</span><span>,</span><span class="z-variable"> env(safe-area-inset-bottom</span><span>)</span><span>)</span><span>;</span></span>
+<span class="giallo-l"><span>}</span></span></code></pre>
+<hr />
+<h2 id="yong-hu-yin-dao-wei-xin-sao-ma-pwa">用户引导：微信扫码 → PWA<a class="zola-anchor" href="#yong-hu-yin-dao-wei-xin-sao-ma-pwa" aria-label="Anchor link for: yong-hu-yin-dao-wei-xin-sao-ma-pwa" style="visibility: hidden;"></a>
+</h2>
+<p>发布渠道是微信群，用户扫码进来是微信内置浏览器，不支持直接"添加到主屏幕"。</p>
+<p>所以第一次访问我会检测环境，分情况引导：</p>
+<ul>
+<li><strong>微信浏览器</strong> → 提示"点右上角 ··· → 在浏览器中打开"</li>
+<li><strong>Safari 未安装</strong> → 提示分享 → 添加到主屏幕</li>
+<li><strong>已安装 standalone</strong> → 直接进，不打扰</li>
+</ul>
+<p>检测代码：</p>
+<pre class="giallo z-code"><code data-lang="typescript"><span class="giallo-l"><span class="z-storage z-type">const</span><span class="z-variable z-other z-constant"> isSafari</span><span class="z-keyword"> =</span><span class="z-punctuation z-definition z-string"> /</span><span class="z-keyword">^</span><span class="z-string z-regexp">(</span><span class="z-string z-regexp">(</span><span class="z-string z-regexp">?!</span><span class="z-string z-regexp">chrome</span><span class="z-keyword">|</span><span class="z-string z-regexp">android</span><span class="z-keyword">|</span><span class="z-string z-regexp">crios</span><span class="z-keyword">|</span><span class="z-string z-regexp">fxios</span><span class="z-keyword">|</span><span class="z-string z-regexp">MicroMessenger</span><span class="z-keyword">|</span><span class="z-string z-regexp">QQ</span><span class="z-keyword">|</span><span class="z-string z-regexp">Weibo</span><span class="z-string z-regexp">)</span><span class="z-constant">.</span><span class="z-string z-regexp">)</span><span class="z-keyword">*</span><span class="z-string z-regexp">safari</span><span class="z-punctuation z-definition z-string">/</span><span class="z-keyword">i</span><span>.</span><span class="z-entity z-name">test</span><span>(</span><span class="z-variable z-other">ua</span><span>)</span><span>;</span></span>
+<span class="giallo-l"><span class="z-storage z-type">const</span><span class="z-variable z-other z-constant"> isStandalone</span><span class="z-keyword"> =</span><span class="z-variable z-other"> window</span><span>.</span><span class="z-entity z-name">matchMedia</span><span>(</span><span class="z-punctuation z-definition z-string">&quot;</span><span class="z-string">(display-mode: standalone)</span><span class="z-punctuation z-definition z-string">&quot;</span><span>)</span><span>.</span><span class="z-variable z-other">matches</span><span>;</span></span></code></pre>
+<p>引导页里放了一个实际操作的 GIF，比文字步骤直观多了。</p>
+<hr />
+<h2 id="tu-biao-ye-zhong-xin-she-ji-liao">图标也重新设计了<a class="zola-anchor" href="#tu-biao-ye-zhong-xin-she-ji-liao" aria-label="Anchor link for: tu-biao-ye-zhong-xin-she-ji-liao" style="visibility: hidden;"></a>
+</h2>
+<p>之前的图标是个"C-&gt;"，又丑又糊。</p>
+<p>重新设计了一版：C 弧模拟黑洞吸积盘，一束光横穿而过。纯 SVG，四层叠加出发光厚度感——外层蓝色弥散、中层蓝白、白色核心、青白内缘热点。</p>
+<p>最后用 sharp 转成 PNG 给 apple-touch-icon 用。</p>
+<hr />
+<h2 id="zhe-tiao-lu-bi-app-store-geng-gua-he-xian-zai">这条路比 App Store 更适合现在<a class="zola-anchor" href="#zhe-tiao-lu-bi-app-store-geng-gua-he-xian-zai" aria-label="Anchor link for: zhe-tiao-lu-bi-app-store-geng-gua-he-xian-zai" style="visibility: hidden;"></a>
+</h2>
+<p>回头想想，就算开发者账号顺利，App Store 审核也要 1-2 周，还可能被拒。</p>
+<p>PWA 今天改完，明天就能让用户用上。移动端体验和原生 App 几乎没区别，还省了 $99。</p>
+<p>等哪天真的需要推 App Store 了，再说。现在先把产品送到用户手里才是正经事。</p>
+
+      </article>
+
+      
+      
+
+      
+      
+      <div class="giscus"></div>
+      <style>
+#comments { margin-top: 3rem; padding: 0 15px; }
+.c-item { margin: 1.2rem 0; }
+.c-reply { margin-left: 1.5rem; padding-left: 1rem; border-left: 2px solid var(--text-decoration-color); }
+.c-meta { display: flex; align-items: center; gap: 0.6rem; margin-bottom: 0.3rem; font-size: 0.85em; }
+.c-name { font-weight: bold; color: var(--text-color); }
+.c-time { color: var(--text-pale-color); }
+.c-reply-btn {
+  background: none; border: none; padding: 0;
+  color: var(--primary-color); cursor: pointer;
+  font-size: 0.85em; opacity: 0;
+  transition: opacity 0.15s;
+}
+.c-item:hover .c-reply-btn { opacity: 1; }
+.c-body { color: var(--text-color); line-height: var(--line-height); white-space: pre-wrap; word-break: break-word; }
+.c-loading, .c-empty { color: var(--text-pale-color); font-size: 0.9em; padding: 1rem 0; }
+.c-form { margin-top: 2rem; display: flex; flex-direction: column; gap: 0.6rem; }
+.c-form-row { display: flex; gap: 0.6rem; }
+.c-input {
+  width: 100%; padding: 0.5rem 0.7rem;
+  border: 1.5px solid var(--text-decoration-color);
+  border-radius: 4px;
+  background: var(--bg-color); color: var(--text-color);
+  font-size: 0.9em; font-family: var(--main-font);
+  outline: none; transition: border-color 0.15s;
+}
+.c-input:focus { border-color: var(--primary-color); }
+.c-input-content { resize: vertical; min-height: 100px; }
+.c-reply-tip {
+  font-size: 0.85em; color: var(--primary-color);
+  padding: 0.2rem 0.5rem;
+  background: var(--inline-code-bg-color);
+  border-radius: 4px; align-self: flex-start;
+}
+.c-reply-tip::after { content: " ✕"; opacity: 0.5; }
+.c-form-actions { display: flex; justify-content: flex-end; }
+.c-submit {
+  padding: 0.4rem 1.2rem;
+  background: var(--primary-color); color: var(--bg-color);
+  border: none; border-radius: 4px;
+  cursor: pointer; font-size: 0.9em;
+  transition: opacity 0.15s;
+}
+.c-submit:hover { opacity: 0.85; }
+.c-submit:disabled { opacity: 0.5; cursor: not-allowed; }
+</style>
+<div id="comments" data-page="&#x2F;posts&#x2F;pwa-instead-of-app-store-2026-04-10&#x2F;"></div>
+<script src="/comments.js"></script>
+
+
+      
+    </div>
+
+    
+
+
+<footer>
+  <div class="left">
+    <div class="copyright">
+      © 2026 Cirray AI
+      
+      <span>|</span>
+      Built with <a href="https://www.getzola.org" rel="noreferrer" target="_blank">zola</a> and <a href="https://github.com/isunjn/serene" rel="noreferrer" target="_blank">serene</a>
+      
+    </div>
+  </div>
+
+  <div class="right">
+    
+    
+    
+    
+
+    
+    
+    
+    <button id="theme-toggle" aria-label="theme switch">
+      <span class="moon-icon"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="18" height="18"><path d="M10 7C10 10.866 13.134 14 17 14C18.9584 14 20.729 13.1957 21.9995 11.8995C22 11.933 22 11.9665 22 12C22 17.5228 17.5228 22 12 22C6.47715 22 2 17.5228 2 12C2 6.47715 6.47715 2 12 2C12.0335 2 12.067 2 12.1005 2.00049C10.8043 3.27098 10 5.04157 10 7ZM4 12C4 16.4183 7.58172 20 12 20C15.0583 20 17.7158 18.2839 19.062 15.7621C18.3945 15.9187 17.7035 16 17 16C12.0294 16 8 11.9706 8 7C8 6.29648 8.08133 5.60547 8.2379 4.938C5.71611 6.28423 4 8.9417 4 12Z" fill="currentColor"></path></svg>
+</span>
+      <span class="sun-icon"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="18" height="18"><path d="M12 18C8.68629 18 6 15.3137 6 12C6 8.68629 8.68629 6 12 6C15.3137 6 18 8.68629 18 12C18 15.3137 15.3137 18 12 18ZM12 16C14.2091 16 16 14.2091 16 12C16 9.79086 14.2091 8 12 8C9.79086 8 8 9.79086 8 12C8 14.2091 9.79086 16 12 16ZM11 1H13V4H11V1ZM11 20H13V23H11V20ZM3.51472 4.92893L4.92893 3.51472L7.05025 5.63604L5.63604 7.05025L3.51472 4.92893ZM16.9497 18.364L18.364 16.9497L20.4853 19.0711L19.0711 20.4853L16.9497 18.364ZM19.0711 3.51472L20.4853 4.92893L18.364 7.05025L16.9497 5.63604L19.0711 3.51472ZM5.63604 16.9497L7.05025 18.364L4.92893 20.4853L3.51472 19.0711L5.63604 16.9497ZM23 11V13H20V11H23ZM4 11V13H1V11H4Z" fill="currentColor"></path></svg>
+</span>
+    </button>
+    
+  </div>
+</footer>
+
+
+
+
+
+  </main>
+</div>
+
+  
+<script src="/js/lightense.min.js"></script>
+
+
+  <script src="https://blog.cirray.cn/js/main.js"></script>
+</body>
+
+</html>
