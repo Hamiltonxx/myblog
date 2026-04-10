@@ -101,7 +101,9 @@ const isSafari = /^((?!chrome|android|crios|fxios|MicroMessenger|QQ|Weibo).)*saf
 const isStandalone = window.matchMedia("(display-mode: standalone)").matches;
 ```
 
-引导页里放了一个实际操作的 GIF，比文字步骤直观多了。
+引导页里放了一个实际操作的录屏，比文字步骤直观多了。
+
+<video src="/pwa-guide.mp4" autoplay loop muted playsinline controls style="max-width:360px;border-radius:12px;margin:1rem 0"></video>
 
 ---
 
