@@ -1,0 +1,334 @@
+<!DOCTYPE html>
+
+<html lang="zh">
+
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="color-scheme" content="light dark">
+  
+  
+    
+  
+  <meta name="description" content="用 Claude 辅助开发时，React 项目动辄把 Session Limit 打满——不是因为需求复杂，而是文件太多、上下文太重。换成 HTMX 之后，前端代码量暴跌，开发体验反而更顺。">
+
+  <title>React 把我的 Claude Token 榨干了，所以我换了 HTMX</title>
+  <link rel="icon" type="image/png" sizes="32x32" href="https://blog.cirray.cn/img/favicon-32x32.png">
+  <link rel="icon" type="image/png" sizes="16x16" href="https://blog.cirray.cn/img/favicon-16x16.png">
+  <link rel="apple-touch-icon" sizes="180x180" href="https://blog.cirray.cn/img/apple-touch-icon.png">
+  
+  <style>
+
+  /* light mode colors */
+  body {
+    --primary-color: #5871a2;
+    --primary-pale-color: #5871a233;
+    --primary-decoration-color: #5871a210;
+    --bg-color: #ffffff;
+    --text-color: #2f3030;
+    --text-pale-color: #767676;
+    --text-decoration-color: #a9a9a9;
+    --highlight-mark-color: #5f75b020;
+
+    --callout-note-color: #5871a2;
+    --callout-tip-color: #268556;
+    --callout-important-color: #885fc9;
+    --callout-warning-color: #ab6632;
+    --callout-caution-color: #c64e4e;
+  }
+
+  /* dark mode colors */
+  body.dark {
+    --primary-color: #6f8fd1;
+    --primary-pale-color: #6f8fd166;
+    --primary-decoration-color: #6f8fd112;
+    --bg-color: #1c1c1c;
+    --text-color: #c1c1c1;
+    --text-pale-color: #848484;
+    --text-decoration-color: #5f5f5f;
+    --highlight-mark-color: #8296cb3b;
+
+    --callout-note-color: #6f8fd1;
+    --callout-tip-color: #47976f;
+    --callout-important-color: #9776cd;
+    --callout-warning-color: #ad7a52;
+    --callout-caution-color: #d06161;
+  }
+
+  /* typography */
+  body {
+    --main-font: ui-sans-serif, system-ui, sans-serif, 'Apple Color Emoji', 'Segoe UI Emoji', 'Segoe UI Symbol', 'Noto Color Emoji';
+    --code-font: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, 'Liberation Mono', 'Courier New', monospace;
+    --homepage-max-width: 768px;
+    --main-max-width: 768px;
+    --avatar-size: 60px;
+    --font-size: 16px;
+    --line-height: 1.75;
+    --img-border-radius: 0px;
+    --detail-border-radius: 0px;
+    --dark-mode-img-brightness: 0.75;
+    --dark-mode-chart-brightness: 0.75;
+    --inline-code-border-radius: 2px;
+    --inline-code-bg-color: var(--primary-decoration-color);
+    --block-code-border-radius: 0px;
+    --block-code-border-color: var(--primary-color);
+    --detail-border-color: var(--primary-color);
+  }
+
+</style>
+
+  <link rel="stylesheet" href="https://blog.cirray.cn/main.css">
+  
+
+<link id="hl" rel="stylesheet" type="text/css" href="/giallo-light.css" />
+
+
+
+  
+</head>
+
+<body class="post">
+  
+  <script>
+    const theme = sessionStorage.getItem('theme');
+    const match = window.matchMedia("(prefers-color-scheme: dark)").matches;
+    if ((theme && theme == 'dark') || (!theme && match)) {
+      document.body.classList.add('dark');
+      const hl = document.querySelector('link#hl');
+      if (hl) hl.href = 'https://blog.cirray.cn/giallo-dark.css';
+    }
+  </script>
+  
+  
+<div id="wrapper">
+  <div id="blank"></div>
+  <aside>
+    
+    
+    <nav>
+      <ul>
+        
+        <li>
+          <a class="h2" href="#wen-ti-de-qi-dian-react-ba-token-zha-gan-liao">问题的起点：React 把 Token 榨干了</a>
+          
+        </li>
+        
+        <li>
+          <a class="h2" href="#wei-shen-me-xuan-htmx">为什么选 HTMX</a>
+          
+        </li>
+        
+        <li>
+          <a class="h2" href="#qian-yi-guo-cheng">迁移过程</a>
+          
+        </li>
+        
+        <li>
+          <a class="h2" href="#qian-yi-hou-de-gan-shou">迁移后的感受</a>
+          
+        </li>
+        
+      </ul>
+    </nav>
+    
+    
+    <button id="back-to-top" aria-label="back to top">
+      
+      <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="feather feather-arrow-up"><line x1="12" y1="19" x2="12" y2="5"></line><polyline points="5 12 12 5 19 12"></polyline></svg>
+
+    </button>
+    
+  </aside>
+  <main>
+    
+<header>
+  <nav>
+    <a id="back-link" href="https:&#x2F;&#x2F;blog.cirray.cn&#x2F;posts">← Back</a>
+  </nav>
+</header>
+
+
+    <div>
+      
+      
+      
+      
+      <div id="copy-cfg" style="display: none;" data-copy-icon="&lt;svg xmlns=&quot;http:&#x2F;&#x2F;www.w3.org&#x2F;2000&#x2F;svg&quot; viewBox=&quot;0 0 24 24&quot; width=&quot;18&quot; height=&quot;18&quot;&gt;&lt;path d=&quot;M6.9998 6V3C6.9998 2.44772 7.44752 2 7.9998 2H19.9998C20.5521 2 20.9998 2.44772 20.9998 3V17C20.9998 17.5523 20.5521 18 19.9998 18H16.9998V20.9991C16.9998 21.5519 16.5499 22 15.993 22H4.00666C3.45059 22 3 21.5554 3 20.9991L3.0026 7.00087C3.0027 6.44811 3.45264 6 4.00942 6H6.9998ZM5.00242 8L5.00019 20H14.9998V8H5.00242ZM8.9998 6H16.9998V16H18.9998V4H8.9998V6Z&quot; fill=&quot;currentColor&quot;&gt;&lt;&#x2F;path&gt;&lt;&#x2F;svg&gt;
+" data-check-icon="&lt;svg xmlns=&quot;http:&#x2F;&#x2F;www.w3.org&#x2F;2000&#x2F;svg&quot; viewBox=&quot;0 0 24 24&quot; width=&quot;18&quot; height=&quot;18&quot;&gt;&lt;path d=&quot;M10.0007 15.1709L19.1931 5.97852L20.6073 7.39273L10.0007 17.9993L3.63672 11.6354L5.05093 10.2212L10.0007 15.1709Z&quot; fill=&quot;currentColor&quot;&gt;&lt;&#x2F;path&gt;&lt;&#x2F;svg&gt;
+"></div>
+      
+      <article class="prose">
+        <h1>React 把我的 Claude Token 榨干了，所以我换了 HTMX</h1>
+        <div id="post-info">
+          <div id="date">
+            <span id="publish">2026-04-12</span>
+            </div>
+
+          
+          <div id="tags">
+            <a class="instant" href="https://blog.cirray.cn/tags/htmx"><span>#</span>htmx</a><a class="instant" href="https://blog.cirray.cn/tags/react"><span>#</span>react</a><a class="instant" href="https://blog.cirray.cn/tags/rust"><span>#</span>rust</a><a class="instant" href="https://blog.cirray.cn/tags/axum"><span>#</span>axum</a><a class="instant" href="https://blog.cirray.cn/tags/frontend"><span>#</span>frontend</a><a class="instant" href="https://blog.cirray.cn/tags/claude"><span>#</span>claude</a>
+          </div>
+          
+        </div>
+
+        
+        
+
+        
+
+        <p>今天把 Cirray 的聊天前端从 React 彻底迁移到了 HTMX，代码量砍掉大半。其他几个板块暂时不改，做的站点跳转。</p>
+<hr />
+<h2 id="wen-ti-de-qi-dian-react-ba-token-zha-gan-liao">问题的起点：React 把 Token 榨干了<a class="zola-anchor" href="#wen-ti-de-qi-dian-react-ba-token-zha-gan-liao" aria-label="Anchor link for: wen-ti-de-qi-dian-react-ba-token-zha-gan-liao" style="visibility: hidden;"></a>
+</h2>
+<p>我用 Claude Code 辅助写代码。React 项目有个致命问题：<strong>改一个小功能，Claude 要读十几个文件</strong>——组件、hook、类型定义、路由配置……上下文瞬间撑满，Token Usage Session Limit 直接爆掉。</p>
+<p>页面本身并不复杂，就是个聊天界面。但 React 的文件结构就是这样——一个功能散落在好几个地方，读文件的开销省不掉。</p>
+<p>除了 token 问题，React 对我这种不以前端为主业的人也不算友好。状态管理、组件通信、构建配置……每次绕进去都要花时间。</p>
+<hr />
+<h2 id="wei-shen-me-xuan-htmx">为什么选 HTMX<a class="zola-anchor" href="#wei-shen-me-xuan-htmx" aria-label="Anchor link for: wei-shen-me-xuan-htmx" style="visibility: hidden;"></a>
+</h2>
+<p>HTMX 的思路很对我的胃口：<strong>HTML 就是 UI，服务器返回 HTML 片段，浏览器直接塞进去</strong>。不需要 JSON、不需要前端状态管理、不需要构建工具。</p>
+<p>对于我这个场景——Rust + Axum 后端，页面交互不复杂——HTMX 几乎是完美的选择：</p>
+<ul>
+<li>前端逻辑全部内联在一个 Rust 源文件里（HTML 模板 + 少量 JS）</li>
+<li>服务端直接返回 HTML 片段，<code>hx-swap="innerHTML"</code> 塞进去就完事</li>
+<li>Claude 改需求时只需要读一个文件，token 消耗断崖式下降</li>
+</ul>
+<hr />
+<h2 id="qian-yi-guo-cheng">迁移过程<a class="zola-anchor" href="#qian-yi-guo-cheng" aria-label="Anchor link for: qian-yi-guo-cheng" style="visibility: hidden;"></a>
+</h2>
+<p>原来的 React 前端样式用的是 Tailwind + 自定义配置，迁移时直接换成 Tailwind CDN（Play CDN），样式类名几乎不用改，视觉效果基本一致。</p>
+<p>对话列表的加载：</p>
+<pre class="giallo z-code"><code data-lang="html"><span class="giallo-l"><span>&lt;</span><span class="z-entity z-name z-tag">div</span><span class="z-entity"> id</span><span>=</span><span class="z-punctuation z-definition z-string">&quot;</span><span class="z-string">conv-list</span><span class="z-punctuation z-definition z-string">&quot;</span></span>
+<span class="giallo-l"><span class="z-entity">     hx-get</span><span>=</span><span class="z-punctuation z-definition z-string">&quot;</span><span class="z-string">/talk/conversations</span><span class="z-punctuation z-definition z-string">&quot;</span></span>
+<span class="giallo-l"><span class="z-entity">     hx-trigger</span><span>=</span><span class="z-punctuation z-definition z-string">&quot;</span><span class="z-string">load, convRefresh from:body</span><span class="z-punctuation z-definition z-string">&quot;</span></span>
+<span class="giallo-l"><span class="z-entity">     hx-swap</span><span>=</span><span class="z-punctuation z-definition z-string">&quot;</span><span class="z-string">innerHTML</span><span class="z-punctuation z-definition z-string">&quot;</span><span>&gt;</span></span>
+<span class="giallo-l"><span>  &lt;</span><span class="z-entity z-name z-tag">p</span><span class="z-entity"> class</span><span>=</span><span class="z-punctuation z-definition z-string">&quot;</span><span class="z-string">text-xs text-gray-600 text-center mt-4</span><span class="z-punctuation z-definition z-string">&quot;</span><span>&gt;</span><span>加载中…</span><span>&lt;/</span><span class="z-entity z-name z-tag">p</span><span>&gt;</span></span>
+<span class="giallo-l"><span>&lt;/</span><span class="z-entity z-name z-tag">div</span><span>&gt;</span></span></code></pre>
+<p>服务端（Axum）直接返回 HTML 字符串，不需要序列化 JSON、不需要前端再渲染：</p>
+<pre class="giallo z-code"><code data-lang="rust"><span class="giallo-l"><span class="z-entity z-name">Html</span><span>(</span><span class="z-entity z-name">format!</span><span>(</span></span>
+<span class="giallo-l"><span class="z-string">    r</span><span class="z-punctuation z-definition z-string">##</span><span class="z-punctuation z-definition z-string">&quot;</span><span class="z-string">&lt;div class=&quot;space-y-0.5&quot;&gt;</span></span>
+<span class="giallo-l"><span class="z-string">      &lt;p class=&quot;text-[10px] text-gray-600 uppercase tracking-widest px-2 mb-2&quot;&gt;最近对话&lt;/p&gt;</span></span>
+<span class="giallo-l"><span class="z-string">      {}</span></span>
+<span class="giallo-l"><span class="z-string">    &lt;/div&gt;</span><span class="z-punctuation z-definition z-string">&quot;</span><span class="z-punctuation z-definition z-string">##</span><span>,</span></span>
+<span class="giallo-l"><span class="z-variable z-other">    items</span></span>
+<span class="giallo-l"><span>)</span><span>)</span><span class="z-keyword">.</span><span class="z-entity z-name">into_response</span><span>(</span><span>)</span></span></code></pre>
+<p>流式聊天（SSE）这块用原生 <code>fetch</code> + <code>ReadableStream</code> 处理，HTMX 不擅长 SSE，这部分保留了少量 vanilla JS，大约 80 行。</p>
+<hr />
+<h2 id="qian-yi-hou-de-gan-shou">迁移后的感受<a class="zola-anchor" href="#qian-yi-hou-de-gan-shou" aria-label="Anchor link for: qian-yi-hou-de-gan-shou" style="visibility: hidden;"></a>
+</h2>
+<p>最直观的变化：<strong>Claude 改需求时不再爆 token 了</strong>。整个 /talk 页面的前端代码全在一个 Rust 文件里，Claude 一次性读完，改完，不用来回翻文件。</p>
+<p>代码量也少了很多。之前 React 项目光组件就十几个文件，现在 HTML 模板 + JS 加起来不到 500 行，全部内联在后端代码里。</p>
+<p>当然也有取舍——复杂交互（比如流式渲染、Markdown 高亮）还是要写 JS，HTMX 不是银弹。但对于这类"内容为主、交互为辅"的页面，它刚刚好。</p>
+<hr />
+<p>至于合到一个文件里有没有省token这件事，我还没有实际验证。如果没有的话，就还是分文件、分模块吧。<br />
+可以看出，我现在的软件开发方法论也改了。以前写代码基本是，在功能实现的前提下，可读性第一，执行效率第二，文档第三。现在是Token消耗量第一，执行效率第二，可读性第三。 彻底从AI辅助我写代码，变成我辅助AI完成项目。</p>
+
+      </article>
+
+      
+      
+
+      
+      
+      <div class="giscus"></div>
+      <style>
+#comments { margin-top: 3rem; padding: 0 15px; }
+.c-item { margin: 1.2rem 0; }
+.c-reply { margin-left: 1.5rem; padding-left: 1rem; border-left: 2px solid var(--text-decoration-color); }
+.c-meta { display: flex; align-items: center; gap: 0.6rem; margin-bottom: 0.3rem; font-size: 0.85em; }
+.c-name { font-weight: bold; color: var(--text-color); }
+.c-time { color: var(--text-pale-color); }
+.c-reply-btn {
+  background: none; border: none; padding: 0;
+  color: var(--primary-color); cursor: pointer;
+  font-size: 0.85em; opacity: 0;
+  transition: opacity 0.15s;
+}
+.c-item:hover .c-reply-btn { opacity: 1; }
+.c-body { color: var(--text-color); line-height: var(--line-height); white-space: pre-wrap; word-break: break-word; }
+.c-loading, .c-empty { color: var(--text-pale-color); font-size: 0.9em; padding: 1rem 0; }
+.c-form { margin-top: 2rem; display: flex; flex-direction: column; gap: 0.6rem; }
+.c-form-row { display: flex; gap: 0.6rem; }
+.c-input {
+  width: 100%; padding: 0.5rem 0.7rem;
+  border: 1.5px solid var(--text-decoration-color);
+  border-radius: 4px;
+  background: var(--bg-color); color: var(--text-color);
+  font-size: 0.9em; font-family: var(--main-font);
+  outline: none; transition: border-color 0.15s;
+}
+.c-input:focus { border-color: var(--primary-color); }
+.c-input-content { resize: vertical; min-height: 100px; }
+.c-reply-tip {
+  font-size: 0.85em; color: var(--primary-color);
+  padding: 0.2rem 0.5rem;
+  background: var(--inline-code-bg-color);
+  border-radius: 4px; align-self: flex-start;
+}
+.c-reply-tip::after { content: " ✕"; opacity: 0.5; }
+.c-form-actions { display: flex; justify-content: flex-end; }
+.c-submit {
+  padding: 0.4rem 1.2rem;
+  background: var(--primary-color); color: var(--bg-color);
+  border: none; border-radius: 4px;
+  cursor: pointer; font-size: 0.9em;
+  transition: opacity 0.15s;
+}
+.c-submit:hover { opacity: 0.85; }
+.c-submit:disabled { opacity: 0.5; cursor: not-allowed; }
+</style>
+<div id="comments" data-page="&#x2F;posts&#x2F;react-to-htmx-2026-04-12&#x2F;"></div>
+<script src="/comments.js"></script>
+
+
+      
+    </div>
+
+    
+
+
+<footer>
+  <div class="left">
+    <div class="copyright">
+      © 2026 Cirray AI
+      
+      <span>|</span>
+      Built with <a href="https://www.getzola.org" rel="noreferrer" target="_blank">zola</a> and <a href="https://github.com/isunjn/serene" rel="noreferrer" target="_blank">serene</a>
+      
+    </div>
+  </div>
+
+  <div class="right">
+    
+    
+    
+    
+
+    
+    
+    
+    <button id="theme-toggle" aria-label="theme switch">
+      <span class="moon-icon"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="18" height="18"><path d="M10 7C10 10.866 13.134 14 17 14C18.9584 14 20.729 13.1957 21.9995 11.8995C22 11.933 22 11.9665 22 12C22 17.5228 17.5228 22 12 22C6.47715 22 2 17.5228 2 12C2 6.47715 6.47715 2 12 2C12.0335 2 12.067 2 12.1005 2.00049C10.8043 3.27098 10 5.04157 10 7ZM4 12C4 16.4183 7.58172 20 12 20C15.0583 20 17.7158 18.2839 19.062 15.7621C18.3945 15.9187 17.7035 16 17 16C12.0294 16 8 11.9706 8 7C8 6.29648 8.08133 5.60547 8.2379 4.938C5.71611 6.28423 4 8.9417 4 12Z" fill="currentColor"></path></svg>
+</span>
+      <span class="sun-icon"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="18" height="18"><path d="M12 18C8.68629 18 6 15.3137 6 12C6 8.68629 8.68629 6 12 6C15.3137 6 18 8.68629 18 12C18 15.3137 15.3137 18 12 18ZM12 16C14.2091 16 16 14.2091 16 12C16 9.79086 14.2091 8 12 8C9.79086 8 8 9.79086 8 12C8 14.2091 9.79086 16 12 16ZM11 1H13V4H11V1ZM11 20H13V23H11V20ZM3.51472 4.92893L4.92893 3.51472L7.05025 5.63604L5.63604 7.05025L3.51472 4.92893ZM16.9497 18.364L18.364 16.9497L20.4853 19.0711L19.0711 20.4853L16.9497 18.364ZM19.0711 3.51472L20.4853 4.92893L18.364 7.05025L16.9497 5.63604L19.0711 3.51472ZM5.63604 16.9497L7.05025 18.364L4.92893 20.4853L3.51472 19.0711L5.63604 16.9497ZM23 11V13H20V11H23ZM4 11V13H1V11H4Z" fill="currentColor"></path></svg>
+</span>
+    </button>
+    
+  </div>
+</footer>
+
+
+
+
+
+  </main>
+</div>
+
+  
+<script src="/js/lightense.min.js"></script>
+
+
+  <script src="https://blog.cirray.cn/js/main.js"></script>
+</body>
+
+</html>

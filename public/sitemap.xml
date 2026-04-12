@@ -91,6 +91,10 @@
         <lastmod>2026-03-24</lastmod>
     </url>
     <url>
+        <loc>https://blog.cirray.cn/posts/react-to-htmx-2026-04-12/</loc>
+        <lastmod>2026-04-12</lastmod>
+    </url>
+    <url>
         <loc>https://blog.cirray.cn/posts/redefine-phone-agent-for-parents-2026-03-27/</loc>
         <lastmod>2026-03-27</lastmod>
     </url>
@@ -187,6 +191,9 @@
         <loc>https://blog.cirray.cn/tags/automation/</loc>
     </url>
     <url>
+        <loc>https://blog.cirray.cn/tags/axum/</loc>
+    </url>
+    <url>
         <loc>https://blog.cirray.cn/tags/background-tasks/</loc>
     </url>
     <url>
@@ -235,6 +242,9 @@
         <loc>https://blog.cirray.cn/tags/fastembed/</loc>
     </url>
     <url>
+        <loc>https://blog.cirray.cn/tags/frontend/</loc>
+    </url>
+    <url>
         <loc>https://blog.cirray.cn/tags/gemini/</loc>
     </url>
     <url>
@@ -245,6 +255,9 @@
     </url>
     <url>
         <loc>https://blog.cirray.cn/tags/harmonyos/</loc>
+    </url>
+    <url>
+        <loc>https://blog.cirray.cn/tags/htmx/</loc>
     </url>
     <url>
         <loc>https://blog.cirray.cn/tags/huawei/</loc>
@@ -308,6 +321,9 @@
     </url>
     <url>
         <loc>https://blog.cirray.cn/tags/rag/</loc>
+    </url>
+    <url>
+        <loc>https://blog.cirray.cn/tags/react/</loc>
     </url>
     <url>
         <loc>https://blog.cirray.cn/tags/refactor/</loc>
