@@ -1,0 +1,777 @@
+<!DOCTYPE html>
+
+<html lang="zh">
+
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="color-scheme" content="light dark">
+  
+  
+    
+  
+  <meta name="description" content="Cirray Chat 已经从 React 切换到 HTMX。这个两周计划以现有代码为锚点，系统学习 axum 路由&#x2F;状态&#x2F;中间件、htmx 核心指令、SSE 流式推送，同时补全所有你在项目里用到但还没完全搞懂的细节。">
+
+  <title>两周计划：深入理解 axum + htmx + SSE，Cirray Chat 的全栈路线</title>
+  <link rel="icon" type="image/png" sizes="32x32" href="https://blog.cirray.cn/img/favicon-32x32.png">
+  <link rel="icon" type="image/png" sizes="16x16" href="https://blog.cirray.cn/img/favicon-16x16.png">
+  <link rel="apple-touch-icon" sizes="180x180" href="https://blog.cirray.cn/img/apple-touch-icon.png">
+  
+  <style>
+
+  /* light mode colors */
+  body {
+    --primary-color: #5871a2;
+    --primary-pale-color: #5871a233;
+    --primary-decoration-color: #5871a210;
+    --bg-color: #ffffff;
+    --text-color: #2f3030;
+    --text-pale-color: #767676;
+    --text-decoration-color: #a9a9a9;
+    --highlight-mark-color: #5f75b020;
+
+    --callout-note-color: #5871a2;
+    --callout-tip-color: #268556;
+    --callout-important-color: #885fc9;
+    --callout-warning-color: #ab6632;
+    --callout-caution-color: #c64e4e;
+  }
+
+  /* dark mode colors */
+  body.dark {
+    --primary-color: #6f8fd1;
+    --primary-pale-color: #6f8fd166;
+    --primary-decoration-color: #6f8fd112;
+    --bg-color: #1c1c1c;
+    --text-color: #c1c1c1;
+    --text-pale-color: #848484;
+    --text-decoration-color: #5f5f5f;
+    --highlight-mark-color: #8296cb3b;
+
+    --callout-note-color: #6f8fd1;
+    --callout-tip-color: #47976f;
+    --callout-important-color: #9776cd;
+    --callout-warning-color: #ad7a52;
+    --callout-caution-color: #d06161;
+  }
+
+  /* typography */
+  body {
+    --main-font: ui-sans-serif, system-ui, sans-serif, 'Apple Color Emoji', 'Segoe UI Emoji', 'Segoe UI Symbol', 'Noto Color Emoji';
+    --code-font: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, 'Liberation Mono', 'Courier New', monospace;
+    --homepage-max-width: 768px;
+    --main-max-width: 768px;
+    --avatar-size: 60px;
+    --font-size: 16px;
+    --line-height: 1.75;
+    --img-border-radius: 0px;
+    --detail-border-radius: 0px;
+    --dark-mode-img-brightness: 0.75;
+    --dark-mode-chart-brightness: 0.75;
+    --inline-code-border-radius: 2px;
+    --inline-code-bg-color: var(--primary-decoration-color);
+    --block-code-border-radius: 0px;
+    --block-code-border-color: var(--primary-color);
+    --detail-border-color: var(--primary-color);
+  }
+
+</style>
+
+  <link rel="stylesheet" href="https://blog.cirray.cn/main.css">
+  
+
+<link id="hl" rel="stylesheet" type="text/css" href="/giallo-light.css" />
+
+
+
+  
+</head>
+
+<body class="post">
+  
+  <script>
+    const theme = sessionStorage.getItem('theme');
+    const match = window.matchMedia("(prefers-color-scheme: dark)").matches;
+    if ((theme && theme == 'dark') || (!theme && match)) {
+      document.body.classList.add('dark');
+      const hl = document.querySelector('link#hl');
+      if (hl) hl.href = 'https://blog.cirray.cn/giallo-dark.css';
+    }
+  </script>
+  
+  
+<div id="wrapper">
+  <div id="blank"></div>
+  <aside>
+    
+    
+    <nav>
+      <ul>
+        
+        <li>
+          <a class="h2" href="#wei-shen-me-zuo-zhe-jian-shi">为什么做这件事</a>
+          
+        </li>
+        
+        <li>
+          <a class="h2" href="#xiang-mu-xian-zhuang-su-lan">项目现状速览</a>
+          
+        </li>
+        
+        <li>
+          <a class="h2" href="#zong-ti-ce-lue">总体策略</a>
+          
+        </li>
+        
+        <li>
+          <a class="h2" href="#di-1-zhou">第 1 周</a>
+          
+          <ul>
+            
+            <li>
+              <a class="h3" href="#day-1-zhou-yi-axum-gu-jia-router-state-handler">Day 1（周一）—— axum 骨架：Router &#x2F; State &#x2F; Handler</a>
+            </li>
+            
+            <li>
+              <a class="h3" href="#day-2-zhou-er-axum-extractor-cong-qing-qiu-li-na-shu-ju">Day 2（周二）—— axum extractor：从请求里拿数据</a>
+            </li>
+            
+            <li>
+              <a class="h3" href="#day-3-zhou-san-axum-xiang-ying-fan-hui-ge-chong-lei-xing">Day 3（周三）—— axum 响应：返回各种类型</a>
+            </li>
+            
+            <li>
+              <a class="h3" href="#day-4-zhou-si-sse-cong-stream-dao-liu-lan-qi">Day 4（周四）—— SSE：从 stream 到浏览器</a>
+            </li>
+            
+            <li>
+              <a class="h3" href="#day-5-zhou-wu-htmx-he-xin-san-jian-tao">Day 5（周五）—— htmx：核心三件套</a>
+            </li>
+            
+            <li>
+              <a class="h3" href="#day-6-7-zhou-mo-huan-chong-bu-quan">Day 6-7（周末）—— 缓冲 + 补全</a>
+            </li>
+            
+          </ul>
+          
+        </li>
+        
+        <li>
+          <a class="h2" href="#di-2-zhou">第 2 周</a>
+          
+          <ul>
+            
+            <li>
+              <a class="h3" href="#day-8-zhou-yi-ba-html-mo-ban-cong-main-rs-li-chai-chu-qu">Day 8（周一）—— 把 HTML 模板从 main.rs 里拆出去</a>
+            </li>
+            
+            <li>
+              <a class="h3" href="#day-9-zhou-er-gai-jin-cuo-wu-chu-li-yong-ti-dai-unwrap">Day 9（周二）—— 改进错误处理：用 ? 替代 unwrap</a>
+            </li>
+            
+            <li>
+              <a class="h3" href="#day-10-zhou-san-sse-gai-jin-jia-shang-conv-id-shi-jian">Day 10（周三）—— SSE 改进：加上 conv_id 事件</a>
+            </li>
+            
+            <li>
+              <a class="h3" href="#day-11-zhou-si-htmx-gai-jin-dui-hua-lie-biao-zi-dong-shua-xin">Day 11（周四）—— htmx 改进：对话列表自动刷新</a>
+            </li>
+            
+            <li>
+              <a class="h3" href="#day-12-zhou-wu-zhong-jian-jian-qing-qiu-ri-zhi-hao-shi-tong-ji">Day 12（周五）—— 中间件：请求日志 + 耗时统计</a>
+            </li>
+            
+            <li>
+              <a class="h3" href="#day-13-zhou-liu-shen-wa-arc-mutex-rwlock-yong-fa-zheng-li">Day 13（周六）—— 深挖：Arc&#x2F;Mutex&#x2F;RwLock 用法整理</a>
+            </li>
+            
+            <li>
+              <a class="h3" href="#day-14-zhou-ri-zheng-li-wen-dang-xia-yi-bu">Day 14（周日）—— 整理 + 文档 + 下一步</a>
+            </li>
+            
+          </ul>
+          
+        </li>
+        
+        <li>
+          <a class="h2" href="#feng-xian-yu-an">风险预案</a>
+          
+        </li>
+        
+        <li>
+          <a class="h2" href="#mei-ri-jie-zou">每日节奏</a>
+          
+        </li>
+        
+        <li>
+          <a class="h2" href="#liang-ge-pan-duan-biao-zhun">两个判断标准</a>
+          
+        </li>
+        
+        <li>
+          <a class="h2" href="#zui-hou">最后</a>
+          
+        </li>
+        
+      </ul>
+    </nav>
+    
+    
+    <button id="back-to-top" aria-label="back to top">
+      
+      <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="feather feather-arrow-up"><line x1="12" y1="19" x2="12" y2="5"></line><polyline points="5 12 12 5 19 12"></polyline></svg>
+
+    </button>
+    
+  </aside>
+  <main>
+    
+<header>
+  <nav>
+    <a id="back-link" href="https:&#x2F;&#x2F;blog.cirray.cn&#x2F;posts">← Back</a>
+  </nav>
+</header>
+
+
+    <div>
+      
+      
+      
+      
+      <div id="copy-cfg" style="display: none;" data-copy-icon="&lt;svg xmlns=&quot;http:&#x2F;&#x2F;www.w3.org&#x2F;2000&#x2F;svg&quot; viewBox=&quot;0 0 24 24&quot; width=&quot;18&quot; height=&quot;18&quot;&gt;&lt;path d=&quot;M6.9998 6V3C6.9998 2.44772 7.44752 2 7.9998 2H19.9998C20.5521 2 20.9998 2.44772 20.9998 3V17C20.9998 17.5523 20.5521 18 19.9998 18H16.9998V20.9991C16.9998 21.5519 16.5499 22 15.993 22H4.00666C3.45059 22 3 21.5554 3 20.9991L3.0026 7.00087C3.0027 6.44811 3.45264 6 4.00942 6H6.9998ZM5.00242 8L5.00019 20H14.9998V8H5.00242ZM8.9998 6H16.9998V16H18.9998V4H8.9998V6Z&quot; fill=&quot;currentColor&quot;&gt;&lt;&#x2F;path&gt;&lt;&#x2F;svg&gt;
+" data-check-icon="&lt;svg xmlns=&quot;http:&#x2F;&#x2F;www.w3.org&#x2F;2000&#x2F;svg&quot; viewBox=&quot;0 0 24 24&quot; width=&quot;18&quot; height=&quot;18&quot;&gt;&lt;path d=&quot;M10.0007 15.1709L19.1931 5.97852L20.6073 7.39273L10.0007 17.9993L3.63672 11.6354L5.05093 10.2212L10.0007 15.1709Z&quot; fill=&quot;currentColor&quot;&gt;&lt;&#x2F;path&gt;&lt;&#x2F;svg&gt;
+"></div>
+      
+      <article class="prose">
+        <h1>两周计划：深入理解 axum + htmx + SSE，Cirray Chat 的全栈路线</h1>
+        <div id="post-info">
+          <div id="date">
+            <span id="publish">2026-04-14</span>
+            </div>
+
+          
+          <div id="tags">
+            <a class="instant" href="https://blog.cirray.cn/tags/rust"><span>#</span>rust</a><a class="instant" href="https://blog.cirray.cn/tags/axum"><span>#</span>axum</a><a class="instant" href="https://blog.cirray.cn/tags/htmx"><span>#</span>htmx</a><a class="instant" href="https://blog.cirray.cn/tags/sse"><span>#</span>sse</a><a class="instant" href="https://blog.cirray.cn/tags/xue-xi-ji-hua"><span>#</span>学习计划</a><a class="instant" href="https://blog.cirray.cn/tags/cirray"><span>#</span>cirray</a>
+          </div>
+          
+        </div>
+
+        
+        
+
+        
+
+        <blockquote>
+<p>React 放弃了，HTMX 进来了。Token越烧越多，代码越砌越多，Bug始终解决不了。这时就会恨不得亲自操刀，来个精准手术。
+这个计划用两周时间，以 Cirray Chat 的 <code>src/main.rs</code> 为主线，把里面每一个你"copy-paste 能跑但说不清楚"的模式讲透。</p>
+</blockquote>
+<hr />
+<h2 id="wei-shen-me-zuo-zhe-jian-shi">为什么做这件事<a class="zola-anchor" href="#wei-shen-me-zuo-zhe-jian-shi" aria-label="Anchor link for: wei-shen-me-zuo-zhe-jian-shi" style="visibility: hidden;"></a>
+</h2>
+<p>Cirray Chat 切换到 HTMX 之后，整个前后端的交互方式变了：</p>
+<ul>
+<li><strong>后端</strong>：axum handler 直接返回 HTML 片段，而不是 JSON</li>
+<li><strong>前端</strong>：htmx 负责把局部 HTML 替换到页面里，不再需要虚拟 DOM</li>
+<li><strong>流式输出</strong>：SSE（Server-Sent Events）把 Claude 的 token 一个个推到浏览器</li>
+</ul>
+<p>这三件事在现有代码里都已经实现了，但"能跑"和"真的懂"之间还有距离。两周之后，你应该能：</p>
+<ol>
+<li>独立解释 <code>main.rs</code> 里每一个 axum 模式的工作原理</li>
+<li>不查文档写出 htmx 的核心交互</li>
+<li>理解 SSE 在 axum 里从 stream 到浏览器的完整链路</li>
+<li>知道什么时候用 htmx、什么时候还是要用 JS</li>
+</ol>
+<hr />
+<h2 id="xiang-mu-xian-zhuang-su-lan">项目现状速览<a class="zola-anchor" href="#xiang-mu-xian-zhuang-su-lan" aria-label="Anchor link for: xiang-mu-xian-zhuang-su-lan" style="visibility: hidden;"></a>
+</h2>
+<p>当前 <code>cirrayclaude/src/main.rs</code>（约 2900 行）已经包含：</p>
+<table><thead><tr><th>模块</th><th>代码位置</th><th>用到的核心概念</th></tr></thead><tbody>
+<tr><td>AppState 共享状态</td><td><code>struct AppState</code></td><td><code>Arc&lt;AppState&gt;</code>、<code>State</code> extractor</td></tr>
+<tr><td>Cookie 鉴权</td><td><code>cookie_auth</code></td><td><code>HeaderMap</code>、手写 cookie 解析</td></tr>
+<tr><td>HTMX 登录流程</td><td><code>talk_send_code</code> / <code>talk_verify</code></td><td><code>hx-post</code>、<code>hx-target</code>、<code>hx-swap</code></td></tr>
+<tr><td>SSE 流式聊天</td><td><code>talk_stream</code></td><td><code>Sse&lt;S&gt;</code>、<code>KeepAlive</code>、<code>tokio::spawn</code></td></tr>
+<tr><td>HTML 模板</td><td><code>chat_html</code> / <code>login_html</code></td><td>服务端 HTML 生成、内联 JS</td></tr>
+<tr><td>HX-Redirect</td><td><code>redirect_resp</code></td><td>HTMX 响应头控制导航</td></tr>
+<tr><td>GeoIP 缓存</td><td><code>is_china_ip</code></td><td><code>Arc&lt;RwLock&lt;HashMap&gt;&gt;</code></td></tr>
+</tbody></table>
+<hr />
+<h2 id="zong-ti-ce-lue">总体策略<a class="zola-anchor" href="#zong-ti-ce-lue" aria-label="Anchor link for: zong-ti-ce-lue" style="visibility: hidden;"></a>
+</h2>
+<pre class="giallo z-code"><code data-lang="plain"><span class="giallo-l"><span>第 1 周：读懂现有代码，补基础（axum 核心 + htmx 核心 + SSE 机制）</span></span>
+<span class="giallo-l"><span>         每天对照 main.rs 的一个模块，先读后写小实验</span></span>
+<span class="giallo-l"></span>
+<span class="giallo-l"><span>第 2 周：动手改进 Cirray Chat，把学到的东西用起来</span></span>
+<span class="giallo-l"><span>         每天一个功能改进，做完能直接 git push 到线上</span></span></code></pre>
+<p><strong>每天的交付物</strong>：一个能运行的小实验 <strong>或</strong> 一个对 Cirray Chat 的真实改动。</p>
+<hr />
+<h2 id="di-1-zhou">第 1 周<a class="zola-anchor" href="#di-1-zhou" aria-label="Anchor link for: di-1-zhou" style="visibility: hidden;"></a>
+</h2>
+<h3 id="day-1-zhou-yi-axum-gu-jia-router-state-handler">Day 1（周一）—— axum 骨架：Router / State / Handler<a class="zola-anchor" href="#day-1-zhou-yi-axum-gu-jia-router-state-handler" aria-label="Anchor link for: day-1-zhou-yi-axum-gu-jia-router-state-handler" style="visibility: hidden;"></a>
+</h3>
+<p><strong>目标：搞清楚 <code>main.rs</code> 第 184 行那个巨大的 <code>Router::new()</code> 是怎么工作的</strong></p>
+<p>上午：读代码</p>
+<ul>
+<li><input disabled="" type="checkbox"/>
+读 <code>main()</code> 函数（第 110-220 行），画出路由表</li>
+<li><input disabled="" type="checkbox"/>
+理解 <code>Arc&lt;AppState&gt;</code> 为什么要用 Arc：State 会被所有 handler clone，必须共享所有权</li>
+<li><input disabled="" type="checkbox"/>
+理解为什么 <code>AppState</code> 需要 <code>#[derive(Clone)]</code>：axum 每次请求会 clone state</li>
+</ul>
+<p>下午：写实验</p>
+<pre class="giallo z-code"><code data-lang="rust"><span class="giallo-l"><span class="z-punctuation z-definition z-comment">//</span><span class="z-comment"> 新建 examples/day1_router.rs</span></span>
+<span class="giallo-l"><span class="z-punctuation z-definition z-comment">//</span><span class="z-comment"> 复现 main.rs 的最小版本：3 个路由 + AppState + ping handler</span></span>
+<span class="giallo-l"><span class="z-punctuation z-definition z-comment">//</span><span class="z-comment"> 重点：不用查文档，手写 State extractor</span></span></code></pre>
+<ul>
+<li><input disabled="" type="checkbox"/>
+运行成功，curl 测试 3 个端点</li>
+<li><input disabled="" type="checkbox"/>
+理解 <code>extract::State&lt;Arc&lt;AppState&gt;&gt;</code> 为什么要写这么长</li>
+</ul>
+<p><strong>axum 概念：</strong> <code>Router::new().route()</code> 链式调用、<code>State</code> extractor、handler 签名</p>
+<hr />
+<h3 id="day-2-zhou-er-axum-extractor-cong-qing-qiu-li-na-shu-ju">Day 2（周二）—— axum extractor：从请求里拿数据<a class="zola-anchor" href="#day-2-zhou-er-axum-extractor-cong-qing-qiu-li-na-shu-ju" aria-label="Anchor link for: day-2-zhou-er-axum-extractor-cong-qing-qiu-li-na-shu-ju" style="visibility: hidden;"></a>
+</h3>
+<p><strong>目标：搞清楚 handler 参数怎么从 HTTP 请求变成 Rust 类型</strong></p>
+<p>上午：读代码</p>
+<ul>
+<li><input disabled="" type="checkbox"/>
+读 <code>register</code>（第 232 行）：<code>Form&lt;AuthRequest&gt;</code> — 表单解析</li>
+<li><input disabled="" type="checkbox"/>
+读 <code>talk_stream</code>（第 1700 行）：<code>Json&lt;TalkStreamReq&gt;</code> — JSON body</li>
+<li><input disabled="" type="checkbox"/>
+读 <code>talk_load_msgs</code>（第 1618 行）：<code>Path(conv_id): Path&lt;String&gt;</code> — URL 参数</li>
+<li><input disabled="" type="checkbox"/>
+读 <code>talk_list_convs</code>（第 1576 行）：<code>headers: HeaderMap</code> — 请求头</li>
+</ul>
+<p>下午：写实验</p>
+<pre class="giallo z-code"><code data-lang="rust"><span class="giallo-l"><span class="z-punctuation z-definition z-comment">//</span><span class="z-comment"> examples/day2_extractors.rs</span></span>
+<span class="giallo-l"><span class="z-punctuation z-definition z-comment">//</span><span class="z-comment"> 一个 handler 同时用 State + Path + Json + HeaderMap</span></span>
+<span class="giallo-l"><span class="z-punctuation z-definition z-comment">//</span><span class="z-comment"> 返回：把解析到的数据 echo 回去</span></span></code></pre>
+<ul>
+<li><input disabled="" type="checkbox"/>
+理解 extractor 的顺序规则：<code>State</code> 必须放第一个</li>
+<li><input disabled="" type="checkbox"/>
+理解为什么 <code>Json&lt;T&gt;</code> 要求 T 实现 <code>Deserialize</code></li>
+</ul>
+<p><strong>axum 概念：</strong> extractor 顺序、<code>Form</code> vs <code>Json</code> vs <code>Path</code>、<code>TypedHeader</code></p>
+<hr />
+<h3 id="day-3-zhou-san-axum-xiang-ying-fan-hui-ge-chong-lei-xing">Day 3（周三）—— axum 响应：返回各种类型<a class="zola-anchor" href="#day-3-zhou-san-axum-xiang-ying-fan-hui-ge-chong-lei-xing" aria-label="Anchor link for: day-3-zhou-san-axum-xiang-ying-fan-hui-ge-chong-lei-xing" style="visibility: hidden;"></a>
+</h3>
+<p><strong>目标：搞清楚 handler 怎么返回 HTML、重定向、状态码、自定义 header</strong></p>
+<p>上午：读代码</p>
+<ul>
+<li><input disabled="" type="checkbox"/>
+读 <code>talk_page</code>（第 1359 行）：<code>Html(...).into_response()</code></li>
+<li><input disabled="" type="checkbox"/>
+读 <code>redirect_resp</code>（第 1309 行）：手动设置 <code>HX-Redirect</code> header</li>
+<li><input disabled="" type="checkbox"/>
+读 <code>talk_logout</code>（第 1565 行）：同时设置 header + cookie 清除</li>
+<li><input disabled="" type="checkbox"/>
+读 <code>talk_delete_conv</code>（第 1669 行）：<code>StatusCode::NO_CONTENT.into_response()</code></li>
+</ul>
+<p>下午：写实验</p>
+<pre class="giallo z-code"><code data-lang="rust"><span class="giallo-l"><span class="z-punctuation z-definition z-comment">//</span><span class="z-comment"> examples/day3_responses.rs</span></span>
+<span class="giallo-l"><span class="z-punctuation z-definition z-comment">//</span><span class="z-comment"> 实现 4 种响应：</span></span>
+<span class="giallo-l"><span class="z-punctuation z-definition z-comment">//</span><span class="z-comment"> GET /html  → Html(&quot;&lt;h1&gt;hello&lt;/h1&gt;&quot;)</span></span>
+<span class="giallo-l"><span class="z-punctuation z-definition z-comment">//</span><span class="z-comment"> GET /json  → Json(serde_json::json!({&quot;ok&quot;: true}))</span></span>
+<span class="giallo-l"><span class="z-punctuation z-definition z-comment">//</span><span class="z-comment"> GET /redirect → 302 + Location header</span></span>
+<span class="giallo-l"><span class="z-punctuation z-definition z-comment">//</span><span class="z-comment"> GET /custom → 200 + X-Custom-Header: foo</span></span></code></pre>
+<ul>
+<li><input disabled="" type="checkbox"/>
+理解 <code>IntoResponse</code> trait：任何实现了它的类型都能从 handler 返回</li>
+<li><input disabled="" type="checkbox"/>
+理解 <code>Response</code> 类型：最底层的返回类型，可以随意设置 header</li>
+</ul>
+<p><strong>axum 概念：</strong> <code>Html</code>、<code>Json</code>、<code>StatusCode</code>、<code>IntoResponse</code>、手动构建 <code>Response</code></p>
+<hr />
+<h3 id="day-4-zhou-si-sse-cong-stream-dao-liu-lan-qi">Day 4（周四）—— SSE：从 stream 到浏览器<a class="zola-anchor" href="#day-4-zhou-si-sse-cong-stream-dao-liu-lan-qi" aria-label="Anchor link for: day-4-zhou-si-sse-cong-stream-dao-liu-lan-qi" style="visibility: hidden;"></a>
+</h3>
+<p><strong>目标：完全搞清楚 <code>talk_stream</code>（第 1700 行）的工作原理</strong></p>
+<p>这是整个项目最复杂的部分，也是最值得深挖的地方。</p>
+<p>上午：读代码，逐行注释</p>
+<pre class="giallo z-code"><code data-lang="rust"><span class="giallo-l"><span class="z-punctuation z-definition z-comment">//</span><span class="z-comment"> 跟着这个顺序读 talk_stream：</span></span>
+<span class="giallo-l"><span class="z-punctuation z-definition z-comment">//</span><span class="z-comment"> 1. cookie_auth → 鉴权</span></span>
+<span class="giallo-l"><span class="z-punctuation z-definition z-comment">//</span><span class="z-comment"> 2. claude_request → 获取上游 SSE 响应（返回 reqwest::Response）</span></span>
+<span class="giallo-l"><span class="z-punctuation z-definition z-comment">//</span><span class="z-comment"> 3. res.bytes_stream() → 把响应体变成字节流</span></span>
+<span class="giallo-l"><span class="z-punctuation z-definition z-comment">//</span><span class="z-comment"> 4. sse_lines() → 把字节流切割成行（见第 1229 行）</span></span>
+<span class="giallo-l"><span class="z-punctuation z-definition z-comment">//</span><span class="z-comment"> 5. .map(|line| { ... }) → 把每一行解析成 SSE Event</span></span>
+<span class="giallo-l"><span class="z-punctuation z-definition z-comment">//</span><span class="z-comment"> 6. .flat_map(...) → 一行可能产生多个 Event，展开</span></span>
+<span class="giallo-l"><span class="z-punctuation z-definition z-comment">//</span><span class="z-comment"> 7. Sse::new(sse).keep_alive(...) → 包装成 SSE 响应</span></span></code></pre>
+<ul>
+<li><input disabled="" type="checkbox"/>
+理解 <code>sse_lines</code>（第 1229 行）：为什么需要手动分行？</li>
+<li><input disabled="" type="checkbox"/>
+理解 <code>tokio::spawn</code> 在 <code>is_stop</code> 时保存对话：为什么不能在 stream 里直接 await？</li>
+</ul>
+<p>下午：写最小 SSE 实验</p>
+<pre class="giallo z-code"><code data-lang="rust"><span class="giallo-l"><span class="z-punctuation z-definition z-comment">//</span><span class="z-comment"> examples/day4_sse.rs</span></span>
+<span class="giallo-l"><span class="z-punctuation z-definition z-comment">//</span><span class="z-comment"> GET /count → 每 500ms 推一个数字，推 10 个后结束</span></span>
+<span class="giallo-l"><span class="z-punctuation z-definition z-comment">//</span><span class="z-comment"> 用 async_stream::stream! 宏生成流</span></span>
+<span class="giallo-l"><span class="z-punctuation z-definition z-comment">//</span><span class="z-comment"> 浏览器打开 /count，用 curl --no-buffer 验证</span></span></code></pre>
+<ul>
+<li><input disabled="" type="checkbox"/>
+用浏览器 EventSource API 接收，看到数字一个个出现</li>
+<li><input disabled="" type="checkbox"/>
+理解为什么 SSE 比 WebSocket 简单：单向推送、HTTP 协议、自动重连</li>
+</ul>
+<p><strong>核心概念：</strong> <code>Stream</code> trait、<code>Sse&lt;S&gt;</code>、<code>Event</code>、<code>KeepAlive</code>、<code>tokio::spawn</code> 的使用场景</p>
+<hr />
+<h3 id="day-5-zhou-wu-htmx-he-xin-san-jian-tao">Day 5（周五）—— htmx：核心三件套<a class="zola-anchor" href="#day-5-zhou-wu-htmx-he-xin-san-jian-tao" aria-label="Anchor link for: day-5-zhou-wu-htmx-he-xin-san-jian-tao" style="visibility: hidden;"></a>
+</h3>
+<p><strong>目标：不查文档，默写出 <code>main.rs</code> 里用到的所有 htmx 属性</strong></p>
+<p>上午：读 HTML 模板里的 htmx 用法</p>
+<ul>
+<li><input disabled="" type="checkbox"/>
+<code>phone_form_html</code>（第 1805 行）：
+<ul>
+<li><code>hx-post="/talk/send-code"</code> — 触发请求</li>
+<li><code>hx-target="#auth-wrap"</code> — 把响应放到哪</li>
+<li><code>hx-swap="outerHTML"</code> — 替换目标本身（不是内部）</li>
+</ul>
+</li>
+<li><input disabled="" type="checkbox"/>
+<code>code_form_html</code>（第 1824 行）：
+<ul>
+<li><code>hx-target="#err"</code> + <code>hx-swap="innerHTML"</code> — 只更新错误提示区域</li>
+<li><code>htmx.ajax()</code> — 在 JS 里手动触发 htmx 请求</li>
+</ul>
+</li>
+<li><input disabled="" type="checkbox"/>
+<code>chat_html</code> 里的流式消息处理（搜索 <code>hx-</code> 关键字）</li>
+</ul>
+<p>下午：写 htmx 实验页面</p>
+<pre class="giallo z-code"><code data-lang="html"><span class="giallo-l"><span class="z-punctuation z-definition z-comment">&lt;!--</span><span class="z-comment"> examples/htmx_demo.html（配合一个 axum server） </span><span class="z-punctuation z-definition z-comment">--&gt;</span></span>
+<span class="giallo-l"><span class="z-punctuation z-definition z-comment">&lt;!--</span><span class="z-comment"> 实现：搜索框 → 实时搜索结果（每次按键触发，结果替换到 #results） </span><span class="z-punctuation z-definition z-comment">--&gt;</span></span>
+<span class="giallo-l"><span class="z-punctuation z-definition z-comment">&lt;!--</span><span class="z-comment"> 用到：hx-get、hx-trigger=&quot;keyup delay:300ms&quot;、hx-target、hx-swap </span><span class="z-punctuation z-definition z-comment">--&gt;</span></span></code></pre>
+<ul>
+<li><input disabled="" type="checkbox"/>
+理解 <code>hx-swap</code> 的 8 种模式：innerHTML / outerHTML / beforebegin / afterend / 等</li>
+<li><input disabled="" type="checkbox"/>
+理解 <code>hx-trigger</code> 修饰符：<code>delay:</code>、<code>throttle:</code>、<code>changed</code></li>
+</ul>
+<p><strong>htmx 概念：</strong> 请求属性三件套、swap 策略、trigger 修饰符</p>
+<hr />
+<h3 id="day-6-7-zhou-mo-huan-chong-bu-quan">Day 6-7（周末）—— 缓冲 + 补全<a class="zola-anchor" href="#day-6-7-zhou-mo-huan-chong-bu-quan" aria-label="Anchor link for: day-6-7-zhou-mo-huan-chong-bu-quan" style="visibility: hidden;"></a>
+</h3>
+<p><strong>这两天的任务</strong>：</p>
+<ul>
+<li><input disabled="" type="checkbox"/>
+重新读一遍 <code>main.rs</code> 第 1256 行到结尾，把前 5 天没搞懂的地方标出来</li>
+<li><input disabled="" type="checkbox"/>
+重点补：<code>Arc&lt;Mutex&lt;T&gt;&gt;</code> vs <code>Arc&lt;RwLock&lt;T&gt;&gt;</code> 的区别（项目里两种都有）</li>
+<li><input disabled="" type="checkbox"/>
+重点补：<code>he()</code> 函数（第 1298 行）—— 为什么每个插入 HTML 的字符串都要过一遍它？</li>
+<li><input disabled="" type="checkbox"/>
+重点补：<code>HX-Redirect</code> vs 普通 302 重定向的区别——htmx 为什么需要这个？</li>
+<li><input disabled="" type="checkbox"/>
+写一段总结，回答：「Cirray Chat 的前端交互流程是什么？从用户点发送到消息出现在屏幕上经过了哪些步骤？」</li>
+</ul>
+<p><strong>不要跳过周末。</strong> 学编程最大的陷阱是"看懂了"但没有内化。写下来，才算真的懂。</p>
+<hr />
+<h2 id="di-2-zhou">第 2 周<a class="zola-anchor" href="#di-2-zhou" aria-label="Anchor link for: di-2-zhou" style="visibility: hidden;"></a>
+</h2>
+<p>第 2 周从"读懂别人的代码"切换到"自己动手改代码"。每天一个改进，做完直接上线。</p>
+<h3 id="day-8-zhou-yi-ba-html-mo-ban-cong-main-rs-li-chai-chu-qu">Day 8（周一）—— 把 HTML 模板从 main.rs 里拆出去<a class="zola-anchor" href="#day-8-zhou-yi-ba-html-mo-ban-cong-main-rs-li-chai-chu-qu" aria-label="Anchor link for: day-8-zhou-yi-ba-html-mo-ban-cong-main-rs-li-chai-chu-qu" style="visibility: hidden;"></a>
+</h3>
+<p><strong>目标：<code>main.rs</code> 里的 HTML 字符串太长，用 <code>include_str!</code> 宏分离到独立文件</strong></p>
+<p><strong>现状问题：</strong> <code>chat_html</code>（第 1974 行）和 <code>login_html</code>（第 1861 行）是几百行的内联字符串，改起来非常难受，IDE 没有语法高亮。</p>
+<p><strong>方案：</strong></p>
+<pre class="giallo z-code"><code data-lang="plain"><span class="giallo-l"><span>src/</span></span>
+<span class="giallo-l"><span>  templates/</span></span>
+<span class="giallo-l"><span>    login.html     ← 从 login_html() 里提取</span></span>
+<span class="giallo-l"><span>    chat.html      ← 从 chat_html() 里提取</span></span>
+<span class="giallo-l"><span>  main.rs          ← 用 include_str! + format!() 替换</span></span></code></pre>
+<ul>
+<li><input disabled="" type="checkbox"/>
+提取 <code>login.html</code>，在 Rust 里用 <code>include_str!("templates/login.html")</code> 加载</li>
+<li><input disabled="" type="checkbox"/>
+动态部分（masked phone、is_cn 的 CDN 地址）用 <code>{placeholder}</code> + <code>str.replace()</code> 插入</li>
+<li><input disabled="" type="checkbox"/>
+<code>cargo build</code> 通过，<code>/talk</code> 页面功能不变</li>
+<li><input disabled="" type="checkbox"/>
+git push</li>
+</ul>
+<p><strong>学到什么：</strong> <code>include_str!</code> 宏（编译时嵌入）、Rust 字符串替换策略</p>
+<hr />
+<h3 id="day-9-zhou-er-gai-jin-cuo-wu-chu-li-yong-ti-dai-unwrap">Day 9（周二）—— 改进错误处理：用 <code>?</code> 替代 unwrap<a class="zola-anchor" href="#day-9-zhou-er-gai-jin-cuo-wu-chu-li-yong-ti-dai-unwrap" aria-label="Anchor link for: day-9-zhou-er-gai-jin-cuo-wu-chu-li-yong-ti-dai-unwrap" style="visibility: hidden;"></a>
+</h3>
+<p><strong>目标：消灭 <code>main.rs</code> 里的 <code>.unwrap()</code> 和 <code>.unwrap_or_default()</code></strong></p>
+<p><strong>现状问题：</strong> 搜索 <code>unwrap</code> 在整个文件里有很多，遇到意外数据可能 panic。</p>
+<ul>
+<li><input disabled="" type="checkbox"/>
+定义统一的错误类型或用 <code>anyhow::Error</code>（Cargo.toml 里已有 anyhow）</li>
+<li><input disabled="" type="checkbox"/>
+给需要返回 HTTP 错误的函数改成 <code>Result&lt;Response, AppError&gt;</code></li>
+<li><input disabled="" type="checkbox"/>
+实现 <code>IntoResponse for AppError</code>，错误自动变成 500 响应</li>
+<li><input disabled="" type="checkbox"/>
+重点改 <code>talk_stream</code> 和 <code>talk_verify</code> 这两个最复杂的 handler</li>
+<li><input disabled="" type="checkbox"/>
+git push</li>
+</ul>
+<p><strong>学到什么：</strong> axum 的错误处理模式、<code>IntoResponse</code> for 自定义错误、<code>?</code> 在 async fn 里的用法</p>
+<hr />
+<h3 id="day-10-zhou-san-sse-gai-jin-jia-shang-conv-id-shi-jian">Day 10（周三）—— SSE 改进：加上 <code>conv_id</code> 事件<a class="zola-anchor" href="#day-10-zhou-san-sse-gai-jin-jia-shang-conv-id-shi-jian" aria-label="Anchor link for: day-10-zhou-san-sse-gai-jin-jia-shang-conv-id-shi-jian" style="visibility: hidden;"></a>
+</h3>
+<p><strong>目标：让前端在 SSE 流开始时就能拿到新对话的 ID</strong></p>
+<p><strong>现状问题：</strong> <code>talk_stream</code>（第 1795 行）在 SSE 响应头里放了 <code>X-Conversation-Id</code>，但前端在流结束前拿不到这个 ID（htmx 不会主动读响应头里的自定义字段）。</p>
+<p><strong>方案：</strong> 在 SSE 流的<strong>第一个 event</strong> 里发送 <code>conv_id</code>：</p>
+<pre class="giallo z-code"><code data-lang="plain"><span class="giallo-l"><span>event: meta</span></span>
+<span class="giallo-l"><span>data: {&quot;conv_id&quot;: &quot;xxxx-xxxx&quot;}</span></span>
+<span class="giallo-l"></span>
+<span class="giallo-l"><span>event: delta</span></span>
+<span class="giallo-l"><span>data: {&quot;choices&quot;: [{&quot;delta&quot;: {&quot;content&quot;: &quot;你好&quot;}}]}</span></span>
+<span class="giallo-l"></span>
+<span class="giallo-l"><span>...</span></span>
+<span class="giallo-l"><span>data: [DONE]</span></span></code></pre>
+<ul>
+<li><input disabled="" type="checkbox"/>
+修改 <code>talk_stream</code>：在第一个真实 delta 之前 push 一个 <code>event: meta</code> event</li>
+<li><input disabled="" type="checkbox"/>
+前端 JS：监听 <code>meta</code> event，拿到 <code>conv_id</code> 更新当前状态</li>
+<li><input disabled="" type="checkbox"/>
+测试：新对话第一条消息，conv_id 能正确更新</li>
+<li><input disabled="" type="checkbox"/>
+git push</li>
+</ul>
+<p><strong>学到什么：</strong> SSE 的 <code>event:</code> 字段（named events）、axum <code>Event::default().event("meta").data(...)</code></p>
+<hr />
+<h3 id="day-11-zhou-si-htmx-gai-jin-dui-hua-lie-biao-zi-dong-shua-xin">Day 11（周四）—— htmx 改进：对话列表自动刷新<a class="zola-anchor" href="#day-11-zhou-si-htmx-gai-jin-dui-hua-lie-biao-zi-dong-shua-xin" aria-label="Anchor link for: day-11-zhou-si-htmx-gai-jin-dui-hua-lie-biao-zi-dong-shua-xin" style="visibility: hidden;"></a>
+</h3>
+<p><strong>目标：消息发送完成后，左侧对话列表自动更新</strong></p>
+<p><strong>现状问题：</strong> 发完消息后，如果是新对话，左侧列表不会自动出现新条目，需要手动刷新。</p>
+<p><strong>方案：</strong> 用 htmx 的 <code>HX-Trigger</code> 响应头 + <code>hx-trigger="convUpdated from:body"</code> 监听事件：</p>
+<pre class="giallo z-code"><code data-lang="plain"><span class="giallo-l"><span>// SSE 结束时，服务端发送：</span></span>
+<span class="giallo-l"><span>HX-Trigger: convUpdated</span></span>
+<span class="giallo-l"></span>
+<span class="giallo-l"><span>// 对话列表容器上：</span></span>
+<span class="giallo-l"><span>&lt;div hx-get=&quot;/talk/conversations&quot;</span></span>
+<span class="giallo-l"><span>     hx-trigger=&quot;convUpdated from:body&quot;</span></span>
+<span class="giallo-l"><span>     hx-swap=&quot;innerHTML&quot;&gt;</span></span></code></pre>
+<ul>
+<li><input disabled="" type="checkbox"/>
+了解 <code>HX-Trigger</code> 响应头：服务端触发前端事件的标准机制</li>
+<li><input disabled="" type="checkbox"/>
+在 <code>talk_stream</code> 的 <code>[DONE]</code> event 里附带触发信号</li>
+<li><input disabled="" type="checkbox"/>
+前端列表容器监听该事件，自动重新加载</li>
+<li><input disabled="" type="checkbox"/>
+git push</li>
+</ul>
+<p><strong>学到什么：</strong> <code>HX-Trigger</code> 响应头、htmx 自定义事件系统、服务端驱动前端</p>
+<hr />
+<h3 id="day-12-zhou-wu-zhong-jian-jian-qing-qiu-ri-zhi-hao-shi-tong-ji">Day 12（周五）—— 中间件：请求日志 + 耗时统计<a class="zola-anchor" href="#day-12-zhou-wu-zhong-jian-jian-qing-qiu-ri-zhi-hao-shi-tong-ji" aria-label="Anchor link for: day-12-zhou-wu-zhong-jian-jian-qing-qiu-ri-zhi-hao-shi-tong-ji" style="visibility: hidden;"></a>
+</h3>
+<p><strong>目标：每个请求打印 <code>[GET /talk] 200 42ms</code> 这样的日志</strong></p>
+<p><strong>现状：</strong> tower-http 的 <code>trace</code> feature 已经在 Cargo.toml 里了，但没有充分利用。</p>
+<ul>
+<li><input disabled="" type="checkbox"/>
+配置 <code>tower_http::trace::TraceLayer</code>，加到 Router 上</li>
+<li><input disabled="" type="checkbox"/>
+配置 tracing-subscriber 的日志格式（目前可能是默认格式）</li>
+<li><input disabled="" type="checkbox"/>
+确认每个请求都有结构化日志输出</li>
+<li><input disabled="" type="checkbox"/>
+加一个自定义中间件：请求 IP 打印（从 <code>X-Real-IP</code> 读）</li>
+<li><input disabled="" type="checkbox"/>
+git push</li>
+</ul>
+<p><strong>学到什么：</strong> tower middleware 层、<code>TraceLayer</code> 配置、tracing span</p>
+<hr />
+<h3 id="day-13-zhou-liu-shen-wa-arc-mutex-rwlock-yong-fa-zheng-li">Day 13（周六）—— 深挖：Arc/Mutex/RwLock 用法整理<a class="zola-anchor" href="#day-13-zhou-liu-shen-wa-arc-mutex-rwlock-yong-fa-zheng-li" aria-label="Anchor link for: day-13-zhou-liu-shen-wa-arc-mutex-rwlock-yong-fa-zheng-li" style="visibility: hidden;"></a>
+</h3>
+<p><strong>目标：搞清楚 <code>main.rs</code> 里 3 种并发原语的选择逻辑</strong></p>
+<p>项目里同时用了三种：</p>
+<pre class="giallo z-code"><code data-lang="rust"><span class="giallo-l"><span class="z-punctuation z-definition z-comment">//</span><span class="z-comment"> Arc&lt;Mutex&lt;HashMap&gt;&gt;  —— sms_codes（短信验证码）</span></span>
+<span class="giallo-l"><span class="z-variable z-other">sms_codes</span><span class="z-keyword">:</span><span class="z-entity z-name"> Arc</span><span>&lt;</span><span class="z-entity z-name">Mutex</span><span>&lt;</span><span class="z-entity z-name">HashMap</span><span>&lt;</span><span class="z-entity z-name">String</span><span>,</span><span> (</span><span class="z-entity z-name">String</span><span>,</span><span class="z-entity z-name"> u64</span><span>)</span><span>&gt;</span><span>&gt;</span><span>&gt;</span><span>,</span></span>
+<span class="giallo-l"></span>
+<span class="giallo-l"><span class="z-punctuation z-definition z-comment">//</span><span class="z-comment"> Arc&lt;RwLock&lt;HashMap&gt;&gt; —— geo_cache（GeoIP 缓存）</span></span>
+<span class="giallo-l"><span class="z-variable z-other">geo_cache</span><span class="z-keyword">:</span><span class="z-entity z-name"> Arc</span><span>&lt;</span><span class="z-entity z-name">RwLock</span><span>&lt;</span><span class="z-entity z-name">HashMap</span><span>&lt;</span><span class="z-entity z-name">String</span><span>,</span><span class="z-entity z-name"> bool</span><span>&gt;</span><span>&gt;</span><span>&gt;</span><span>,</span></span>
+<span class="giallo-l"></span>
+<span class="giallo-l"><span class="z-punctuation z-definition z-comment">//</span><span class="z-comment"> Arc&lt;Mutex&lt;String&gt;&gt;   —— talk_stream 里的 acc（累积文本）</span></span>
+<span class="giallo-l"><span class="z-storage z-type">let</span><span class="z-variable z-other"> acc</span><span class="z-keyword"> =</span><span class="z-entity z-name"> Arc</span><span class="z-keyword">::</span><span class="z-entity z-name">new</span><span>(</span><span class="z-entity z-name">Mutex</span><span class="z-keyword">::</span><span class="z-entity z-name">new</span><span>(</span><span class="z-entity z-name">String</span><span class="z-keyword">::</span><span class="z-entity z-name">new</span><span>(</span><span>)</span><span>)</span><span>)</span><span>;</span></span></code></pre>
+<ul>
+<li><input disabled="" type="checkbox"/>
+写一份对比文档（注释形式）：三种用法的区别和选择依据</li>
+<li><input disabled="" type="checkbox"/>
+回答：为什么 geo_cache 用 <code>RwLock</code> 而 sms_codes 用 <code>Mutex</code>？</li>
+<li><input disabled="" type="checkbox"/>
+实验：把 geo_cache 改成 <code>Mutex</code>，性能有什么差异？（理论推导即可）</li>
+<li><input disabled="" type="checkbox"/>
+思考：在 tokio 环境里，应该用 <code>std::sync::Mutex</code> 还是 <code>tokio::sync::Mutex</code>？什么时候各自合适？</li>
+</ul>
+<p><strong>学到什么：</strong> 读多写少用 <code>RwLock</code>、tokio Mutex vs std Mutex 的阻塞语义</p>
+<hr />
+<h3 id="day-14-zhou-ri-zheng-li-wen-dang-xia-yi-bu">Day 14（周日）—— 整理 + 文档 + 下一步<a class="zola-anchor" href="#day-14-zhou-ri-zheng-li-wen-dang-xia-yi-bu" aria-label="Anchor link for: day-14-zhou-ri-zheng-li-wen-dang-xia-yi-bu" style="visibility: hidden;"></a>
+</h3>
+<p><strong>目标：为未来的自己留下地图</strong></p>
+<p>上午：整理</p>
+<ul>
+<li><input disabled="" type="checkbox"/>
+给 <code>main.rs</code> 里没有注释的核心函数补上中文注释（重点：<code>sse_lines</code>、<code>talk_stream</code>、<code>claude_request</code>）</li>
+<li><input disabled="" type="checkbox"/>
+在 README 或 NOTES.md 里写一份「架构速查」：路由表、数据流图</li>
+</ul>
+<p>下午：规划下一步</p>
+<p><strong>下一个值得做的改进：</strong></p>
+<table><thead><tr><th>方向</th><th>具体改进</th><th>难度</th></tr></thead><tbody>
+<tr><td>性能</td><td>把 HTML 模板用 minijinja/askama 管理</td><td>★★☆</td></tr>
+<tr><td>功能</td><td>支持多模型选择（下拉菜单，htmx swap）</td><td>★★☆</td></tr>
+<tr><td>可维护</td><td>把 main.rs 按模块拆分（auth.rs / chat.rs / templates/）</td><td>★★☆</td></tr>
+<tr><td>安全</td><td>Cookie 加签名验证（防篡改）</td><td>★★★</td></tr>
+<tr><td>体验</td><td>SSE 中断后自动重试（EventSource reconnect）</td><td>★★☆</td></tr>
+</tbody></table>
+<ul>
+<li><input disabled="" type="checkbox"/>
+选一个，记录到项目 TODO</li>
+</ul>
+<hr />
+<h2 id="feng-xian-yu-an">风险预案<a class="zola-anchor" href="#feng-xian-yu-an" aria-label="Anchor link for: feng-xian-yu-an" style="visibility: hidden;"></a>
+</h2>
+<table><thead><tr><th>如果……</th><th>怎么办</th></tr></thead><tbody>
+<tr><td>Day 4 SSE 卡太久理解不了</td><td>先跳过，继续看 htmx，周末再回来</td></tr>
+<tr><td>Day 8-12 改动破坏了线上功能</td><td>先在本地测试，用 <code>cargo test</code> + curl 验证再 push</td></tr>
+<tr><td>某天状态不好，什么都不想做</td><td>只做"读代码"部分，不写实验，也算完成</td></tr>
+<tr><td>某个改进比预期复杂</td><td>缩小范围，做最小可用版本，加 TODO 注释</td></tr>
+</tbody></table>
+<hr />
+<h2 id="mei-ri-jie-zou">每日节奏<a class="zola-anchor" href="#mei-ri-jie-zou" aria-label="Anchor link for: mei-ri-jie-zou" style="visibility: hidden;"></a>
+</h2>
+<pre class="giallo z-code"><code data-lang="plain"><span class="giallo-l"><span>09:00 - 09:30  读当天对应的 main.rs 代码区域，画流程图或写伪代码</span></span>
+<span class="giallo-l"><span>09:30 - 11:30  写实验代码 / 改进代码</span></span>
+<span class="giallo-l"><span>11:30 - 12:00  cargo check + 测试</span></span>
+<span class="giallo-l"><span>13:00 - 14:30  调试卡住的地方（第 2 周：git push + 线上验证）</span></span>
+<span class="giallo-l"><span>14:30 - 15:30  写当天的学习笔记（一段话够了）</span></span>
+<span class="giallo-l"><span>15:30 - 16:00  预习明天的内容</span></span></code></pre>
+<hr />
+<h2 id="liang-ge-pan-duan-biao-zhun">两个判断标准<a class="zola-anchor" href="#liang-ge-pan-duan-biao-zhun" aria-label="Anchor link for: liang-ge-pan-duan-biao-zhun" style="visibility: hidden;"></a>
+</h2>
+<p><strong>一周结束时，问自己这个问题：</strong></p>
+<blockquote>
+<p>"如果有人问我 <code>talk_stream</code> 里 SSE 是怎么工作的，我能不打开文件，把流程讲清楚吗？"</p>
+</blockquote>
+<p><strong>两周结束时，问自己这个问题：</strong></p>
+<blockquote>
+<p>"如果要从零实现一个类似的 HTMX 聊天页面，我知道从哪里开始，怎么一步步做吗？"</p>
+</blockquote>
+<p>能回答"是"，这两周就值了。</p>
+<hr />
+<h2 id="zui-hou">最后<a class="zola-anchor" href="#zui-hou" aria-label="Anchor link for: zui-hou" style="visibility: hidden;"></a>
+</h2>
+<p>从 React 切到 HTMX，最大的转变不是技术，是思维：
+<strong>页面交互的状态从客户端转移到了服务端。</strong></p>
+<p>服务端说什么，浏览器就展示什么。没有 Redux，没有 useState，没有 hydration。
+这个模型更简单，但也要求你更清楚地理解 HTTP 和 HTML 本身。</p>
+<p>Cirray Chat 的代码已经是这个模型的一个真实案例。
+两周之后，这份代码应该是你的，不是你 copy 进来的。</p>
+
+      </article>
+
+      
+      
+
+      
+      
+      <div class="giscus"></div>
+      <style>
+#comments { margin-top: 3rem; padding: 0 15px; }
+.c-item { margin: 1.2rem 0; }
+.c-reply { margin-left: 1.5rem; padding-left: 1rem; border-left: 2px solid var(--text-decoration-color); }
+.c-meta { display: flex; align-items: center; gap: 0.6rem; margin-bottom: 0.3rem; font-size: 0.85em; }
+.c-name { font-weight: bold; color: var(--text-color); }
+.c-time { color: var(--text-pale-color); }
+.c-reply-btn {
+  background: none; border: none; padding: 0;
+  color: var(--primary-color); cursor: pointer;
+  font-size: 0.85em; opacity: 0;
+  transition: opacity 0.15s;
+}
+.c-item:hover .c-reply-btn { opacity: 1; }
+.c-body { color: var(--text-color); line-height: var(--line-height); white-space: pre-wrap; word-break: break-word; }
+.c-loading, .c-empty { color: var(--text-pale-color); font-size: 0.9em; padding: 1rem 0; }
+.c-form { margin-top: 2rem; display: flex; flex-direction: column; gap: 0.6rem; }
+.c-form-row { display: flex; gap: 0.6rem; }
+.c-input {
+  width: 100%; padding: 0.5rem 0.7rem;
+  border: 1.5px solid var(--text-decoration-color);
+  border-radius: 4px;
+  background: var(--bg-color); color: var(--text-color);
+  font-size: 0.9em; font-family: var(--main-font);
+  outline: none; transition: border-color 0.15s;
+}
+.c-input:focus { border-color: var(--primary-color); }
+.c-input-content { resize: vertical; min-height: 100px; }
+.c-reply-tip {
+  font-size: 0.85em; color: var(--primary-color);
+  padding: 0.2rem 0.5rem;
+  background: var(--inline-code-bg-color);
+  border-radius: 4px; align-self: flex-start;
+}
+.c-reply-tip::after { content: " ✕"; opacity: 0.5; }
+.c-form-actions { display: flex; justify-content: flex-end; }
+.c-submit {
+  padding: 0.4rem 1.2rem;
+  background: var(--primary-color); color: var(--bg-color);
+  border: none; border-radius: 4px;
+  cursor: pointer; font-size: 0.9em;
+  transition: opacity 0.15s;
+}
+.c-submit:hover { opacity: 0.85; }
+.c-submit:disabled { opacity: 0.5; cursor: not-allowed; }
+</style>
+<div id="comments" data-page="&#x2F;posts&#x2F;learn-axum-htmx-sse-two-week-plan&#x2F;"></div>
+<script src="/comments.js"></script>
+
+
+      
+    </div>
+
+    
+
+
+<footer>
+  <div class="left">
+    <div class="copyright">
+      © 2026 Cirray AI
+      
+      <span>|</span>
+      Built with <a href="https://www.getzola.org" rel="noreferrer" target="_blank">zola</a> and <a href="https://github.com/isunjn/serene" rel="noreferrer" target="_blank">serene</a>
+      
+    </div>
+  </div>
+
+  <div class="right">
+    
+    
+    
+    
+
+    
+    
+    
+    <button id="theme-toggle" aria-label="theme switch">
+      <span class="moon-icon"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="18" height="18"><path d="M10 7C10 10.866 13.134 14 17 14C18.9584 14 20.729 13.1957 21.9995 11.8995C22 11.933 22 11.9665 22 12C22 17.5228 17.5228 22 12 22C6.47715 22 2 17.5228 2 12C2 6.47715 6.47715 2 12 2C12.0335 2 12.067 2 12.1005 2.00049C10.8043 3.27098 10 5.04157 10 7ZM4 12C4 16.4183 7.58172 20 12 20C15.0583 20 17.7158 18.2839 19.062 15.7621C18.3945 15.9187 17.7035 16 17 16C12.0294 16 8 11.9706 8 7C8 6.29648 8.08133 5.60547 8.2379 4.938C5.71611 6.28423 4 8.9417 4 12Z" fill="currentColor"></path></svg>
+</span>
+      <span class="sun-icon"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="18" height="18"><path d="M12 18C8.68629 18 6 15.3137 6 12C6 8.68629 8.68629 6 12 6C15.3137 6 18 8.68629 18 12C18 15.3137 15.3137 18 12 18ZM12 16C14.2091 16 16 14.2091 16 12C16 9.79086 14.2091 8 12 8C9.79086 8 8 9.79086 8 12C8 14.2091 9.79086 16 12 16ZM11 1H13V4H11V1ZM11 20H13V23H11V20ZM3.51472 4.92893L4.92893 3.51472L7.05025 5.63604L5.63604 7.05025L3.51472 4.92893ZM16.9497 18.364L18.364 16.9497L20.4853 19.0711L19.0711 20.4853L16.9497 18.364ZM19.0711 3.51472L20.4853 4.92893L18.364 7.05025L16.9497 5.63604L19.0711 3.51472ZM5.63604 16.9497L7.05025 18.364L4.92893 20.4853L3.51472 19.0711L5.63604 16.9497ZM23 11V13H20V11H23ZM4 11V13H1V11H4Z" fill="currentColor"></path></svg>
+</span>
+    </button>
+    
+  </div>
+</footer>
+
+
+
+
+
+  </main>
+</div>
+
+  
+<script src="/js/lightense.min.js"></script>
+
+
+  <script src="https://blog.cirray.cn/js/main.js"></script>
+</body>
+
+</html>

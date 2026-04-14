@@ -75,6 +75,10 @@
         <lastmod>2026-03-25</lastmod>
     </url>
     <url>
+        <loc>https://blog.cirray.cn/posts/learn-axum-htmx-sse-two-week-plan/</loc>
+        <lastmod>2026-04-14</lastmod>
+    </url>
+    <url>
         <loc>https://blog.cirray.cn/posts/notes-cli-rust/</loc>
         <lastmod>2026-03-23</lastmod>
     </url>
@@ -207,6 +211,9 @@
     </url>
     <url>
         <loc>https://blog.cirray.cn/tags/china-unicom/</loc>
+    </url>
+    <url>
+        <loc>https://blog.cirray.cn/tags/cirray/</loc>
     </url>
     <url>
         <loc>https://blog.cirray.cn/tags/claude-code/</loc>
