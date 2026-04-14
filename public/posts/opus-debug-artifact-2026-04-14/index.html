@@ -1,0 +1,328 @@
+<!DOCTYPE html>
+
+<html lang="zh">
+
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="color-scheme" content="light dark">
+  
+  
+    
+  
+  <meta name="description" content="Claude API 的 artifact 渲染在 Cloudflare 和 rendering_mode 之间反复横跳，Sonnet 越改越乱，换 Opus 才理清了真正的矛盾点。">
+
+  <title>记录下这两天Debug项目的问题与思考</title>
+  <link rel="icon" type="image/png" sizes="32x32" href="https://blog.cirray.cn/img/favicon-32x32.png">
+  <link rel="icon" type="image/png" sizes="16x16" href="https://blog.cirray.cn/img/favicon-16x16.png">
+  <link rel="apple-touch-icon" sizes="180x180" href="https://blog.cirray.cn/img/apple-touch-icon.png">
+  
+  <style>
+
+  /* light mode colors */
+  body {
+    --primary-color: #5871a2;
+    --primary-pale-color: #5871a233;
+    --primary-decoration-color: #5871a210;
+    --bg-color: #ffffff;
+    --text-color: #2f3030;
+    --text-pale-color: #767676;
+    --text-decoration-color: #a9a9a9;
+    --highlight-mark-color: #5f75b020;
+
+    --callout-note-color: #5871a2;
+    --callout-tip-color: #268556;
+    --callout-important-color: #885fc9;
+    --callout-warning-color: #ab6632;
+    --callout-caution-color: #c64e4e;
+  }
+
+  /* dark mode colors */
+  body.dark {
+    --primary-color: #6f8fd1;
+    --primary-pale-color: #6f8fd166;
+    --primary-decoration-color: #6f8fd112;
+    --bg-color: #1c1c1c;
+    --text-color: #c1c1c1;
+    --text-pale-color: #848484;
+    --text-decoration-color: #5f5f5f;
+    --highlight-mark-color: #8296cb3b;
+
+    --callout-note-color: #6f8fd1;
+    --callout-tip-color: #47976f;
+    --callout-important-color: #9776cd;
+    --callout-warning-color: #ad7a52;
+    --callout-caution-color: #d06161;
+  }
+
+  /* typography */
+  body {
+    --main-font: ui-sans-serif, system-ui, sans-serif, 'Apple Color Emoji', 'Segoe UI Emoji', 'Segoe UI Symbol', 'Noto Color Emoji';
+    --code-font: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, 'Liberation Mono', 'Courier New', monospace;
+    --homepage-max-width: 768px;
+    --main-max-width: 768px;
+    --avatar-size: 60px;
+    --font-size: 16px;
+    --line-height: 1.75;
+    --img-border-radius: 0px;
+    --detail-border-radius: 0px;
+    --dark-mode-img-brightness: 0.75;
+    --dark-mode-chart-brightness: 0.75;
+    --inline-code-border-radius: 2px;
+    --inline-code-bg-color: var(--primary-decoration-color);
+    --block-code-border-radius: 0px;
+    --block-code-border-color: var(--primary-color);
+    --detail-border-color: var(--primary-color);
+  }
+
+</style>
+
+  <link rel="stylesheet" href="https://blog.cirray.cn/main.css">
+  
+
+<link id="hl" rel="stylesheet" type="text/css" href="/giallo-light.css" />
+
+
+
+  
+</head>
+
+<body class="post">
+  
+  <script>
+    const theme = sessionStorage.getItem('theme');
+    const match = window.matchMedia("(prefers-color-scheme: dark)").matches;
+    if ((theme && theme == 'dark') || (!theme && match)) {
+      document.body.classList.add('dark');
+      const hl = document.querySelector('link#hl');
+      if (hl) hl.href = 'https://blog.cirray.cn/giallo-dark.css';
+    }
+  </script>
+  
+  
+<div id="wrapper">
+  <div id="blank"></div>
+  <aside>
+    
+    
+    <nav>
+      <ul>
+        
+        <li>
+          <a class="h2" href="#wen-ti-shi-shen-me">问题是什么</a>
+          
+        </li>
+        
+        <li>
+          <a class="h2" href="#rendering-mode-de-liang-nan">rendering_mode 的两难</a>
+          
+        </li>
+        
+        <li>
+          <a class="h2" href="#opus-zen-me-chu-li-de">Opus 怎么处理的</a>
+          
+        </li>
+        
+        <li>
+          <a class="h2" href="#shun-shou-zuo-liao-yi-ci-zhong-gou">顺手做了一次重构</a>
+          
+        </li>
+        
+        <li>
+          <a class="h2" href="#ti-hui">体会</a>
+          
+        </li>
+        
+      </ul>
+    </nav>
+    
+    
+    <button id="back-to-top" aria-label="back to top">
+      
+      <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="feather feather-arrow-up"><line x1="12" y1="19" x2="12" y2="5"></line><polyline points="5 12 12 5 19 12"></polyline></svg>
+
+    </button>
+    
+  </aside>
+  <main>
+    
+<header>
+  <nav>
+    <a id="back-link" href="https:&#x2F;&#x2F;blog.cirray.cn&#x2F;posts">← Back</a>
+  </nav>
+</header>
+
+
+    <div>
+      
+      
+      
+      
+      <div id="copy-cfg" style="display: none;" data-copy-icon="&lt;svg xmlns=&quot;http:&#x2F;&#x2F;www.w3.org&#x2F;2000&#x2F;svg&quot; viewBox=&quot;0 0 24 24&quot; width=&quot;18&quot; height=&quot;18&quot;&gt;&lt;path d=&quot;M6.9998 6V3C6.9998 2.44772 7.44752 2 7.9998 2H19.9998C20.5521 2 20.9998 2.44772 20.9998 3V17C20.9998 17.5523 20.5521 18 19.9998 18H16.9998V20.9991C16.9998 21.5519 16.5499 22 15.993 22H4.00666C3.45059 22 3 21.5554 3 20.9991L3.0026 7.00087C3.0027 6.44811 3.45264 6 4.00942 6H6.9998ZM5.00242 8L5.00019 20H14.9998V8H5.00242ZM8.9998 6H16.9998V16H18.9998V4H8.9998V6Z&quot; fill=&quot;currentColor&quot;&gt;&lt;&#x2F;path&gt;&lt;&#x2F;svg&gt;
+" data-check-icon="&lt;svg xmlns=&quot;http:&#x2F;&#x2F;www.w3.org&#x2F;2000&#x2F;svg&quot; viewBox=&quot;0 0 24 24&quot; width=&quot;18&quot; height=&quot;18&quot;&gt;&lt;path d=&quot;M10.0007 15.1709L19.1931 5.97852L20.6073 7.39273L10.0007 17.9993L3.63672 11.6354L5.05093 10.2212L10.0007 15.1709Z&quot; fill=&quot;currentColor&quot;&gt;&lt;&#x2F;path&gt;&lt;&#x2F;svg&gt;
+"></div>
+      
+      <article class="prose">
+        <h1>记录下这两天Debug项目的问题与思考</h1>
+        <div id="post-info">
+          <div id="date">
+            <span id="publish">2026-04-14</span>
+            </div>
+
+          
+          <div id="tags">
+            <a class="instant" href="https://blog.cirray.cn/tags/claude"><span>#</span>claude</a><a class="instant" href="https://blog.cirray.cn/tags/opus"><span>#</span>opus</a><a class="instant" href="https://blog.cirray.cn/tags/sonnet"><span>#</span>sonnet</a><a class="instant" href="https://blog.cirray.cn/tags/artifact"><span>#</span>artifact</a><a class="instant" href="https://blog.cirray.cn/tags/cloudflare"><span>#</span>cloudflare</a><a class="instant" href="https://blog.cirray.cn/tags/debug"><span>#</span>debug</a>
+          </div>
+          
+        </div>
+
+        
+        
+
+        
+
+        <p>项目开始初具代码量规模，大几千行的样子。一个Pro账号已经基本应付不了了。<br />
+昨天花了一整天调一个 bug，Sonnet 每次改动都只会堆砌代码，问题始终没解决。今天换了 <code>claude --model opus-4-5</code>，它知道从另外一个角度出发，先去查阅相关技术资料文档，当然token量也在快速增加。</p>
+<hr />
+<h2 id="wen-ti-shi-shen-me">问题是什么<a class="zola-anchor" href="#wen-ti-shi-shen-me" aria-label="Anchor link for: wen-ti-shi-shen-me" style="visibility: hidden;"></a>
+</h2>
+<p>我在做一个功能：发消息让 Claude 生成 CAD 图纸（SVG/HTML），前端应该显示"正在生成产物"的转圈动画，完成后出现可点击的卡片，点卡片能在 iframe 里预览 HTML。</p>
+<p>听起来不复杂，但实际调试时掉进了一个坑：<strong>Cloudflare 和 <code>rendering_mode</code> 之间的矛盾</strong>。</p>
+<hr />
+<h2 id="rendering-mode-de-liang-nan">rendering_mode 的两难<a class="zola-anchor" href="#rendering-mode-de-liang-nan" aria-label="Anchor link for: rendering-mode-de-liang-nan" style="visibility: hidden;"></a>
+</h2>
+<p>Claude API 有个 <code>rendering_mode</code> 参数：</p>
+<ul>
+<li>不设 <code>"raw"</code> → Claude 返回 <code>&lt;antArtifact&gt;</code> 标签格式，前端能正确解析成产物卡片。但 Cloudflare 会拦截请求。</li>
+<li>设了 <code>"raw"</code> → 能绕过 Cloudflare，但 Claude 返回的是普通 markdown 代码块，不是 <code>&lt;antArtifact&gt;</code> 格式。</li>
+</ul>
+<p>昨天用 Sonnet 反复调试，它的策略是不断在前端代码里加各种兼容逻辑——试图同时处理两种格式、加 fallback、加正则匹配。代码越堆越多，但核心矛盾没解决。</p>
+<hr />
+<h2 id="opus-zen-me-chu-li-de">Opus 怎么处理的<a class="zola-anchor" href="#opus-zen-me-chu-li-de" aria-label="Anchor link for: opus-zen-me-chu-li-de" style="visibility: hidden;"></a>
+</h2>
+<p>换 Opus 之后，它没有继续在前端打补丁，而是直接指出了问题：</p>
+<blockquote>
+<p>rendering_mode 必须是 "raw" 才能过 Cloudflare，那就接受 markdown 代码块格式，改前端解析逻辑来适配这个格式。</p>
+</blockquote>
+<p>思路清晰，不纠结。与其两头兼顾，不如确定一个约束条件，然后围绕它设计。</p>
+<hr />
+<h2 id="shun-shou-zuo-liao-yi-ci-zhong-gou">顺手做了一次重构<a class="zola-anchor" href="#shun-shou-zuo-liao-yi-ci-zhong-gou" aria-label="Anchor link for: shun-shou-zuo-liao-yi-ci-zhong-gou" style="visibility: hidden;"></a>
+</h2>
+<p>之前在没有特别说明的情况下，代码都是堆砌到main.rs里的。导致之后改问题通常都会通读一遍这个大文件。我想这可能是我消耗token过快的一部分原因。</p>
+<p>这次模块拆分，把臃肿的单文件拆成了多个模块，每个文件 100-300 行。这样修 bug 时只需要读相关模块，token 消耗能降 80% 以上。</p>
+<p>代价是：<strong>这次重构瞬间把我 5 小时的 session token limit 烧没了。</strong></p>
+<hr />
+<h2 id="ti-hui">体会<a class="zola-anchor" href="#ti-hui" aria-label="Anchor link for: ti-hui" style="visibility: hidden;"></a>
+</h2>
+<p>Sonnet 适合执行明确的任务，但遇到需要判断"该改哪里"的问题时，它倾向于堆代码而不是退一步想清楚。Opus 贵是贵，但在关键的架构判断上确实更靠谱。</p>
+<p>有时候 debug 的关键不是写更多代码，而是想清楚约束条件，接受现实，然后围绕它设计。</p>
+
+      </article>
+
+      
+      
+
+      
+      
+      <div class="giscus"></div>
+      <style>
+#comments { margin-top: 3rem; padding: 0 15px; }
+.c-item { margin: 1.2rem 0; }
+.c-reply { margin-left: 1.5rem; padding-left: 1rem; border-left: 2px solid var(--text-decoration-color); }
+.c-meta { display: flex; align-items: center; gap: 0.6rem; margin-bottom: 0.3rem; font-size: 0.85em; }
+.c-name { font-weight: bold; color: var(--text-color); }
+.c-time { color: var(--text-pale-color); }
+.c-reply-btn {
+  background: none; border: none; padding: 0;
+  color: var(--primary-color); cursor: pointer;
+  font-size: 0.85em; opacity: 0;
+  transition: opacity 0.15s;
+}
+.c-item:hover .c-reply-btn { opacity: 1; }
+.c-body { color: var(--text-color); line-height: var(--line-height); white-space: pre-wrap; word-break: break-word; }
+.c-loading, .c-empty { color: var(--text-pale-color); font-size: 0.9em; padding: 1rem 0; }
+.c-form { margin-top: 2rem; display: flex; flex-direction: column; gap: 0.6rem; }
+.c-form-row { display: flex; gap: 0.6rem; }
+.c-input {
+  width: 100%; padding: 0.5rem 0.7rem;
+  border: 1.5px solid var(--text-decoration-color);
+  border-radius: 4px;
+  background: var(--bg-color); color: var(--text-color);
+  font-size: 0.9em; font-family: var(--main-font);
+  outline: none; transition: border-color 0.15s;
+}
+.c-input:focus { border-color: var(--primary-color); }
+.c-input-content { resize: vertical; min-height: 100px; }
+.c-reply-tip {
+  font-size: 0.85em; color: var(--primary-color);
+  padding: 0.2rem 0.5rem;
+  background: var(--inline-code-bg-color);
+  border-radius: 4px; align-self: flex-start;
+}
+.c-reply-tip::after { content: " ✕"; opacity: 0.5; }
+.c-form-actions { display: flex; justify-content: flex-end; }
+.c-submit {
+  padding: 0.4rem 1.2rem;
+  background: var(--primary-color); color: var(--bg-color);
+  border: none; border-radius: 4px;
+  cursor: pointer; font-size: 0.9em;
+  transition: opacity 0.15s;
+}
+.c-submit:hover { opacity: 0.85; }
+.c-submit:disabled { opacity: 0.5; cursor: not-allowed; }
+</style>
+<div id="comments" data-page="&#x2F;posts&#x2F;opus-debug-artifact-2026-04-14&#x2F;"></div>
+<script src="/comments.js"></script>
+
+
+      
+    </div>
+
+    
+
+
+<footer>
+  <div class="left">
+    <div class="copyright">
+      © 2026 Cirray AI
+      
+      <span>|</span>
+      Built with <a href="https://www.getzola.org" rel="noreferrer" target="_blank">zola</a> and <a href="https://github.com/isunjn/serene" rel="noreferrer" target="_blank">serene</a>
+      
+    </div>
+  </div>
+
+  <div class="right">
+    
+    
+    
+    
+
+    
+    
+    
+    <button id="theme-toggle" aria-label="theme switch">
+      <span class="moon-icon"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="18" height="18"><path d="M10 7C10 10.866 13.134 14 17 14C18.9584 14 20.729 13.1957 21.9995 11.8995C22 11.933 22 11.9665 22 12C22 17.5228 17.5228 22 12 22C6.47715 22 2 17.5228 2 12C2 6.47715 6.47715 2 12 2C12.0335 2 12.067 2 12.1005 2.00049C10.8043 3.27098 10 5.04157 10 7ZM4 12C4 16.4183 7.58172 20 12 20C15.0583 20 17.7158 18.2839 19.062 15.7621C18.3945 15.9187 17.7035 16 17 16C12.0294 16 8 11.9706 8 7C8 6.29648 8.08133 5.60547 8.2379 4.938C5.71611 6.28423 4 8.9417 4 12Z" fill="currentColor"></path></svg>
+</span>
+      <span class="sun-icon"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="18" height="18"><path d="M12 18C8.68629 18 6 15.3137 6 12C6 8.68629 8.68629 6 12 6C15.3137 6 18 8.68629 18 12C18 15.3137 15.3137 18 12 18ZM12 16C14.2091 16 16 14.2091 16 12C16 9.79086 14.2091 8 12 8C9.79086 8 8 9.79086 8 12C8 14.2091 9.79086 16 12 16ZM11 1H13V4H11V1ZM11 20H13V23H11V20ZM3.51472 4.92893L4.92893 3.51472L7.05025 5.63604L5.63604 7.05025L3.51472 4.92893ZM16.9497 18.364L18.364 16.9497L20.4853 19.0711L19.0711 20.4853L16.9497 18.364ZM19.0711 3.51472L20.4853 4.92893L18.364 7.05025L16.9497 5.63604L19.0711 3.51472ZM5.63604 16.9497L7.05025 18.364L4.92893 20.4853L3.51472 19.0711L5.63604 16.9497ZM23 11V13H20V11H23ZM4 11V13H1V11H4Z" fill="currentColor"></path></svg>
+</span>
+    </button>
+    
+  </div>
+</footer>
+
+
+
+
+
+  </main>
+</div>
+
+  
+<script src="/js/lightense.min.js"></script>
+
+
+  <script src="https://blog.cirray.cn/js/main.js"></script>
+</body>
+
+</html>

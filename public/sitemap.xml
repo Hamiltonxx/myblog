@@ -83,6 +83,10 @@
         <lastmod>2026-03-23</lastmod>
     </url>
     <url>
+        <loc>https://blog.cirray.cn/posts/opus-debug-artifact-2026-04-14/</loc>
+        <lastmod>2026-04-14</lastmod>
+    </url>
+    <url>
         <loc>https://blog.cirray.cn/posts/pixel-8a-china-volte-fix-2026-03-31/</loc>
         <lastmod>2026-03-31</lastmod>
     </url>
@@ -186,6 +190,9 @@
         <loc>https://blog.cirray.cn/tags/arc/</loc>
     </url>
     <url>
+        <loc>https://blog.cirray.cn/tags/artifact/</loc>
+    </url>
+    <url>
         <loc>https://blog.cirray.cn/tags/async/</loc>
     </url>
     <url>
@@ -223,6 +230,9 @@
     </url>
     <url>
         <loc>https://blog.cirray.cn/tags/cli/</loc>
+    </url>
+    <url>
+        <loc>https://blog.cirray.cn/tags/cloudflare/</loc>
     </url>
     <url>
         <loc>https://blog.cirray.cn/tags/concurrency/</loc>
@@ -315,6 +325,9 @@
         <loc>https://blog.cirray.cn/tags/okx/</loc>
     </url>
     <url>
+        <loc>https://blog.cirray.cn/tags/opus/</loc>
+    </url>
+    <url>
         <loc>https://blog.cirray.cn/tags/pathbuf/</loc>
     </url>
     <url>
@@ -349,6 +362,9 @@
     </url>
     <url>
         <loc>https://blog.cirray.cn/tags/skill-loading/</loc>
+    </url>
+    <url>
+        <loc>https://blog.cirray.cn/tags/sonnet/</loc>
     </url>
     <url>
         <loc>https://blog.cirray.cn/tags/sqlite/</loc>
