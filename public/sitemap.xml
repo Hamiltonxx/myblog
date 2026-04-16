@@ -39,6 +39,10 @@
         <lastmod>2026-04-09</lastmod>
     </url>
     <url>
+        <loc>https://blog.cirray.cn/posts/cirray-chat-startup-pitch-2026-04-16/</loc>
+        <lastmod>2026-04-16</lastmod>
+    </url>
+    <url>
         <loc>https://blog.cirray.cn/posts/claude-code-guide/</loc>
         <lastmod>2026-03-20</lastmod>
     </url>
@@ -331,6 +335,9 @@
         <loc>https://blog.cirray.cn/tags/pathbuf/</loc>
     </url>
     <url>
+        <loc>https://blog.cirray.cn/tags/pitch/</loc>
+    </url>
+    <url>
         <loc>https://blog.cirray.cn/tags/pixel/</loc>
     </url>
     <url>
@@ -371,6 +378,9 @@
     </url>
     <url>
         <loc>https://blog.cirray.cn/tags/sse/</loc>
+    </url>
+    <url>
+        <loc>https://blog.cirray.cn/tags/startup/</loc>
     </url>
     <url>
         <loc>https://blog.cirray.cn/tags/state-machine/</loc>
