@@ -1,0 +1,510 @@
+<!DOCTYPE html>
+
+<html lang="zh">
+
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="color-scheme" content="light dark">
+  
+  
+    
+  
+  <meta name="description" content="从零理解K线、EMA、ATR、胜率赔率，以及我用Rust写了一个回测框架后得到的-54%结论。">
+
+  <title>散户做比特币方向性交易，会怎样？</title>
+  <link rel="icon" type="image/png" sizes="32x32" href="https://blog.cirray.cn/img/favicon-32x32.png">
+  <link rel="icon" type="image/png" sizes="16x16" href="https://blog.cirray.cn/img/favicon-16x16.png">
+  <link rel="apple-touch-icon" sizes="180x180" href="https://blog.cirray.cn/img/apple-touch-icon.png">
+  
+  <style>
+
+  /* light mode colors */
+  body {
+    --primary-color: #5871a2;
+    --primary-pale-color: #5871a233;
+    --primary-decoration-color: #5871a210;
+    --bg-color: #ffffff;
+    --text-color: #2f3030;
+    --text-pale-color: #767676;
+    --text-decoration-color: #a9a9a9;
+    --highlight-mark-color: #5f75b020;
+
+    --callout-note-color: #5871a2;
+    --callout-tip-color: #268556;
+    --callout-important-color: #885fc9;
+    --callout-warning-color: #ab6632;
+    --callout-caution-color: #c64e4e;
+  }
+
+  /* dark mode colors */
+  body.dark {
+    --primary-color: #6f8fd1;
+    --primary-pale-color: #6f8fd166;
+    --primary-decoration-color: #6f8fd112;
+    --bg-color: #1c1c1c;
+    --text-color: #c1c1c1;
+    --text-pale-color: #848484;
+    --text-decoration-color: #5f5f5f;
+    --highlight-mark-color: #8296cb3b;
+
+    --callout-note-color: #6f8fd1;
+    --callout-tip-color: #47976f;
+    --callout-important-color: #9776cd;
+    --callout-warning-color: #ad7a52;
+    --callout-caution-color: #d06161;
+  }
+
+  /* typography */
+  body {
+    --main-font: ui-sans-serif, system-ui, sans-serif, 'Apple Color Emoji', 'Segoe UI Emoji', 'Segoe UI Symbol', 'Noto Color Emoji';
+    --code-font: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, 'Liberation Mono', 'Courier New', monospace;
+    --homepage-max-width: 768px;
+    --main-max-width: 768px;
+    --avatar-size: 60px;
+    --font-size: 16px;
+    --line-height: 1.75;
+    --img-border-radius: 0px;
+    --detail-border-radius: 0px;
+    --dark-mode-img-brightness: 0.75;
+    --dark-mode-chart-brightness: 0.75;
+    --inline-code-border-radius: 2px;
+    --inline-code-bg-color: var(--primary-decoration-color);
+    --block-code-border-radius: 0px;
+    --block-code-border-color: var(--primary-color);
+    --detail-border-color: var(--primary-color);
+  }
+
+</style>
+
+  <link rel="stylesheet" href="https://blog.cirray.cn/main.css">
+  
+
+<link id="hl" rel="stylesheet" type="text/css" href="/giallo-light.css" />
+
+
+
+  
+</head>
+
+<body class="post">
+  
+  <script>
+    const theme = sessionStorage.getItem('theme');
+    const match = window.matchMedia("(prefers-color-scheme: dark)").matches;
+    if ((theme && theme == 'dark') || (!theme && match)) {
+      document.body.classList.add('dark');
+      const hl = document.querySelector('link#hl');
+      if (hl) hl.href = 'https://blog.cirray.cn/giallo-dark.css';
+    }
+  </script>
+  
+  
+<div id="wrapper">
+  <div id="blank"></div>
+  <aside>
+    
+    
+    <nav>
+      <ul>
+        
+        <li>
+          <a class="h2" href="#tao-li-vs-fang-xiang-xing-jiao-yi">套利 vs 方向性交易</a>
+          
+        </li>
+        
+        <li>
+          <a class="h2" href="#ji-chu-gai-nian">基础概念</a>
+          
+          <ul>
+            
+            <li>
+              <a class="h3" href="#kxian-shi-shen-me">K线是什么</a>
+            </li>
+            
+            <li>
+              <a class="h3" href="#ema-zhi-shu-yi-dong-ping-jun-xian">EMA（指数移动平均线）</a>
+            </li>
+            
+            <li>
+              <a class="h3" href="#atr-ping-jun-zhen-shi-bo-fu">ATR（平均真实波幅）</a>
+            </li>
+            
+            <li>
+              <a class="h3" href="#sheng-lu-he-pei-lu">胜率和赔率</a>
+            </li>
+            
+          </ul>
+          
+        </li>
+        
+        <li>
+          <a class="h2" href="#yong-rustxie-liao-ge-hui-ce-kuang-jia">用Rust写了个回测框架</a>
+          
+          <ul>
+            
+            <li>
+              <a class="h3" href="#kuang-jia-jie-gou">框架结构</a>
+            </li>
+            
+            <li>
+              <a class="h3" href="#la-kxian-shu-ju">拉K线数据</a>
+            </li>
+            
+            <li>
+              <a class="h3" href="#zhi-biao-ji-suan">指标计算</a>
+            </li>
+            
+            <li>
+              <a class="h3" href="#mo-ni-yin-qing">模拟引擎</a>
+            </li>
+            
+          </ul>
+          
+        </li>
+        
+        <li>
+          <a class="h2" href="#hui-ce-jie-guo-yu-liao">回测结果：亏了</a>
+          
+          <ul>
+            
+            <li>
+              <a class="h3" href="#1hzhou-qi-zuo-duo-zuo-kong">1H周期，做多+做空</a>
+            </li>
+            
+            <li>
+              <a class="h3" href="#4hzhou-qi-zhi-zuo-duo">4H周期，只做多</a>
+            </li>
+            
+          </ul>
+          
+        </li>
+        
+        <li>
+          <a class="h2" href="#wei-shen-me-jing-dian-ce-lue-bu-hao-shi">为什么经典策略不好使</a>
+          
+        </li>
+        
+        <li>
+          <a class="h2" href="#ren-min-bi-zen-me-mai-bi-te-bi">人民币怎么买比特币</a>
+          
+        </li>
+        
+        <li>
+          <a class="h2" href="#xia-yi-bu">下一步</a>
+          
+        </li>
+        
+      </ul>
+    </nav>
+    
+    
+    <button id="back-to-top" aria-label="back to top">
+      
+      <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="feather feather-arrow-up"><line x1="12" y1="19" x2="12" y2="5"></line><polyline points="5 12 12 5 19 12"></polyline></svg>
+
+    </button>
+    
+  </aside>
+  <main>
+    
+<header>
+  <nav>
+    <a id="back-link" href="https:&#x2F;&#x2F;blog.cirray.cn&#x2F;posts">← Back</a>
+  </nav>
+</header>
+
+
+    <div>
+      
+      
+      
+      
+      <div id="copy-cfg" style="display: none;" data-copy-icon="&lt;svg xmlns=&quot;http:&#x2F;&#x2F;www.w3.org&#x2F;2000&#x2F;svg&quot; viewBox=&quot;0 0 24 24&quot; width=&quot;18&quot; height=&quot;18&quot;&gt;&lt;path d=&quot;M6.9998 6V3C6.9998 2.44772 7.44752 2 7.9998 2H19.9998C20.5521 2 20.9998 2.44772 20.9998 3V17C20.9998 17.5523 20.5521 18 19.9998 18H16.9998V20.9991C16.9998 21.5519 16.5499 22 15.993 22H4.00666C3.45059 22 3 21.5554 3 20.9991L3.0026 7.00087C3.0027 6.44811 3.45264 6 4.00942 6H6.9998ZM5.00242 8L5.00019 20H14.9998V8H5.00242ZM8.9998 6H16.9998V16H18.9998V4H8.9998V6Z&quot; fill=&quot;currentColor&quot;&gt;&lt;&#x2F;path&gt;&lt;&#x2F;svg&gt;
+" data-check-icon="&lt;svg xmlns=&quot;http:&#x2F;&#x2F;www.w3.org&#x2F;2000&#x2F;svg&quot; viewBox=&quot;0 0 24 24&quot; width=&quot;18&quot; height=&quot;18&quot;&gt;&lt;path d=&quot;M10.0007 15.1709L19.1931 5.97852L20.6073 7.39273L10.0007 17.9993L3.63672 11.6354L5.05093 10.2212L10.0007 15.1709Z&quot; fill=&quot;currentColor&quot;&gt;&lt;&#x2F;path&gt;&lt;&#x2F;svg&gt;
+"></div>
+      
+      <article class="prose">
+        <h1>散户做比特币方向性交易，会怎样？</h1>
+        <div id="post-info">
+          <div id="date">
+            <span id="publish">2026-04-19</span>
+            </div>
+
+          
+          <div id="tags">
+            <a class="instant" href="https://blog.cirray.cn/tags/bitcoin"><span>#</span>bitcoin</a><a class="instant" href="https://blog.cirray.cn/tags/trading"><span>#</span>trading</a><a class="instant" href="https://blog.cirray.cn/tags/rust"><span>#</span>rust</a><a class="instant" href="https://blog.cirray.cn/tags/backtest"><span>#</span>backtest</a><a class="instant" href="https://blog.cirray.cn/tags/okx"><span>#</span>okx</a>
+          </div>
+          
+        </div>
+
+        
+        
+
+        
+
+        <p>今天把比特币方向性交易研究了一遍，从基础概念到写回测代码跑结果，结论是：<strong>用经典策略做方向性交易，大概率亏钱</strong>。记录一下整个思路。</p>
+<hr />
+<h2 id="tao-li-vs-fang-xiang-xing-jiao-yi">套利 vs 方向性交易<a class="zola-anchor" href="#tao-li-vs-fang-xiang-xing-jiao-yi" aria-label="Anchor link for: tao-li-vs-fang-xiang-xing-jiao-yi" style="visibility: hidden;"></a>
+</h2>
+<p>我之前的项目是做资金费率套利，最近市场冷清，费率太低没得套，就想转去做方向性交易。</p>
+<p>两种策略的区别：</p>
+<table><thead><tr><th></th><th>资金费率套利</th><th>方向性交易</th></tr></thead><tbody>
+<tr><td>风险</td><td>低，市场中性</td><td>高，方向错就亏</td></tr>
+<tr><td>收益</td><td>稳定，年化10~30%</td><td>不稳定，可能很高也可能归零</td></tr>
+<tr><td>技术门槛</td><td>高，需要系统</td><td>低，开仓就行</td></tr>
+<tr><td>长期胜率</td><td>&gt;90%</td><td>散户普遍&lt;50%</td></tr>
+</tbody></table>
+<p>套利赚的是市场结构的钱，不需要预测涨跌。方向性交易赚的是"我比别人更准"的钱——这很难。</p>
+<hr />
+<h2 id="ji-chu-gai-nian">基础概念<a class="zola-anchor" href="#ji-chu-gai-nian" aria-label="Anchor link for: ji-chu-gai-nian" style="visibility: hidden;"></a>
+</h2>
+<h3 id="kxian-shi-shen-me">K线是什么<a class="zola-anchor" href="#kxian-shi-shen-me" aria-label="Anchor link for: kxian-shi-shen-me" style="visibility: hidden;"></a>
+</h3>
+<p>每根K线代表一段时间内的价格变化，包含四个数据：</p>
+<pre class="giallo z-code"><code data-lang="plain"><span class="giallo-l"><span>      │  ← 最高价</span></span>
+<span class="giallo-l"><span>     ███</span></span>
+<span class="giallo-l"><span>     ███  ← 实体（开盘价～收盘价）</span></span>
+<span class="giallo-l"><span>     ███</span></span>
+<span class="giallo-l"><span>      │  ← 最低价</span></span></code></pre>
+<ul>
+<li><strong>开盘价</strong>：这段时间第一笔成交价</li>
+<li><strong>收盘价</strong>：最后一笔成交价</li>
+<li><strong>最高价/最低价</strong>：期间极值</li>
+</ul>
+<p>1H K线 = 每小时一根，4H K线 = 每4小时一根。周期越长，噪音越少，信号越可靠。</p>
+<hr />
+<h3 id="ema-zhi-shu-yi-dong-ping-jun-xian">EMA（指数移动平均线）<a class="zola-anchor" href="#ema-zhi-shu-yi-dong-ping-jun-xian" aria-label="Anchor link for: ema-zhi-shu-yi-dong-ping-jun-xian" style="visibility: hidden;"></a>
+</h3>
+<p>EMA = Exponential Moving Average，理解为"近期价格的加权平均"，越近的价格权重越大。</p>
+<ul>
+<li><strong>EMA20</strong>：近20根K线均价，反应快，贴近当前价格</li>
+<li><strong>EMA60</strong>：近60根K线均价，反应慢，代表中期趋势</li>
+</ul>
+<p>经典用法是<strong>双均线交叉</strong>：</p>
+<ul>
+<li>EMA20 上穿 EMA60 = <strong>金叉</strong> → 做多信号</li>
+<li>EMA20 下穿 EMA60 = <strong>死叉</strong> → 做空或离场信号</li>
+</ul>
+<hr />
+<h3 id="atr-ping-jun-zhen-shi-bo-fu">ATR（平均真实波幅）<a class="zola-anchor" href="#atr-ping-jun-zhen-shi-bo-fu" aria-label="Anchor link for: atr-ping-jun-zhen-shi-bo-fu" style="visibility: hidden;"></a>
+</h3>
+<p>ATR = Average True Range，衡量市场波动有多剧烈。</p>
+<pre class="giallo z-code"><code data-lang="plain"><span class="giallo-l"><span>ATR = 近14根K线的平均波动幅度</span></span></code></pre>
+<p>主要用来设止损：</p>
+<pre class="giallo z-code"><code data-lang="plain"><span class="giallo-l"><span>做多止损 = 入场价 - 2×ATR</span></span>
+<span class="giallo-l"><span>做空止损 = 入场价 + 2×ATR</span></span></code></pre>
+<p>波动大时止损宽，波动小时止损窄，避免被正常震荡扫出局。</p>
+<hr />
+<h3 id="sheng-lu-he-pei-lu">胜率和赔率<a class="zola-anchor" href="#sheng-lu-he-pei-lu" aria-label="Anchor link for: sheng-lu-he-pei-lu" style="visibility: hidden;"></a>
+</h3>
+<p>光有高胜率不够，关键是<strong>期望值</strong>：</p>
+<pre class="giallo z-code"><code data-lang="plain"><span class="giallo-l"><span>期望值 = 胜率 × 平均盈利 - 败率 × 平均亏损</span></span></code></pre>
+<p>例子：胜率45%，赔率2:1（平均赚2元、平均亏1元）</p>
+<pre class="giallo z-code"><code data-lang="plain"><span class="giallo-l"><span>期望值 = 0.45×2 - 0.55×1 = +0.35  ✅ 值得做</span></span></code></pre>
+<p>胜率低没关系，赔率高就行。专业量化基金胜率能到55~60%就算很好了。</p>
+<hr />
+<h2 id="yong-rustxie-liao-ge-hui-ce-kuang-jia">用Rust写了个回测框架<a class="zola-anchor" href="#yong-rustxie-liao-ge-hui-ce-kuang-jia" aria-label="Anchor link for: yong-rustxie-liao-ge-hui-ce-kuang-jia" style="visibility: hidden;"></a>
+</h2>
+<p>有了这些概念，就可以用历史数据验证策略，而不是用真钱做实验。</p>
+<h3 id="kuang-jia-jie-gou">框架结构<a class="zola-anchor" href="#kuang-jia-jie-gou" aria-label="Anchor link for: kuang-jia-jie-gou" style="visibility: hidden;"></a>
+</h3>
+<pre class="giallo z-code"><code data-lang="plain"><span class="giallo-l"><span>src/backtest/</span></span>
+<span class="giallo-l"><span>  kline.rs      ← 从OKX拉历史K线数据</span></span>
+<span class="giallo-l"><span>  indicators.rs ← 计算EMA和ATR</span></span>
+<span class="giallo-l"><span>  engine.rs     ← 模拟交易，统计结果</span></span>
+<span class="giallo-l"><span>  mod.rs        ← 输出报告</span></span></code></pre>
+<p>运行方式：</p>
+<pre class="giallo z-code"><code data-lang="shellscript"><span class="giallo-l"><span class="z-entity z-name">cargo</span><span class="z-string"> run</span><span class="z-constant"> -</span><span class="z-constant">-</span><span class="z-string"> backtest</span></span></code></pre><h3 id="la-kxian-shu-ju">拉K线数据<a class="zola-anchor" href="#la-kxian-shu-ju" aria-label="Anchor link for: la-kxian-shu-ju" style="visibility: hidden;"></a>
+</h3>
+<p>OKX有公开API，不需要鉴权：</p>
+<pre class="giallo z-code"><code data-lang="rust"><span class="giallo-l"><span class="z-punctuation z-definition z-comment">//</span><span class="z-comment"> 拉BTC-USDT 4H K线，获取540根（约90天）</span></span>
+<span class="giallo-l"><span class="z-storage z-type">let</span><span class="z-variable z-other"> klines</span><span class="z-keyword"> =</span><span class="z-entity z-name"> fetch_klines</span><span>(</span><span class="z-punctuation z-definition z-string">&quot;</span><span class="z-string">BTC-USDT</span><span class="z-punctuation z-definition z-string">&quot;</span><span>,</span><span class="z-punctuation z-definition z-string"> &quot;</span><span class="z-string">4H</span><span class="z-punctuation z-definition z-string">&quot;</span><span>,</span><span class="z-constant"> 540</span><span>)</span><span class="z-keyword">.</span><span class="z-keyword">await</span><span class="z-keyword">?</span><span>;</span></span></code></pre>
+<p>OKX每次最多返回100根，需要分页，用 <code>after</code> 参数传入最早那根的时间戳，循环拉取。</p>
+<p>API返回的是从新到旧，最后要 <code>reverse()</code> 变成时间正序。</p>
+<h3 id="zhi-biao-ji-suan">指标计算<a class="zola-anchor" href="#zhi-biao-ji-suan" aria-label="Anchor link for: zhi-biao-ji-suan" style="visibility: hidden;"></a>
+</h3>
+<p>EMA的核心是递推公式，k = 2/(period+1)：</p>
+<pre class="giallo z-code"><code data-lang="rust"><span class="giallo-l"><span class="z-keyword">pub</span><span class="z-keyword"> fn</span><span class="z-entity z-name"> ema</span><span>(</span><span class="z-variable z-other">prices</span><span class="z-keyword">:</span><span class="z-keyword"> &amp;</span><span>[</span><span class="z-entity z-name">f64</span><span>]</span><span>,</span><span class="z-variable z-other"> period</span><span class="z-keyword">:</span><span class="z-entity z-name"> usize</span><span>)</span><span class="z-keyword"> -&gt;</span><span class="z-entity z-name"> Vec</span><span>&lt;</span><span class="z-entity z-name">f64</span><span>&gt;</span><span> {</span></span>
+<span class="giallo-l"><span class="z-storage z-type">    let</span><span class="z-variable z-other"> k</span><span class="z-keyword"> =</span><span class="z-constant"> 2</span><span class="z-constant">.</span><span class="z-constant">0</span><span class="z-keyword"> /</span><span> (</span><span class="z-variable z-other">period</span><span class="z-keyword"> as</span><span class="z-entity z-name"> f64</span><span class="z-keyword"> +</span><span class="z-constant"> 1</span><span class="z-constant">.</span><span class="z-constant">0</span><span>)</span><span>;</span></span>
+<span class="giallo-l"><span class="z-punctuation z-definition z-comment">    //</span><span class="z-comment"> 前period个均值作为初始值</span></span>
+<span class="giallo-l"><span class="z-storage z-type">    let</span><span class="z-variable z-other"> init</span><span class="z-keyword"> =</span><span class="z-variable z-other"> prices</span><span>[</span><span class="z-keyword">..</span><span class="z-variable z-other">period</span><span>]</span><span class="z-keyword">.</span><span class="z-entity z-name">iter</span><span>(</span><span>)</span><span class="z-keyword">.</span><span class="z-entity z-name">sum</span><span class="z-keyword">::</span><span>&lt;</span><span class="z-entity z-name">f64</span><span>&gt;</span><span>(</span><span>)</span><span class="z-keyword"> /</span><span class="z-variable z-other"> period</span><span class="z-keyword"> as</span><span class="z-entity z-name"> f64</span><span>;</span></span>
+<span class="giallo-l"><span class="z-variable z-other">    result</span><span>[</span><span class="z-variable z-other">period</span><span class="z-keyword"> -</span><span class="z-constant"> 1</span><span>]</span><span class="z-keyword"> =</span><span class="z-variable z-other"> init</span><span>;</span></span>
+<span class="giallo-l"><span class="z-keyword">    for</span><span class="z-variable z-other"> i</span><span class="z-keyword"> in</span><span class="z-variable z-other"> period</span><span class="z-keyword">..</span><span class="z-variable z-other">prices</span><span class="z-keyword">.</span><span class="z-entity z-name">len</span><span>(</span><span>)</span><span> {</span></span>
+<span class="giallo-l"><span class="z-variable z-other">        result</span><span>[</span><span class="z-variable z-other">i</span><span>]</span><span class="z-keyword"> =</span><span class="z-variable z-other"> prices</span><span>[</span><span class="z-variable z-other">i</span><span>]</span><span class="z-keyword"> *</span><span class="z-variable z-other"> k</span><span class="z-keyword"> +</span><span class="z-variable z-other"> result</span><span>[</span><span class="z-variable z-other">i</span><span class="z-keyword"> -</span><span class="z-constant"> 1</span><span>]</span><span class="z-keyword"> *</span><span> (</span><span class="z-constant">1</span><span class="z-constant">.</span><span class="z-constant">0</span><span class="z-keyword"> -</span><span class="z-variable z-other"> k</span><span>)</span><span>;</span></span>
+<span class="giallo-l"><span>    }</span></span>
+<span class="giallo-l"><span class="z-variable z-other">    result</span></span>
+<span class="giallo-l"><span>}</span></span></code></pre>
+<p>ATR用真实波幅（考虑跳空）的EMA：</p>
+<pre class="giallo z-code"><code data-lang="rust"><span class="giallo-l"><span class="z-punctuation z-definition z-comment">//</span><span class="z-comment"> 真实波幅 = max(最高-最低, |最高-昨收|, |最低-昨收|)</span></span>
+<span class="giallo-l"><span class="z-storage z-type">let</span><span class="z-variable z-other"> tr</span><span class="z-keyword"> =</span><span class="z-variable z-other"> high_low</span><span class="z-keyword">.</span><span class="z-entity z-name">max</span><span>(</span><span class="z-variable z-other">high_prev</span><span>)</span><span class="z-keyword">.</span><span class="z-entity z-name">max</span><span>(</span><span class="z-variable z-other">low_prev</span><span>)</span><span>;</span></span></code></pre><h3 id="mo-ni-yin-qing">模拟引擎<a class="zola-anchor" href="#mo-ni-yin-qing" aria-label="Anchor link for: mo-ni-yin-qing" style="visibility: hidden;"></a>
+</h3>
+<p>策略逻辑很简单：金叉入场，死叉或止损出场。</p>
+<pre class="giallo z-code"><code data-lang="rust"><span class="giallo-l"><span class="z-punctuation z-definition z-comment">//</span><span class="z-comment"> 金叉做多</span></span>
+<span class="giallo-l"><span class="z-storage z-type">let</span><span class="z-variable z-other"> long_signal</span><span class="z-keyword"> =</span><span class="z-variable z-other"> prev_fast</span><span class="z-keyword"> &lt;</span><span class="z-variable z-other"> prev_slow</span><span class="z-keyword"> &amp;&amp;</span><span class="z-variable z-other"> curr_fast</span><span class="z-keyword"> &gt;=</span><span class="z-variable z-other"> curr_slow</span><span>;</span></span>
+<span class="giallo-l"></span>
+<span class="giallo-l"><span class="z-keyword">if</span><span class="z-variable z-other"> long_signal</span><span> {</span></span>
+<span class="giallo-l"><span class="z-variable z-other">    entry_price</span><span class="z-keyword"> =</span><span class="z-variable z-other"> price</span><span>;</span></span>
+<span class="giallo-l"><span class="z-variable z-other">    stop_price</span><span class="z-keyword"> =</span><span class="z-variable z-other"> price</span><span class="z-keyword"> -</span><span class="z-constant"> 2</span><span class="z-constant">.</span><span class="z-constant">0</span><span class="z-keyword"> *</span><span class="z-variable z-other"> atr</span><span>;</span><span class="z-punctuation z-definition z-comment">  //</span><span class="z-comment"> ATR止损</span></span>
+<span class="giallo-l"><span>}</span></span>
+<span class="giallo-l"></span>
+<span class="giallo-l"><span class="z-punctuation z-definition z-comment">//</span><span class="z-comment"> 止损或死叉出场</span></span>
+<span class="giallo-l"><span class="z-storage z-type">let</span><span class="z-variable z-other"> hit_stop</span><span class="z-keyword"> =</span><span class="z-variable z-other"> price</span><span class="z-keyword"> &lt;=</span><span class="z-variable z-other"> stop_price</span><span>;</span></span>
+<span class="giallo-l"><span class="z-storage z-type">let</span><span class="z-variable z-other"> cross_exit</span><span class="z-keyword"> =</span><span class="z-variable z-other"> prev_fast</span><span class="z-keyword"> &gt;=</span><span class="z-variable z-other"> prev_slow</span><span class="z-keyword"> &amp;&amp;</span><span class="z-variable z-other"> curr_fast</span><span class="z-keyword"> &lt;</span><span class="z-variable z-other"> curr_slow</span><span>;</span></span></code></pre>
+<p>手续费按OKX taker费率0.05%单边计算，杠杆3x：</p>
+<pre class="giallo z-code"><code data-lang="rust"><span class="giallo-l"><span class="z-storage z-type">let</span><span class="z-variable z-other"> pnl_pct</span><span class="z-keyword"> =</span><span> (</span><span class="z-variable z-other">price</span><span class="z-keyword"> -</span><span class="z-variable z-other"> entry_price</span><span>)</span><span class="z-keyword"> /</span><span class="z-variable z-other"> entry_price</span><span class="z-keyword"> *</span><span class="z-constant"> LEVERAGE</span></span>
+<span class="giallo-l"><span class="z-keyword">    -</span><span class="z-constant"> FEE_RATE</span><span class="z-keyword"> *</span><span class="z-constant"> 2</span><span class="z-constant">.</span><span class="z-constant">0</span><span class="z-keyword"> *</span><span class="z-constant"> LEVERAGE</span><span>;</span></span></code></pre>
+<hr />
+<h2 id="hui-ce-jie-guo-yu-liao">回测结果：亏了<a class="zola-anchor" href="#hui-ce-jie-guo-yu-liao" aria-label="Anchor link for: hui-ce-jie-guo-yu-liao" style="visibility: hidden;"></a>
+</h2>
+<h3 id="1hzhou-qi-zuo-duo-zuo-kong">1H周期，做多+做空<a class="zola-anchor" href="#1hzhou-qi-zuo-duo-zuo-kong" aria-label="Anchor link for: 1hzhou-qi-zuo-duo-zuo-kong" style="visibility: hidden;"></a>
+</h3>
+<pre class="giallo z-code"><code data-lang="plain"><span class="giallo-l"><span>总收益率:   -54.52%</span></span>
+<span class="giallo-l"><span>胜率:       18.2%</span></span>
+<span class="giallo-l"><span>盈亏比:     0.18</span></span>
+<span class="giallo-l"><span>总交易次数: 22</span></span></code></pre>
+<p>惨。原因是1H周期信号太频繁，大量假信号，手续费也在持续消耗。</p>
+<h3 id="4hzhou-qi-zhi-zuo-duo">4H周期，只做多<a class="zola-anchor" href="#4hzhou-qi-zhi-zuo-duo" aria-label="Anchor link for: 4hzhou-qi-zhi-zuo-duo" style="visibility: hidden;"></a>
+</h3>
+<pre class="giallo z-code"><code data-lang="plain"><span class="giallo-l"><span>总收益率:   -13.11%</span></span>
+<span class="giallo-l"><span>胜率:       0.0%</span></span>
+<span class="giallo-l"><span>总交易次数: 3</span></span></code></pre>
+<p>好一点，但3笔交易全亏，样本太少没有参考意义。</p>
+<hr />
+<h2 id="wei-shen-me-jing-dian-ce-lue-bu-hao-shi">为什么经典策略不好使<a class="zola-anchor" href="#wei-shen-me-jing-dian-ce-lue-bu-hao-shi" aria-label="Anchor link for: wei-shen-me-jing-dian-ce-lue-bu-hao-shi" style="visibility: hidden;"></a>
+</h2>
+<p>EMA双均线是<strong>最公开的策略</strong>，正因为太多人用：</p>
+<ul>
+<li>金叉时大家都买 → 主力拉高诱多 → 砸盘</li>
+<li>止损位置大家都差不多 → 主力精准扫损</li>
+</ul>
+<p>这叫"猎杀止损"，是真实存在的市场行为。散户策略越公开越容易被针对，真正赚钱的量化策略都是私密的、非对称的。</p>
+<hr />
+<h2 id="ren-min-bi-zen-me-mai-bi-te-bi">人民币怎么买比特币<a class="zola-anchor" href="#ren-min-bi-zen-me-mai-bi-te-bi" aria-label="Anchor link for: ren-min-bi-zen-me-mai-bi-te-bi" style="visibility: hidden;"></a>
+</h2>
+<p>在OKX上看起来是直接用人民币买，实际流程是：</p>
+<pre class="giallo z-code"><code data-lang="plain"><span class="giallo-l"><span>人民币 → 场外P2P撮合 → USDT → BTC</span></span></code></pre>
+<p>OKX把中间的USDT环节包装得很顺滑，但本质是P2P场外交易。</p>
+<p>手续费估算（1万元为例）：</p>
+<table><thead><tr><th>环节</th><th>费用</th></tr></thead><tbody>
+<tr><td>人民币→USDT（P2P差价）</td><td>0.5~1%</td></tr>
+<tr><td>USDT买BTC（现货）</td><td>0.1%</td></tr>
+<tr><td>BTC卖回USDT</td><td>0.1%</td></tr>
+<tr><td>USDT→人民币（P2P差价）</td><td>0.5~1%</td></tr>
+<tr><td><strong>合计</strong></td><td><strong>约1.2~2.2%</strong></td></tr>
+</tbody></table>
+<p>最大的风险不是手续费，而是银行卡被冻结——收到"来源不明"的资金是常见原因。</p>
+<hr />
+<h2 id="xia-yi-bu">下一步<a class="zola-anchor" href="#xia-yi-bu" aria-label="Anchor link for: xia-yi-bu" style="visibility: hidden;"></a>
+</h2>
+<p>方向性交易难度很高，下一步考虑转变思路：不预测方向，而是<strong>跟踪主力行为</strong>——监控合约未平仓量（OI）和链上大额转账，作为辅助信号。等资金费率市场变热，还是回到套利策略更稳。</p>
+
+      </article>
+
+      
+      
+
+      
+      
+      <div class="giscus"></div>
+      <style>
+#comments { margin-top: 3rem; padding: 0 15px; }
+.c-item { margin: 1.2rem 0; }
+.c-reply { margin-left: 1.5rem; padding-left: 1rem; border-left: 2px solid var(--text-decoration-color); }
+.c-meta { display: flex; align-items: center; gap: 0.6rem; margin-bottom: 0.3rem; font-size: 0.85em; }
+.c-name { font-weight: bold; color: var(--text-color); }
+.c-time { color: var(--text-pale-color); }
+.c-reply-btn {
+  background: none; border: none; padding: 0;
+  color: var(--primary-color); cursor: pointer;
+  font-size: 0.85em; opacity: 0;
+  transition: opacity 0.15s;
+}
+.c-item:hover .c-reply-btn { opacity: 1; }
+.c-body { color: var(--text-color); line-height: var(--line-height); white-space: pre-wrap; word-break: break-word; }
+.c-loading, .c-empty { color: var(--text-pale-color); font-size: 0.9em; padding: 1rem 0; }
+.c-form { margin-top: 2rem; display: flex; flex-direction: column; gap: 0.6rem; }
+.c-form-row { display: flex; gap: 0.6rem; }
+.c-input {
+  width: 100%; padding: 0.5rem 0.7rem;
+  border: 1.5px solid var(--text-decoration-color);
+  border-radius: 4px;
+  background: var(--bg-color); color: var(--text-color);
+  font-size: 0.9em; font-family: var(--main-font);
+  outline: none; transition: border-color 0.15s;
+}
+.c-input:focus { border-color: var(--primary-color); }
+.c-input-content { resize: vertical; min-height: 100px; }
+.c-reply-tip {
+  font-size: 0.85em; color: var(--primary-color);
+  padding: 0.2rem 0.5rem;
+  background: var(--inline-code-bg-color);
+  border-radius: 4px; align-self: flex-start;
+}
+.c-reply-tip::after { content: " ✕"; opacity: 0.5; }
+.c-form-actions { display: flex; justify-content: flex-end; }
+.c-submit {
+  padding: 0.4rem 1.2rem;
+  background: var(--primary-color); color: var(--bg-color);
+  border: none; border-radius: 4px;
+  cursor: pointer; font-size: 0.9em;
+  transition: opacity 0.15s;
+}
+.c-submit:hover { opacity: 0.85; }
+.c-submit:disabled { opacity: 0.5; cursor: not-allowed; }
+</style>
+<div id="comments" data-page="&#x2F;posts&#x2F;btc-directional-trading-basics-2026-04-19&#x2F;"></div>
+<script src="/comments.js"></script>
+
+
+      
+    </div>
+
+    
+
+
+<footer>
+  <div class="left">
+    <div class="copyright">
+      © 2026 Cirray AI
+      
+      <span>|</span>
+      Built with <a href="https://www.getzola.org" rel="noreferrer" target="_blank">zola</a> and <a href="https://github.com/isunjn/serene" rel="noreferrer" target="_blank">serene</a>
+      
+    </div>
+  </div>
+
+  <div class="right">
+    
+    
+    
+    
+
+    
+    
+    
+    <button id="theme-toggle" aria-label="theme switch">
+      <span class="moon-icon"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="18" height="18"><path d="M10 7C10 10.866 13.134 14 17 14C18.9584 14 20.729 13.1957 21.9995 11.8995C22 11.933 22 11.9665 22 12C22 17.5228 17.5228 22 12 22C6.47715 22 2 17.5228 2 12C2 6.47715 6.47715 2 12 2C12.0335 2 12.067 2 12.1005 2.00049C10.8043 3.27098 10 5.04157 10 7ZM4 12C4 16.4183 7.58172 20 12 20C15.0583 20 17.7158 18.2839 19.062 15.7621C18.3945 15.9187 17.7035 16 17 16C12.0294 16 8 11.9706 8 7C8 6.29648 8.08133 5.60547 8.2379 4.938C5.71611 6.28423 4 8.9417 4 12Z" fill="currentColor"></path></svg>
+</span>
+      <span class="sun-icon"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="18" height="18"><path d="M12 18C8.68629 18 6 15.3137 6 12C6 8.68629 8.68629 6 12 6C15.3137 6 18 8.68629 18 12C18 15.3137 15.3137 18 12 18ZM12 16C14.2091 16 16 14.2091 16 12C16 9.79086 14.2091 8 12 8C9.79086 8 8 9.79086 8 12C8 14.2091 9.79086 16 12 16ZM11 1H13V4H11V1ZM11 20H13V23H11V20ZM3.51472 4.92893L4.92893 3.51472L7.05025 5.63604L5.63604 7.05025L3.51472 4.92893ZM16.9497 18.364L18.364 16.9497L20.4853 19.0711L19.0711 20.4853L16.9497 18.364ZM19.0711 3.51472L20.4853 4.92893L18.364 7.05025L16.9497 5.63604L19.0711 3.51472ZM5.63604 16.9497L7.05025 18.364L4.92893 20.4853L3.51472 19.0711L5.63604 16.9497ZM23 11V13H20V11H23ZM4 11V13H1V11H4Z" fill="currentColor"></path></svg>
+</span>
+    </button>
+    
+  </div>
+</footer>
+
+
+
+
+
+  </main>
+</div>
+
+  
+<script src="/js/lightense.min.js"></script>
+
+
+  <script src="https://blog.cirray.cn/js/main.js"></script>
+</body>
+
+</html>

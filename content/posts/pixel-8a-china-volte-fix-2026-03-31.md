@@ -14,23 +14,14 @@ toc = true
 
 今天折腾了半天把 Pixel 8a 在国内跑通了——有信号、能上网，就是打不了电话。根本原因是 Google 没给国内运营商做 VoLTE 适配，把相关开关直接藏起来了。最终通过 Shizuku + Pixel IMS 解决，全程不需要 Root。
 
----
-
-## 开发者模式 & 时间不准
-
-第一步是开启开发者模式：**设置 → 关于手机 → 版本号，连点 7 次**，搞定后在「系统 → 开发者选项」里找到 USB 调试并开启。
-
-插上联通卡之后时间自动同步了（基站 NITZ 校准），这个倒不用单独处理。如果没卡的时候时间不准，可以用 ADB 把 NTP 服务器改成阿里云的：
-
-```bash
-adb shell settings put global ntp_server ntp.aliyun.com
-```
 
 ---
 
 ## 为什么有信号却打不了电话
 
-国内运营商已经基本关停了 2G/3G 网络，打电话必须走 VoLTE（通话走 4G/5G 数据通道）。Pixel 因为没有正式进入中国市场，固件里没有内置国内运营商的配置文件，系统识别到中国 SIM 卡时直接把 VoLTE 开关隐藏掉了。
+刚装上联通卡，有蜂窝信号，但是一打电话就打不出来，信号瞬间萎了。  
+国内运营商已经基本关停了 2G/3G 网络，打电话必须走 VoLTE（通话走 4G/5G 数据通道）。  
+Pixel 因为没有正式进入中国市场，固件里没有内置国内运营商的配置文件，系统识别到中国 SIM 卡时直接把 VoLTE 开关隐藏掉了。
 
 进设置找不到「高清通话」或「VoLTE」开关，这就是原因。
 
@@ -83,3 +74,29 @@ adb shell /data/app/~~<随机hash>==/moe.shizuku.privileged.api-<hash>==/lib/arm
 **系统更新后可能需要重来一次**：每次 Android 大版本更新后，Google 可能会重置运营商配置。到时候再用 ADB 跑一下 Shizuku 启动命令，进 Pixel IMS 确认开关还是 ON，重启即可。
 
 **不影响保修**：整个操作没有解锁 Bootloader，也没有 Root，不会触发 Google 的保修失效标志。
+
+## 联网后烦人的AT&T
+如果这时我们迫切要联(外)网，就会遇到经典的"AT&T IMS注册抢占"问题，Pixel在海外ROM下会主动向AT&T的IMS服务器发注册请求，干扰了联通的VoLTE/语音服务。
+所以我们先禁用carrier
+```shell
+adb shell pm list packages | grep carrier
+
+package:com.android.carrierdefaultapp
+package:com.google.android.carrierlocation
+package:com.google.android.apps.carrier.carrierwifi
+package:com.google.android.apps.carrier.log
+package:com.google.android.carriersetup
+package:com.google.android.carrier
+
+adb shell pm disable-user --user 0 com.google.android.carrier
+adb shell pm disable-user --user 0 com.google.android.carrierlocation
+adb shell pm disable-user --user 0 com.google.android.apps.carrier.log
+```
+现在可以装V2RayNG了，装好后 分应用代理 → 仅代理选定应用，把这些排除在外（不勾选）：
+```shell
+com.android.phone（电话服务）
+com.android.server.telecom（电话）
+com.google.android.dialer（电话）
+com.android.providers.telephony（电话和短信存储）
+com.google.android.carrier
+```

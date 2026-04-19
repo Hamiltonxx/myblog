@@ -109,11 +109,6 @@
       <ul>
         
         <li>
-          <a class="h2" href="#kai-fa-zhe-mo-shi-shi-jian-bu-zhun">开发者模式 &amp; 时间不准</a>
-          
-        </li>
-        
-        <li>
           <a class="h2" href="#wei-shen-me-you-xin-hao-que-da-bu-liao-dian-hua">为什么有信号却打不了电话</a>
           
         </li>
@@ -146,6 +141,11 @@
         
         <li>
           <a class="h2" href="#zhu-yi-shi-xiang">注意事项</a>
+          
+        </li>
+        
+        <li>
+          <a class="h2" href="#lian-wang-hou-fan-ren-de-at-t">联网后烦人的AT&amp;T</a>
           
         </li>
         
@@ -199,15 +199,11 @@
 
         <p>今天折腾了半天把 Pixel 8a 在国内跑通了——有信号、能上网，就是打不了电话。根本原因是 Google 没给国内运营商做 VoLTE 适配，把相关开关直接藏起来了。最终通过 Shizuku + Pixel IMS 解决，全程不需要 Root。</p>
 <hr />
-<h2 id="kai-fa-zhe-mo-shi-shi-jian-bu-zhun">开发者模式 &amp; 时间不准<a class="zola-anchor" href="#kai-fa-zhe-mo-shi-shi-jian-bu-zhun" aria-label="Anchor link for: kai-fa-zhe-mo-shi-shi-jian-bu-zhun" style="visibility: hidden;"></a>
-</h2>
-<p>第一步是开启开发者模式：<strong>设置 → 关于手机 → 版本号，连点 7 次</strong>，搞定后在「系统 → 开发者选项」里找到 USB 调试并开启。</p>
-<p>插上联通卡之后时间自动同步了（基站 NITZ 校准），这个倒不用单独处理。如果没卡的时候时间不准，可以用 ADB 把 NTP 服务器改成阿里云的：</p>
-<pre class="giallo z-code"><code data-lang="shellscript"><span class="giallo-l"><span class="z-entity z-name">adb</span><span class="z-string"> shell</span><span class="z-string"> settings</span><span class="z-string"> put</span><span class="z-string"> global</span><span class="z-string"> ntp_server</span><span class="z-string"> ntp.aliyun.com</span></span></code></pre>
-<hr />
 <h2 id="wei-shen-me-you-xin-hao-que-da-bu-liao-dian-hua">为什么有信号却打不了电话<a class="zola-anchor" href="#wei-shen-me-you-xin-hao-que-da-bu-liao-dian-hua" aria-label="Anchor link for: wei-shen-me-you-xin-hao-que-da-bu-liao-dian-hua" style="visibility: hidden;"></a>
 </h2>
-<p>国内运营商已经基本关停了 2G/3G 网络，打电话必须走 VoLTE（通话走 4G/5G 数据通道）。Pixel 因为没有正式进入中国市场，固件里没有内置国内运营商的配置文件，系统识别到中国 SIM 卡时直接把 VoLTE 开关隐藏掉了。</p>
+<p>刚装上联通卡，有蜂窝信号，但是一打电话就打不出来，信号瞬间萎了。<br />
+国内运营商已经基本关停了 2G/3G 网络，打电话必须走 VoLTE（通话走 4G/5G 数据通道）。<br />
+Pixel 因为没有正式进入中国市场，固件里没有内置国内运营商的配置文件，系统识别到中国 SIM 卡时直接把 VoLTE 开关隐藏掉了。</p>
 <p>进设置找不到「高清通话」或「VoLTE」开关，这就是原因。</p>
 <hr />
 <h2 id="jie-jue-fang-an-shizuku-pixel-ims">解决方案：Shizuku + Pixel IMS<a class="zola-anchor" href="#jie-jue-fang-an-shizuku-pixel-ims" aria-label="Anchor link for: jie-jue-fang-an-shizuku-pixel-ims" style="visibility: hidden;"></a>
@@ -243,7 +239,28 @@
 </h2>
 <p><strong>系统更新后可能需要重来一次</strong>：每次 Android 大版本更新后，Google 可能会重置运营商配置。到时候再用 ADB 跑一下 Shizuku 启动命令，进 Pixel IMS 确认开关还是 ON，重启即可。</p>
 <p><strong>不影响保修</strong>：整个操作没有解锁 Bootloader，也没有 Root，不会触发 Google 的保修失效标志。</p>
-
+<h2 id="lian-wang-hou-fan-ren-de-at-t">联网后烦人的AT&amp;T<a class="zola-anchor" href="#lian-wang-hou-fan-ren-de-at-t" aria-label="Anchor link for: lian-wang-hou-fan-ren-de-at-t" style="visibility: hidden;"></a>
+</h2>
+<p>如果这时我们迫切要联(外)网，就会遇到经典的"AT&amp;T IMS注册抢占"问题，Pixel在海外ROM下会主动向AT&amp;T的IMS服务器发注册请求，干扰了联通的VoLTE/语音服务。
+所以我们先禁用carrier</p>
+<pre class="giallo z-code"><code data-lang="shellscript"><span class="giallo-l"><span class="z-entity z-name">adb</span><span class="z-string"> shell</span><span class="z-string"> pm</span><span class="z-string"> list</span><span class="z-string"> packages</span><span class="z-keyword"> |</span><span class="z-entity z-name"> grep</span><span class="z-string"> carrier</span></span>
+<span class="giallo-l"></span>
+<span class="giallo-l"><span class="z-entity z-name">package:com.android.carrierdefaultapp</span></span>
+<span class="giallo-l"><span class="z-entity z-name">package:com.google.android.carrierlocation</span></span>
+<span class="giallo-l"><span class="z-entity z-name">package:com.google.android.apps.carrier.carrierwifi</span></span>
+<span class="giallo-l"><span class="z-entity z-name">package:com.google.android.apps.carrier.log</span></span>
+<span class="giallo-l"><span class="z-entity z-name">package:com.google.android.carriersetup</span></span>
+<span class="giallo-l"><span class="z-entity z-name">package:com.google.android.carrier</span></span>
+<span class="giallo-l"></span>
+<span class="giallo-l"><span class="z-entity z-name">adb</span><span class="z-string"> shell</span><span class="z-string"> pm</span><span class="z-string"> disable-user</span><span class="z-constant"> -</span><span class="z-constant">-user</span><span class="z-constant"> 0</span><span class="z-string"> com.google.android.carrier</span></span>
+<span class="giallo-l"><span class="z-entity z-name">adb</span><span class="z-string"> shell</span><span class="z-string"> pm</span><span class="z-string"> disable-user</span><span class="z-constant"> -</span><span class="z-constant">-user</span><span class="z-constant"> 0</span><span class="z-string"> com.google.android.carrierlocation</span></span>
+<span class="giallo-l"><span class="z-entity z-name">adb</span><span class="z-string"> shell</span><span class="z-string"> pm</span><span class="z-string"> disable-user</span><span class="z-constant"> -</span><span class="z-constant">-user</span><span class="z-constant"> 0</span><span class="z-string"> com.google.android.apps.carrier.log</span></span></code></pre>
+<p>现在可以装V2RayNG了，装好后 分应用代理 → 仅代理选定应用，把这些排除在外（不勾选）：</p>
+<pre class="giallo z-code"><code data-lang="shellscript"><span class="giallo-l"><span class="z-entity z-name">com.android.phone（电话服务）</span></span>
+<span class="giallo-l"><span class="z-entity z-name">com.android.server.telecom（电话）</span></span>
+<span class="giallo-l"><span class="z-entity z-name">com.google.android.dialer（电话）</span></span>
+<span class="giallo-l"><span class="z-entity z-name">com.android.providers.telephony（电话和短信存储）</span></span>
+<span class="giallo-l"><span class="z-entity z-name">com.google.android.carrier</span></span></code></pre>
       </article>
 
       

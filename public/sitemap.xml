@@ -35,6 +35,10 @@
         <lastmod>2026-03-22</lastmod>
     </url>
     <url>
+        <loc>https://blog.cirray.cn/posts/btc-directional-trading-basics-2026-04-19/</loc>
+        <lastmod>2026-04-19</lastmod>
+    </url>
+    <url>
         <loc>https://blog.cirray.cn/posts/cirray-chat-frontend-backend-2026-04-09/</loc>
         <lastmod>2026-04-09</lastmod>
     </url>
@@ -214,6 +218,12 @@
     </url>
     <url>
         <loc>https://blog.cirray.cn/tags/background-tasks/</loc>
+    </url>
+    <url>
+        <loc>https://blog.cirray.cn/tags/backtest/</loc>
+    </url>
+    <url>
+        <loc>https://blog.cirray.cn/tags/bitcoin/</loc>
     </url>
     <url>
         <loc>https://blog.cirray.cn/tags/blog/</loc>
@@ -415,6 +425,9 @@
     </url>
     <url>
         <loc>https://blog.cirray.cn/tags/trading-bot/</loc>
+    </url>
+    <url>
+        <loc>https://blog.cirray.cn/tags/trading/</loc>
     </url>
     <url>
         <loc>https://blog.cirray.cn/tags/trait/</loc>
