@@ -100,3 +100,51 @@ com.google.android.dialer（电话）
 com.android.providers.telephony（电话和短信存储）
 com.google.android.carrier
 ```
+
+## 不小心点了Google Play，又触发了 AT&T
+没有别的办法，只能恢复出厂设置，重新来一遍
+### 开启开发者模式
+设置 -> 关于手机 -> 版本号， 连点7次
+设置 -> 系统 -> 开发者选项(可能需要重启) -> 打开 USB 调试
+### shizuku && Pixel IMS
+数据线接电脑  adb install shizuku.apk
+adb shell pm list packages | grep shizuku
+adb shell pm path moe.shizuku.privileged.api
+  package:/data/app/~~krOU6KswTolDAdoCh-9-6g==/moe.shizuku.privileged.api-NBkyK-uyBOLSS5I94XdTKw==/base.apk
+  
+adb shell /data/app/~~krOU6KswTolDAdoCh-9-6g==/moe.shizuku.privileged.api-NBkyK-uyBOLSS5I94XdTKw==/lib/arm64/libshizuku.so
+
+adb install enablevolte.apk
+打开 Pixel IMS, 启用 VoLTE, 过几秒 IMS 状态就是 已注册
+确认下能打电话了
+### 禁用 carrier
+```shell
+adb shell pm disable-user --user 0 com.google.android.carrier
+adb shell pm disable-user --user 0 com.google.android.carrierlocation
+adb shell pm disable-user --user 0 com.google.android.apps.carrier.log
+```
+### 禁用 Google 系 app
+```shell
+adb shell pm disable-user --user 0 com.google.android.youtube
+adb shell pm disable-user --user 0 com.google.android.gm
+adb shell pm disable-user --user 0 com.google.android.googlequicksearchbox
+adb shell pm disable-user --user 0 com.google.android.apps.maps
+adb shell pm disable-user --user 0 com.google.android.apps.docs
+#adb shell pm disable-user --user 0 com.android.chrome
+adb shell pm disable-user --user 0 com.google.android.apps.tachyon
+adb shell pm disable-user --user 0 com.google.android.videos
+adb shell pm disable-user --user 0 com.android.vending
+adb shell pm disable-user --user 0 com.google.android.calendar
+adb shell pm disable-user --user 0 com.google.android.apps.safetyhub
+adb shell pm disable-user --user 0 com.google.android.apps.weather
+adb shell pm disable-user --user 0 com.google.android.apps.nbu.files
+adb shell pm disable-user --user 0 com.google.android.apps.youtube.music
+adb shell pm disable-user --user 0 com.android.stk
+```
+## 安装国内应用
+```shell
+adb install weixin
+adb install via(browser)
+adb install amap
+```
+## 安装 V2RayNG

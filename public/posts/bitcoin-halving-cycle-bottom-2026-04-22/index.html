@@ -1,0 +1,409 @@
+<!DOCTYPE html>
+
+<html lang="zh">
+
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="color-scheme" content="light dark">
+  
+  
+    
+  
+  <meta name="description" content="用四个减半周期的完整数据说话，分析当前 $72k 是底部还是中途站，并给出普通人的操作建议。">
+
+  <title>现在又到了比特币第四减半周期的最低点了吗？</title>
+  <link rel="icon" type="image/png" sizes="32x32" href="https://blog.cirray.cn/img/favicon-32x32.png">
+  <link rel="icon" type="image/png" sizes="16x16" href="https://blog.cirray.cn/img/favicon-16x16.png">
+  <link rel="apple-touch-icon" sizes="180x180" href="https://blog.cirray.cn/img/apple-touch-icon.png">
+  
+  <style>
+
+  /* light mode colors */
+  body {
+    --primary-color: #5871a2;
+    --primary-pale-color: #5871a233;
+    --primary-decoration-color: #5871a210;
+    --bg-color: #ffffff;
+    --text-color: #2f3030;
+    --text-pale-color: #767676;
+    --text-decoration-color: #a9a9a9;
+    --highlight-mark-color: #5f75b020;
+
+    --callout-note-color: #5871a2;
+    --callout-tip-color: #268556;
+    --callout-important-color: #885fc9;
+    --callout-warning-color: #ab6632;
+    --callout-caution-color: #c64e4e;
+  }
+
+  /* dark mode colors */
+  body.dark {
+    --primary-color: #6f8fd1;
+    --primary-pale-color: #6f8fd166;
+    --primary-decoration-color: #6f8fd112;
+    --bg-color: #1c1c1c;
+    --text-color: #c1c1c1;
+    --text-pale-color: #848484;
+    --text-decoration-color: #5f5f5f;
+    --highlight-mark-color: #8296cb3b;
+
+    --callout-note-color: #6f8fd1;
+    --callout-tip-color: #47976f;
+    --callout-important-color: #9776cd;
+    --callout-warning-color: #ad7a52;
+    --callout-caution-color: #d06161;
+  }
+
+  /* typography */
+  body {
+    --main-font: ui-sans-serif, system-ui, sans-serif, 'Apple Color Emoji', 'Segoe UI Emoji', 'Segoe UI Symbol', 'Noto Color Emoji';
+    --code-font: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, 'Liberation Mono', 'Courier New', monospace;
+    --homepage-max-width: 768px;
+    --main-max-width: 768px;
+    --avatar-size: 60px;
+    --font-size: 16px;
+    --line-height: 1.75;
+    --img-border-radius: 0px;
+    --detail-border-radius: 0px;
+    --dark-mode-img-brightness: 0.75;
+    --dark-mode-chart-brightness: 0.75;
+    --inline-code-border-radius: 2px;
+    --inline-code-bg-color: var(--primary-decoration-color);
+    --block-code-border-radius: 0px;
+    --block-code-border-color: var(--primary-color);
+    --detail-border-color: var(--primary-color);
+  }
+
+</style>
+
+  <link rel="stylesheet" href="https://blog.cirray.cn/main.css">
+  
+
+<link id="hl" rel="stylesheet" type="text/css" href="/giallo-light.css" />
+
+
+
+  
+</head>
+
+<body class="post">
+  
+  <script>
+    const theme = sessionStorage.getItem('theme');
+    const match = window.matchMedia("(prefers-color-scheme: dark)").matches;
+    if ((theme && theme == 'dark') || (!theme && match)) {
+      document.body.classList.add('dark');
+      const hl = document.querySelector('link#hl');
+      if (hl) hl.href = 'https://blog.cirray.cn/giallo-dark.css';
+    }
+  </script>
+  
+  
+<div id="wrapper">
+  <div id="blank"></div>
+  <aside>
+    
+    
+    <nav>
+      <ul>
+        
+        <li>
+          <a class="h2" href="#si-ge-jian-ban-zhou-qi-wan-zheng-shu-ju">四个减半周期完整数据</a>
+          
+          <ul>
+            
+            <li>
+              <a class="h3" href="#di-yi-zhou-qi-2009-2012">第一周期（2009 - 2012）</a>
+            </li>
+            
+            <li>
+              <a class="h3" href="#di-er-zhou-qi-2012-2016">第二周期（2012 - 2016）</a>
+            </li>
+            
+            <li>
+              <a class="h3" href="#di-san-zhou-qi-2016-2020">第三周期（2016 - 2020）</a>
+            </li>
+            
+            <li>
+              <a class="h3" href="#di-si-zhou-qi-2020-2024-jin-xing-zhong">第四周期（2020 - 2024，进行中）</a>
+            </li>
+            
+          </ul>
+          
+        </li>
+        
+        <li>
+          <a class="h2" href="#san-ge-qing-xi-de-li-shi-gui-lu">三个清晰的历史规律</a>
+          
+        </li>
+        
+        <li>
+          <a class="h2" href="#xian-zai-shi-di-bu-ma-san-chong-qing-jing">现在是底部吗？三种情景</a>
+          
+        </li>
+        
+        <li>
+          <a class="h2" href="#dui-pu-tong-ren-de-jian-yi">对普通人的建议</a>
+          
+        </li>
+        
+      </ul>
+    </nav>
+    
+    
+    <button id="back-to-top" aria-label="back to top">
+      
+      <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="feather feather-arrow-up"><line x1="12" y1="19" x2="12" y2="5"></line><polyline points="5 12 12 5 19 12"></polyline></svg>
+
+    </button>
+    
+  </aside>
+  <main>
+    
+<header>
+  <nav>
+    <a id="back-link" href="https:&#x2F;&#x2F;blog.cirray.cn&#x2F;posts">← Back</a>
+  </nav>
+</header>
+
+
+    <div>
+      
+      
+      
+      
+      <div id="copy-cfg" style="display: none;" data-copy-icon="&lt;svg xmlns=&quot;http:&#x2F;&#x2F;www.w3.org&#x2F;2000&#x2F;svg&quot; viewBox=&quot;0 0 24 24&quot; width=&quot;18&quot; height=&quot;18&quot;&gt;&lt;path d=&quot;M6.9998 6V3C6.9998 2.44772 7.44752 2 7.9998 2H19.9998C20.5521 2 20.9998 2.44772 20.9998 3V17C20.9998 17.5523 20.5521 18 19.9998 18H16.9998V20.9991C16.9998 21.5519 16.5499 22 15.993 22H4.00666C3.45059 22 3 21.5554 3 20.9991L3.0026 7.00087C3.0027 6.44811 3.45264 6 4.00942 6H6.9998ZM5.00242 8L5.00019 20H14.9998V8H5.00242ZM8.9998 6H16.9998V16H18.9998V4H8.9998V6Z&quot; fill=&quot;currentColor&quot;&gt;&lt;&#x2F;path&gt;&lt;&#x2F;svg&gt;
+" data-check-icon="&lt;svg xmlns=&quot;http:&#x2F;&#x2F;www.w3.org&#x2F;2000&#x2F;svg&quot; viewBox=&quot;0 0 24 24&quot; width=&quot;18&quot; height=&quot;18&quot;&gt;&lt;path d=&quot;M10.0007 15.1709L19.1931 5.97852L20.6073 7.39273L10.0007 17.9993L3.63672 11.6354L5.05093 10.2212L10.0007 15.1709Z&quot; fill=&quot;currentColor&quot;&gt;&lt;&#x2F;path&gt;&lt;&#x2F;svg&gt;
+"></div>
+      
+      <article class="prose">
+        <h1>现在又到了比特币第四减半周期的最低点了吗？</h1>
+        <div id="post-info">
+          <div id="date">
+            <span id="publish">2026-04-21</span>
+            </div>
+
+          
+          <div id="tags">
+            <a class="instant" href="https://blog.cirray.cn/tags/bitcoin"><span>#</span>bitcoin</a><a class="instant" href="https://blog.cirray.cn/tags/crypto"><span>#</span>crypto</a><a class="instant" href="https://blog.cirray.cn/tags/halving"><span>#</span>halving</a><a class="instant" href="https://blog.cirray.cn/tags/investment"><span>#</span>investment</a><a class="instant" href="https://blog.cirray.cn/tags/cycle"><span>#</span>cycle</a>
+          </div>
+          
+        </div>
+
+        
+        
+
+        
+
+        <p>比特币从 2025 年 1 月的历史高点 $108,353 回落到现在的 $76K，跌幅约 30%。很多人在问：现在是底吗？能抄吗？</p>
+<p>我整理了四个减半周期的完整数据，试着用历史规律来回答这个问题。</p>
+<hr />
+<h2 id="si-ge-jian-ban-zhou-qi-wan-zheng-shu-ju">四个减半周期完整数据<a class="zola-anchor" href="#si-ge-jian-ban-zhou-qi-wan-zheng-shu-ju" aria-label="Anchor link for: si-ge-jian-ban-zhou-qi-wan-zheng-shu-ju" style="visibility: hidden;"></a>
+</h2>
+<h3 id="di-yi-zhou-qi-2009-2012">第一周期（2009 - 2012）<a class="zola-anchor" href="#di-yi-zhou-qi-2009-2012" aria-label="Anchor link for: di-yi-zhou-qi-2009-2012" style="visibility: hidden;"></a>
+</h3>
+<p>减半日期：2012年11月28日 | 区块奖励：50 → 25 BTC</p>
+<table><thead><tr><th>关键事件</th><th>日期</th><th>价格</th></tr></thead><tbody>
+<tr><td>周期最低点</td><td>2011年11月</td><td>$2</td></tr>
+<tr><td>减半当日</td><td>2012年11月28日</td><td>$12</td></tr>
+<tr><td>周期最高点</td><td>2013年11月30日</td><td>$1,163</td></tr>
+<tr><td>熊市最低点</td><td>2015年01月14日</td><td>$152</td></tr>
+</tbody></table>
+<ul>
+<li>减半 → 高点：<strong>367 天</strong></li>
+<li>减半价 → 高点涨幅：<strong>+9,316%</strong></li>
+<li>高点 → 熊市低点跌幅：<strong>-87%</strong></li>
+</ul>
+<hr />
+<h3 id="di-er-zhou-qi-2012-2016">第二周期（2012 - 2016）<a class="zola-anchor" href="#di-er-zhou-qi-2012-2016" aria-label="Anchor link for: di-er-zhou-qi-2012-2016" style="visibility: hidden;"></a>
+</h3>
+<p>减半日期：2016年7月9日 | 区块奖励：25 → 12.5 BTC</p>
+<table><thead><tr><th>关键事件</th><th>日期</th><th>价格</th></tr></thead><tbody>
+<tr><td>减半当日</td><td>2016年07月09日</td><td>$650</td></tr>
+<tr><td>减半后低点</td><td>2016年08月02日</td><td>$465</td></tr>
+<tr><td>周期最高点</td><td>2017年12月17日</td><td>$19,891</td></tr>
+<tr><td>熊市最低点</td><td>2018年12月15日</td><td>$3,122</td></tr>
+</tbody></table>
+<ul>
+<li>减半 → 高点：<strong>526 天</strong></li>
+<li>减半价 → 高点涨幅：<strong>+2,960%</strong></li>
+<li>高点 → 熊市低点跌幅：<strong>-84%</strong></li>
+</ul>
+<hr />
+<h3 id="di-san-zhou-qi-2016-2020">第三周期（2016 - 2020）<a class="zola-anchor" href="#di-san-zhou-qi-2016-2020" aria-label="Anchor link for: di-san-zhou-qi-2016-2020" style="visibility: hidden;"></a>
+</h3>
+<p>减半日期：2020年5月11日 | 区块奖励：12.5 → 6.25 BTC</p>
+<table><thead><tr><th>关键事件</th><th>日期</th><th>价格</th></tr></thead><tbody>
+<tr><td>疫情暴跌低点</td><td>2020年03月12日</td><td>$3,782</td></tr>
+<tr><td>减半当日</td><td>2020年05月11日</td><td>$8,740</td></tr>
+<tr><td>周期最高点</td><td>2021年11月10日</td><td>$69,000</td></tr>
+<tr><td>熊市最低点</td><td>2022年11月21日</td><td>$15,476</td></tr>
+</tbody></table>
+<ul>
+<li>减半 → 高点：<strong>549 天</strong></li>
+<li>减半价 → 高点涨幅：<strong>+689%</strong></li>
+<li>高点 → 熊市低点跌幅：<strong>-77%</strong></li>
+</ul>
+<hr />
+<h3 id="di-si-zhou-qi-2020-2024-jin-xing-zhong">第四周期（2020 - 2024，进行中）<a class="zola-anchor" href="#di-si-zhou-qi-2020-2024-jin-xing-zhong" aria-label="Anchor link for: di-si-zhou-qi-2020-2024-jin-xing-zhong" style="visibility: hidden;"></a>
+</h3>
+<p>减半日期：2024年4月19日 | 区块奖励：6.25 → 3.125 BTC</p>
+<table><thead><tr><th>关键事件</th><th>日期</th><th>价格</th></tr></thead><tbody>
+<tr><td>减半当日</td><td>2024年04月19日</td><td>$63,800</td></tr>
+<tr><td>周期最高点</td><td>2025年01月20日</td><td>$108,353</td></tr>
+<tr><td>当前价格</td><td>2026年04月</td><td>~$76,294</td></tr>
+<tr><td>当前回调幅度</td><td>—</td><td><strong>-30%</strong></td></tr>
+</tbody></table>
+<ul>
+<li>减半 → 高点：<strong>276 天</strong>（历史最短）</li>
+<li>减半价 → 高点涨幅：<strong>+70%</strong>（历史最低）</li>
+<li>当前距高点跌幅：<strong>-30%</strong>（仍在进行中）</li>
+</ul>
+<hr />
+<h2 id="san-ge-qing-xi-de-li-shi-gui-lu">三个清晰的历史规律<a class="zola-anchor" href="#san-ge-qing-xi-de-li-shi-gui-lu" aria-label="Anchor link for: san-ge-qing-xi-de-li-shi-gui-lu" style="visibility: hidden;"></a>
+</h2>
+<table><thead><tr><th>周期</th><th>减半→高点</th><th>高点涨幅</th><th>熊市跌幅</th></tr></thead><tbody>
+<tr><td>第一周期</td><td>367天</td><td>+9,316%</td><td>-87%</td></tr>
+<tr><td>第二周期</td><td>526天</td><td>+2,960%</td><td>-84%</td></tr>
+<tr><td>第三周期</td><td>549天</td><td>+689%</td><td>-77%</td></tr>
+<tr><td>第四周期</td><td>276天</td><td>+70%</td><td>进行中</td></tr>
+</tbody></table>
+<p><strong>规律一：涨幅逐次递减。</strong> 市值越大，翻倍越难。第一周期 90 倍，第四周期只涨了 70%。</p>
+<p><strong>规律二：熊市跌幅收窄。</strong> 机构和 ETF 入场后托底效果明显，从 -87% 收窄到 -77%，第四周期熊市底部大概率不会跌回 $30k 以下。</p>
+<p><strong>规律三：见顶时间不稳定。</strong> 第四周期仅 276 天就见顶，比前两次快了将近一倍，可能和机构提前布局、ETF 资金提前进场有关。</p>
+<hr />
+<h2 id="xian-zai-shi-di-bu-ma-san-chong-qing-jing">现在是底部吗？三种情景<a class="zola-anchor" href="#xian-zai-shi-di-bu-ma-san-chong-qing-jing" aria-label="Anchor link for: xian-zai-shi-di-bu-ma-san-chong-qing-jing" style="visibility: hidden;"></a>
+</h2>
+<p><strong>情景一：乐观（概率中）</strong></p>
+<p>宏观流动性转好，美联储降息落地，资金重新涌入。BTC 在 $80k-$95k 之间完成反弹，但不创新高。第五次减半（2028年）前维持高位震荡。</p>
+<p><strong>情景二：中性（概率较高）</strong></p>
+<p>当前 $60k-$80k 区间横盘 1-2 年，消化前高获利盘。等待下一个减半周期驱动的主升浪。这是历史上最常见的高点后走势。</p>
+<p><strong>情景三：悲观（概率中低）</strong></p>
+<p>宏观衰退加剧，美股大跌拖累 BTC，继续下探 $40k-$50k。若出现系统性流动性危机（类似 2022 年 LUNA/FTX），不排除更深的回调。</p>
+<hr />
+<h2 id="dui-pu-tong-ren-de-jian-yi">对普通人的建议<a class="zola-anchor" href="#dui-pu-tong-ren-de-jian-yi" aria-label="Anchor link for: dui-pu-tong-ren-de-jian-yi" style="visibility: hidden;"></a>
+</h2>
+<p><strong>第一，想清楚你拿的是什么钱。</strong>
+能亏光的闲钱和有用途的钱，策略完全不同。只用真正的闲钱入场。</p>
+<p><strong>第二，现在不是抄底，是定投时机。</strong>
+没人知道 $72k 是不是底。但如果你相信比特币的长期逻辑，分批买入比一把梭哈的风险低得多。比如每月固定买一笔，跌了买更多，涨了自然受益。</p>
+<p><strong>第三，拿住比买入更难。</strong>
+历史数据证明，每次牛市的最大收益都给了拿得住的人。但绝大多数人在 -30% 时就割肉了。如果你做不到拿 2 年不看，就不要买。</p>
+<p><strong>第四，不要预测精确高点。</strong>
+"下半年一定能涨到 xx 万"——这种判断不符合历史规律（高点后从未在同一周期内重回前高），但也不是不可能。与其押注精确价格，不如设定一个"涨到 X 就卖掉一半"的纪律。</p>
+<p><strong>第五，出金路径想好再入场。</strong>
+在国内，USDT → 人民币需要走 OTC，单笔建议不超过 2-3 万，分批操作，避免银行风控冻卡。</p>
+<hr />
+<p>历史规律提供参考，但不保证重演。第四周期已经在很多地方打破了前三次的规律——见顶更快、涨幅更小。市场在成熟，极端行情的空间在收窄。</p>
+<p>对普通人来说，比预测涨跌更重要的是：<strong>在自己能承受的范围内参与，然后有纪律地退出。</strong></p>
+
+      </article>
+
+      
+      
+
+      
+      
+      <div class="giscus"></div>
+      <style>
+#comments { margin-top: 3rem; padding: 0 15px; }
+.c-item { margin: 1.2rem 0; }
+.c-reply { margin-left: 1.5rem; padding-left: 1rem; border-left: 2px solid var(--text-decoration-color); }
+.c-meta { display: flex; align-items: center; gap: 0.6rem; margin-bottom: 0.3rem; font-size: 0.85em; }
+.c-name { font-weight: bold; color: var(--text-color); }
+.c-time { color: var(--text-pale-color); }
+.c-reply-btn {
+  background: none; border: none; padding: 0;
+  color: var(--primary-color); cursor: pointer;
+  font-size: 0.85em; opacity: 0;
+  transition: opacity 0.15s;
+}
+.c-item:hover .c-reply-btn { opacity: 1; }
+.c-body { color: var(--text-color); line-height: var(--line-height); white-space: pre-wrap; word-break: break-word; }
+.c-loading, .c-empty { color: var(--text-pale-color); font-size: 0.9em; padding: 1rem 0; }
+.c-form { margin-top: 2rem; display: flex; flex-direction: column; gap: 0.6rem; }
+.c-form-row { display: flex; gap: 0.6rem; }
+.c-input {
+  width: 100%; padding: 0.5rem 0.7rem;
+  border: 1.5px solid var(--text-decoration-color);
+  border-radius: 4px;
+  background: var(--bg-color); color: var(--text-color);
+  font-size: 0.9em; font-family: var(--main-font);
+  outline: none; transition: border-color 0.15s;
+}
+.c-input:focus { border-color: var(--primary-color); }
+.c-input-content { resize: vertical; min-height: 100px; }
+.c-reply-tip {
+  font-size: 0.85em; color: var(--primary-color);
+  padding: 0.2rem 0.5rem;
+  background: var(--inline-code-bg-color);
+  border-radius: 4px; align-self: flex-start;
+}
+.c-reply-tip::after { content: " ✕"; opacity: 0.5; }
+.c-form-actions { display: flex; justify-content: flex-end; }
+.c-submit {
+  padding: 0.4rem 1.2rem;
+  background: var(--primary-color); color: var(--bg-color);
+  border: none; border-radius: 4px;
+  cursor: pointer; font-size: 0.9em;
+  transition: opacity 0.15s;
+}
+.c-submit:hover { opacity: 0.85; }
+.c-submit:disabled { opacity: 0.5; cursor: not-allowed; }
+</style>
+<div id="comments" data-page="&#x2F;posts&#x2F;bitcoin-halving-cycle-bottom-2026-04-22&#x2F;"></div>
+<script src="/comments.js"></script>
+
+
+      
+    </div>
+
+    
+
+
+<footer>
+  <div class="left">
+    <div class="copyright">
+      © 2026 Cirray AI
+      
+      <span>|</span>
+      Built with <a href="https://www.getzola.org" rel="noreferrer" target="_blank">zola</a> and <a href="https://github.com/isunjn/serene" rel="noreferrer" target="_blank">serene</a>
+      
+    </div>
+  </div>
+
+  <div class="right">
+    
+    
+    
+    
+
+    
+    
+    
+    <button id="theme-toggle" aria-label="theme switch">
+      <span class="moon-icon"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="18" height="18"><path d="M10 7C10 10.866 13.134 14 17 14C18.9584 14 20.729 13.1957 21.9995 11.8995C22 11.933 22 11.9665 22 12C22 17.5228 17.5228 22 12 22C6.47715 22 2 17.5228 2 12C2 6.47715 6.47715 2 12 2C12.0335 2 12.067 2 12.1005 2.00049C10.8043 3.27098 10 5.04157 10 7ZM4 12C4 16.4183 7.58172 20 12 20C15.0583 20 17.7158 18.2839 19.062 15.7621C18.3945 15.9187 17.7035 16 17 16C12.0294 16 8 11.9706 8 7C8 6.29648 8.08133 5.60547 8.2379 4.938C5.71611 6.28423 4 8.9417 4 12Z" fill="currentColor"></path></svg>
+</span>
+      <span class="sun-icon"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="18" height="18"><path d="M12 18C8.68629 18 6 15.3137 6 12C6 8.68629 8.68629 6 12 6C15.3137 6 18 8.68629 18 12C18 15.3137 15.3137 18 12 18ZM12 16C14.2091 16 16 14.2091 16 12C16 9.79086 14.2091 8 12 8C9.79086 8 8 9.79086 8 12C8 14.2091 9.79086 16 12 16ZM11 1H13V4H11V1ZM11 20H13V23H11V20ZM3.51472 4.92893L4.92893 3.51472L7.05025 5.63604L5.63604 7.05025L3.51472 4.92893ZM16.9497 18.364L18.364 16.9497L20.4853 19.0711L19.0711 20.4853L16.9497 18.364ZM19.0711 3.51472L20.4853 4.92893L18.364 7.05025L16.9497 5.63604L19.0711 3.51472ZM5.63604 16.9497L7.05025 18.364L4.92893 20.4853L3.51472 19.0711L5.63604 16.9497ZM23 11V13H20V11H23ZM4 11V13H1V11H4Z" fill="currentColor"></path></svg>
+</span>
+    </button>
+    
+  </div>
+</footer>
+
+
+
+
+
+  </main>
+</div>
+
+  
+<script src="/js/lightense.min.js"></script>
+
+
+  <script src="https://blog.cirray.cn/js/main.js"></script>
+</body>
+
+</html>
