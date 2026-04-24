@@ -1,0 +1,585 @@
+<!DOCTYPE html>
+
+<html lang="zh">
+
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="color-scheme" content="light dark">
+  
+  
+    
+  
+  <meta name="description" content="不调 PyTorch，不用 autograd，每一个梯度都自己推导——两周后，你才算真正懂 Transformer。">
+
+  <title>两周从零手写 Transformer：不用任何 ML 框架，只有 Rust</title>
+  <link rel="icon" type="image/png" sizes="32x32" href="https://blog.cirray.cn/img/favicon-32x32.png">
+  <link rel="icon" type="image/png" sizes="16x16" href="https://blog.cirray.cn/img/favicon-16x16.png">
+  <link rel="apple-touch-icon" sizes="180x180" href="https://blog.cirray.cn/img/apple-touch-icon.png">
+  
+  <style>
+
+  /* light mode colors */
+  body {
+    --primary-color: #5871a2;
+    --primary-pale-color: #5871a233;
+    --primary-decoration-color: #5871a210;
+    --bg-color: #ffffff;
+    --text-color: #2f3030;
+    --text-pale-color: #767676;
+    --text-decoration-color: #a9a9a9;
+    --highlight-mark-color: #5f75b020;
+
+    --callout-note-color: #5871a2;
+    --callout-tip-color: #268556;
+    --callout-important-color: #885fc9;
+    --callout-warning-color: #ab6632;
+    --callout-caution-color: #c64e4e;
+  }
+
+  /* dark mode colors */
+  body.dark {
+    --primary-color: #6f8fd1;
+    --primary-pale-color: #6f8fd166;
+    --primary-decoration-color: #6f8fd112;
+    --bg-color: #1c1c1c;
+    --text-color: #c1c1c1;
+    --text-pale-color: #848484;
+    --text-decoration-color: #5f5f5f;
+    --highlight-mark-color: #8296cb3b;
+
+    --callout-note-color: #6f8fd1;
+    --callout-tip-color: #47976f;
+    --callout-important-color: #9776cd;
+    --callout-warning-color: #ad7a52;
+    --callout-caution-color: #d06161;
+  }
+
+  /* typography */
+  body {
+    --main-font: ui-sans-serif, system-ui, sans-serif, 'Apple Color Emoji', 'Segoe UI Emoji', 'Segoe UI Symbol', 'Noto Color Emoji';
+    --code-font: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, 'Liberation Mono', 'Courier New', monospace;
+    --homepage-max-width: 768px;
+    --main-max-width: 768px;
+    --avatar-size: 60px;
+    --font-size: 16px;
+    --line-height: 1.75;
+    --img-border-radius: 0px;
+    --detail-border-radius: 0px;
+    --dark-mode-img-brightness: 0.75;
+    --dark-mode-chart-brightness: 0.75;
+    --inline-code-border-radius: 2px;
+    --inline-code-bg-color: var(--primary-decoration-color);
+    --block-code-border-radius: 0px;
+    --block-code-border-color: var(--primary-color);
+    --detail-border-color: var(--primary-color);
+  }
+
+</style>
+
+  <link rel="stylesheet" href="https://blog.cirray.cn/main.css">
+  
+
+<link id="hl" rel="stylesheet" type="text/css" href="/giallo-light.css" />
+
+
+
+  
+</head>
+
+<body class="post">
+  
+  <script>
+    const theme = sessionStorage.getItem('theme');
+    const match = window.matchMedia("(prefers-color-scheme: dark)").matches;
+    if ((theme && theme == 'dark') || (!theme && match)) {
+      document.body.classList.add('dark');
+      const hl = document.querySelector('link#hl');
+      if (hl) hl.href = 'https://blog.cirray.cn/giallo-dark.css';
+    }
+  </script>
+  
+  
+<div id="wrapper">
+  <div id="blank"></div>
+  <aside>
+    
+    
+    <nav>
+      <ul>
+        
+        <li>
+          <a class="h2" href="#wei-shen-me-yao-zhe-me-zuo">为什么要这么做</a>
+          
+        </li>
+        
+        <li>
+          <a class="h2" href="#xiang-mu-jie-gou">项目结构</a>
+          
+        </li>
+        
+        <li>
+          <a class="h2" href="#li-cheng-bei-ji-hua-14-tian">里程碑计划（14 天）</a>
+          
+        </li>
+        
+        <li>
+          <a class="h2" href="#di-1-zhou-qian-xiang-chuan-bo">第 1 周：前向传播</a>
+          
+          <ul>
+            
+            <li>
+              <a class="h3" href="#day-1-2-di-ji-tensor-cao-zuo-ceng">Day 1-2 —— 地基：Tensor 操作层</a>
+            </li>
+            
+            <li>
+              <a class="h3" href="#day-3-embedding-positional-encoding">Day 3 —— Embedding + Positional Encoding</a>
+            </li>
+            
+            <li>
+              <a class="h3" href="#day-4-5-dan-tou-attention-qian-xiang">Day 4-5 —— 单头 Attention 前向</a>
+            </li>
+            
+            <li>
+              <a class="h3" href="#day-6-multi-head-attention-causal-mask">Day 6 —— Multi-Head Attention + Causal Mask</a>
+            </li>
+            
+            <li>
+              <a class="h3" href="#day-7-ffn-layernorm-can-chai">Day 7 —— FFN + LayerNorm + 残差</a>
+            </li>
+            
+            <li>
+              <a class="h3" href="#day-8-wan-zheng-qian-xiang-wen-zi-cai-yang">Day 8 —— 完整前向 + 文字采样</a>
+            </li>
+            
+          </ul>
+          
+        </li>
+        
+        <li>
+          <a class="h2" href="#di-2-zhou-fan-xiang-chuan-bo-xun-lian">第 2 周：反向传播 + 训练</a>
+          
+          <ul>
+            
+            <li>
+              <a class="h3" href="#day-9-10-fan-xiang-chuan-bo-zui-ying-de-bu-fen">Day 9-10 —— 反向传播：最硬的部分</a>
+            </li>
+            
+            <li>
+              <a class="h3" href="#day-11-sgd-xun-lian-xun-huan">Day 11 —— SGD + 训练循环</a>
+            </li>
+            
+            <li>
+              <a class="h3" href="#day-12-adam-you-hua-qi">Day 12 —— Adam 优化器</a>
+            </li>
+            
+            <li>
+              <a class="h3" href="#day-13-xun-lian-sha-shi-bi-ya">Day 13 —— 训练莎士比亚</a>
+            </li>
+            
+            <li>
+              <a class="h3" href="#day-14-zheng-li-fa-bu">Day 14 —— 整理 + 发布</a>
+            </li>
+            
+          </ul>
+          
+        </li>
+        
+        <li>
+          <a class="h2" href="#feng-xian-yu-an">风险预案</a>
+          
+        </li>
+        
+        <li>
+          <a class="h2" href="#mei-ri-jie-zou">每日节奏</a>
+          
+        </li>
+        
+        <li>
+          <a class="h2" href="#zui-di-ke-jiao-fu-ban-ben">最低可交付版本</a>
+          
+        </li>
+        
+        <li>
+          <a class="h2" href="#zui-hou">最后</a>
+          
+        </li>
+        
+      </ul>
+    </nav>
+    
+    
+    <button id="back-to-top" aria-label="back to top">
+      
+      <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="feather feather-arrow-up"><line x1="12" y1="19" x2="12" y2="5"></line><polyline points="5 12 12 5 19 12"></polyline></svg>
+
+    </button>
+    
+  </aside>
+  <main>
+    
+<header>
+  <nav>
+    <a id="back-link" href="https:&#x2F;&#x2F;blog.cirray.cn&#x2F;posts">← Back</a>
+  </nav>
+</header>
+
+
+    <div>
+      
+      
+      
+      
+      <div id="copy-cfg" style="display: none;" data-copy-icon="&lt;svg xmlns=&quot;http:&#x2F;&#x2F;www.w3.org&#x2F;2000&#x2F;svg&quot; viewBox=&quot;0 0 24 24&quot; width=&quot;18&quot; height=&quot;18&quot;&gt;&lt;path d=&quot;M6.9998 6V3C6.9998 2.44772 7.44752 2 7.9998 2H19.9998C20.5521 2 20.9998 2.44772 20.9998 3V17C20.9998 17.5523 20.5521 18 19.9998 18H16.9998V20.9991C16.9998 21.5519 16.5499 22 15.993 22H4.00666C3.45059 22 3 21.5554 3 20.9991L3.0026 7.00087C3.0027 6.44811 3.45264 6 4.00942 6H6.9998ZM5.00242 8L5.00019 20H14.9998V8H5.00242ZM8.9998 6H16.9998V16H18.9998V4H8.9998V6Z&quot; fill=&quot;currentColor&quot;&gt;&lt;&#x2F;path&gt;&lt;&#x2F;svg&gt;
+" data-check-icon="&lt;svg xmlns=&quot;http:&#x2F;&#x2F;www.w3.org&#x2F;2000&#x2F;svg&quot; viewBox=&quot;0 0 24 24&quot; width=&quot;18&quot; height=&quot;18&quot;&gt;&lt;path d=&quot;M10.0007 15.1709L19.1931 5.97852L20.6073 7.39273L10.0007 17.9993L3.63672 11.6354L5.05093 10.2212L10.0007 15.1709Z&quot; fill=&quot;currentColor&quot;&gt;&lt;&#x2F;path&gt;&lt;&#x2F;svg&gt;
+"></div>
+      
+      <article class="prose">
+        <h1>两周从零手写 Transformer：不用任何 ML 框架，只有 Rust</h1>
+        <div id="post-info">
+          <div id="date">
+            <span id="publish">2026-04-23</span>
+            </div>
+
+          
+          <div id="tags">
+            <a class="instant" href="https://blog.cirray.cn/tags/rust"><span>#</span>rust</a><a class="instant" href="https://blog.cirray.cn/tags/transformer"><span>#</span>transformer</a><a class="instant" href="https://blog.cirray.cn/tags/deep-learning"><span>#</span>deep-learning</a><a class="instant" href="https://blog.cirray.cn/tags/ndarray"><span>#</span>ndarray</a><a class="instant" href="https://blog.cirray.cn/tags/fan-xiang-chuan-bo"><span>#</span>反向传播</a><a class="instant" href="https://blog.cirray.cn/tags/xue-xi-ji-hua"><span>#</span>学习计划</a>
+          </div>
+          
+        </div>
+
+        
+        
+
+        
+
+        <blockquote>
+<p>可能很多人和我一样，看过 Attention Is All You Need，跑过 Hugging Face, 但具体到最基本的 softmax 的梯度算？都不一定能理解透彻。
+这个计划只有一个目标：用 Rust + ndarray，从零写出一个能训练的 Transformer，
+每行代码都自己敲一遍，体会它的深意。</p>
+</blockquote>
+<hr />
+<h2 id="wei-shen-me-yao-zhe-me-zuo">为什么要这么做<a class="zola-anchor" href="#wei-shen-me-yao-zhe-me-zuo" aria-label="Anchor link for: wei-shen-me-yao-zhe-me-zuo" style="visibility: hidden;"></a>
+</h2>
+<p>这个计划的灵感来自 Karpathy 的 <code>llm.c</code>——用最少的依赖，从头实现一个语言模型，逼自己真正理解每一层的工作原理。</p>
+<p>区别在于：这次用 Rust，且<strong>不借助任何 autograd</strong>。</p>
+<p>为什么？</p>
+<p><strong>因为 autograd 是一张遮羞布。</strong> 你调 <code>loss.backward()</code>，一行搞定所有梯度，感觉很厉害，但你不知道 LayerNorm 的梯度长什么样，不知道 softmax 求导为什么是 <code>S(1 - S)</code>，更不知道 attention 的反向传播为什么要那么写。</p>
+<p>手写一遍之后，这些全都清楚了。PyTorch 帮你算的东西，你从此也能算。</p>
+<p>对标项目：<code>llm.c</code>（C 语言版）。我们做的是 Rust 版，性能有保障，代码可读性更好。</p>
+<p>最终验证场景：把莎士比亚全集扔进去训练，模型能生成风格相近的句子。这是 Karpathy 用过的经典 benchmark，效果直观，不需要 fancy 的评估指标。</p>
+<hr />
+<h2 id="xiang-mu-jie-gou">项目结构<a class="zola-anchor" href="#xiang-mu-jie-gou" aria-label="Anchor link for: xiang-mu-jie-gou" style="visibility: hidden;"></a>
+</h2>
+<p>先看全貌，做事心里有数：</p>
+<pre class="giallo z-code"><code data-lang="plain"><span class="giallo-l"><span>transformer-rs/</span></span>
+<span class="giallo-l"><span>├── src/</span></span>
+<span class="giallo-l"><span>│   ├── tensor.rs        # matmul, softmax 等基础操作</span></span>
+<span class="giallo-l"><span>│   ├── layers/</span></span>
+<span class="giallo-l"><span>│   │   ├── attention.rs</span></span>
+<span class="giallo-l"><span>│   │   ├── ffn.rs</span></span>
+<span class="giallo-l"><span>│   │   ├── norm.rs</span></span>
+<span class="giallo-l"><span>│   │   └── embedding.rs</span></span>
+<span class="giallo-l"><span>│   ├── model.rs         # 组装完整 Transformer</span></span>
+<span class="giallo-l"><span>│   ├── train.rs         # loss, optimizer, 训练循环</span></span>
+<span class="giallo-l"><span>│   └── main.rs</span></span>
+<span class="giallo-l"><span>├── data/</span></span>
+<span class="giallo-l"><span>│   └── tinyshakespeare.txt</span></span>
+<span class="giallo-l"><span>└── tests/</span></span>
+<span class="giallo-l"><span>    └── grad_check.rs    # 数值梯度验证</span></span></code></pre>
+<p>依赖极简：</p>
+<pre class="giallo z-code"><code data-lang="toml"><span class="giallo-l"><span>[</span><span class="z-entity z-name">dependencies</span><span>]</span></span>
+<span class="giallo-l"><span class="z-variable z-other">ndarray</span><span> =</span><span> {</span><span class="z-variable z-other"> version</span><span> =</span><span class="z-punctuation z-definition z-string"> &quot;</span><span class="z-string">0.16</span><span class="z-punctuation z-definition z-string">&quot;</span><span>,</span><span class="z-variable z-other"> features</span><span> =</span><span> [</span><span class="z-punctuation z-definition z-string">&quot;</span><span class="z-string">rayon</span><span class="z-punctuation z-definition z-string">&quot;</span><span>]</span><span> }</span></span>
+<span class="giallo-l"><span class="z-variable z-other">rand</span><span> =</span><span class="z-punctuation z-definition z-string"> &quot;</span><span class="z-string">0.8</span><span class="z-punctuation z-definition z-string">&quot;</span></span>
+<span class="giallo-l"><span class="z-variable z-other">serde_json</span><span> =</span><span class="z-punctuation z-definition z-string"> &quot;</span><span class="z-string">1</span><span class="z-punctuation z-definition z-string">&quot;</span><span class="z-punctuation z-definition z-comment">  #</span><span class="z-comment"> 可选，保存权重用</span></span></code></pre>
+<p>就这三个。没有 ML 框架，没有 autograd，没有 CUDA binding。</p>
+<hr />
+<h2 id="li-cheng-bei-ji-hua-14-tian">里程碑计划（14 天）<a class="zola-anchor" href="#li-cheng-bei-ji-hua-14-tian" aria-label="Anchor link for: li-cheng-bei-ji-hua-14-tian" style="visibility: hidden;"></a>
+</h2>
+<p>每天抽出 4 ~ 6 小时，把基础打扎实。</p>
+<hr />
+<h2 id="di-1-zhou-qian-xiang-chuan-bo">第 1 周：前向传播<a class="zola-anchor" href="#di-1-zhou-qian-xiang-chuan-bo" aria-label="Anchor link for: di-1-zhou-qian-xiang-chuan-bo" style="visibility: hidden;"></a>
+</h2>
+<h3 id="day-1-2-di-ji-tensor-cao-zuo-ceng">Day 1-2 —— 地基：Tensor 操作层<a class="zola-anchor" href="#day-1-2-di-ji-tensor-cao-zuo-ceng" aria-label="Anchor link for: day-1-2-di-ji-tensor-cao-zuo-ceng" style="visibility: hidden;"></a>
+</h3>
+<p><strong>目标：把矩阵运算实现出来，并用数值验证正确性</strong></p>
+<p>不是为了造轮子，是因为反向传播时要知道每个操作的梯度怎么算。ndarray 帮你做运算，但梯度逻辑得自己写。</p>
+<pre class="giallo z-code"><code data-lang="plain"><span class="giallo-l"><span>实现：matmul / transpose / broadcast_add / softmax</span></span>
+<span class="giallo-l"><span>验证：写 Python 对照脚本，和 numpy 结果逐元素比对</span></span></code></pre>
+<p>从 <code>matmul</code> 开始，立刻写反向，立刻验证——这是整个计划的核心节奏：</p>
+<pre class="giallo z-code"><code data-lang="rust"><span class="giallo-l"><span class="z-keyword">pub</span><span class="z-keyword"> fn</span><span class="z-entity z-name"> matmul</span><span>(</span><span class="z-variable z-other">a</span><span class="z-keyword">:</span><span class="z-keyword"> &amp;</span><span class="z-entity z-name">Array2</span><span>&lt;</span><span class="z-entity z-name">f32</span><span>&gt;</span><span>,</span><span class="z-variable z-other"> b</span><span class="z-keyword">:</span><span class="z-keyword"> &amp;</span><span class="z-entity z-name">Array2</span><span>&lt;</span><span class="z-entity z-name">f32</span><span>&gt;</span><span>)</span><span class="z-keyword"> -&gt;</span><span class="z-entity z-name"> Array2</span><span>&lt;</span><span class="z-entity z-name">f32</span><span>&gt;</span><span> {</span></span>
+<span class="giallo-l"><span class="z-variable z-other">    a</span><span class="z-keyword">.</span><span class="z-entity z-name">dot</span><span>(</span><span class="z-variable z-other">b</span><span>)</span></span>
+<span class="giallo-l"><span>}</span></span>
+<span class="giallo-l"></span>
+<span class="giallo-l"><span class="z-punctuation z-definition z-comment">//</span><span class="z-comment"> 梯度：dL/dA = dL/dC · B^T，dL/dB = A^T · dL/dC</span></span>
+<span class="giallo-l"><span class="z-keyword">pub</span><span class="z-keyword"> fn</span><span class="z-entity z-name"> matmul_backward</span><span>(</span></span>
+<span class="giallo-l"><span class="z-variable z-other">    a</span><span class="z-keyword">:</span><span class="z-keyword"> &amp;</span><span class="z-entity z-name">Array2</span><span>&lt;</span><span class="z-entity z-name">f32</span><span>&gt;</span><span>,</span></span>
+<span class="giallo-l"><span class="z-variable z-other">    b</span><span class="z-keyword">:</span><span class="z-keyword"> &amp;</span><span class="z-entity z-name">Array2</span><span>&lt;</span><span class="z-entity z-name">f32</span><span>&gt;</span><span>,</span></span>
+<span class="giallo-l"><span class="z-variable z-other">    grad_output</span><span class="z-keyword">:</span><span class="z-keyword"> &amp;</span><span class="z-entity z-name">Array2</span><span>&lt;</span><span class="z-entity z-name">f32</span><span>&gt;</span><span>,</span></span>
+<span class="giallo-l"><span>)</span><span class="z-keyword"> -&gt;</span><span> (</span><span class="z-entity z-name">Array2</span><span>&lt;</span><span class="z-entity z-name">f32</span><span>&gt;</span><span>,</span><span class="z-entity z-name"> Array2</span><span>&lt;</span><span class="z-entity z-name">f32</span><span>&gt;</span><span>)</span><span> {</span></span>
+<span class="giallo-l"><span class="z-storage z-type">    let</span><span class="z-variable z-other"> grad_a</span><span class="z-keyword"> =</span><span class="z-variable z-other"> grad_output</span><span class="z-keyword">.</span><span class="z-entity z-name">dot</span><span>(</span><span class="z-keyword">&amp;</span><span class="z-variable z-other">b</span><span class="z-keyword">.</span><span class="z-entity z-name">t</span><span>(</span><span>)</span><span>)</span><span>;</span></span>
+<span class="giallo-l"><span class="z-storage z-type">    let</span><span class="z-variable z-other"> grad_b</span><span class="z-keyword"> =</span><span class="z-variable z-other"> a</span><span class="z-keyword">.</span><span class="z-entity z-name">t</span><span>(</span><span>)</span><span class="z-keyword">.</span><span class="z-entity z-name">dot</span><span>(</span><span class="z-variable z-other">grad_output</span><span>)</span><span>;</span></span>
+<span class="giallo-l"><span>    (</span><span class="z-variable z-other">grad_a</span><span>,</span><span class="z-variable z-other"> grad_b</span><span>)</span></span>
+<span class="giallo-l"><span>}</span></span></code></pre>
+<p><strong>Rust 能力：</strong> ndarray Array2、方法链、借用规则初探</p>
+<hr />
+<h3 id="day-3-embedding-positional-encoding">Day 3 —— Embedding + Positional Encoding<a class="zola-anchor" href="#day-3-embedding-positional-encoding" aria-label="Anchor link for: day-3-embedding-positional-encoding" style="visibility: hidden;"></a>
+</h3>
+<p><strong>目标：把 token id 序列变成向量</strong></p>
+<pre class="giallo z-code"><code data-lang="plain"><span class="giallo-l"><span>实现：token embedding 查表 / 正弦位置编码</span></span>
+<span class="giallo-l"><span>验证：给定 [3, 1, 4, 1, 5]，输出 shape = (5, d_model) 的矩阵</span></span></code></pre>
+<p>正弦位置编码有个经典公式：</p>
+<pre class="giallo z-code"><code data-lang="plain"><span class="giallo-l"><span>PE(pos, 2i)   = sin(pos / 10000^(2i/d_model))</span></span>
+<span class="giallo-l"><span>PE(pos, 2i+1) = cos(pos / 10000^(2i/d_model))</span></span></code></pre>
+<p>实现不难，但要理解：模型靠这个知道每个 token 在序列里的位置，否则 attention 是顺序无关的。</p>
+<p><strong>Rust 能力：</strong> 二维数组索引、f32 数学函数</p>
+<hr />
+<h3 id="day-4-5-dan-tou-attention-qian-xiang">Day 4-5 —— 单头 Attention 前向<a class="zola-anchor" href="#day-4-5-dan-tou-attention-qian-xiang" aria-label="Anchor link for: day-4-5-dan-tou-attention-qian-xiang" style="visibility: hidden;"></a>
+</h3>
+<p><strong>目标：把公式和代码完全对应起来，一行不差</strong></p>
+<p>这是整个计划最核心的部分。先做单头，搞清楚之后多头只是并行跑多个单头。</p>
+<pre class="giallo z-code"><code data-lang="plain"><span class="giallo-l"><span>实现：Q K V 线性投影 → QK^T → scale → softmax → × V</span></span>
+<span class="giallo-l"><span>验证：手算一个 2×2 的例子，和代码输出对齐</span></span></code></pre>
+<p>scale 的作用是防止点积值太大导致 softmax 梯度消失：除以 <code>sqrt(d_k)</code>。</p>
+<p><strong>Rust 能力：</strong> 矩阵乘法链、shape 追踪</p>
+<hr />
+<h3 id="day-6-multi-head-attention-causal-mask">Day 6 —— Multi-Head Attention + Causal Mask<a class="zola-anchor" href="#day-6-multi-head-attention-causal-mask" aria-label="Anchor link for: day-6-multi-head-attention-causal-mask" style="visibility: hidden;"></a>
+</h3>
+<p><strong>目标：单头变多头，加上因果掩码</strong></p>
+<pre class="giallo z-code"><code data-lang="plain"><span class="giallo-l"><span>实现：split heads / 并行 attention / concat / 输出投影</span></span>
+<span class="giallo-l"><span>实现：上三角 mask（让位置 t 看不到 t+1 之后的 token）</span></span></code></pre>
+<p>Causal mask 是语言模型区别于普通 Transformer 的关键——预测下一个词时，不能偷看未来。实现上就是在 softmax 之前，把上三角位置填成负无穷。</p>
+<p><strong>Rust 能力：</strong> 高维 ndarray（Array3/4）、map + zip 操作</p>
+<hr />
+<h3 id="day-7-ffn-layernorm-can-chai">Day 7 —— FFN + LayerNorm + 残差<a class="zola-anchor" href="#day-7-ffn-layernorm-can-chai" aria-label="Anchor link for: day-7-ffn-layernorm-can-chai" style="visibility: hidden;"></a>
+</h3>
+<p><strong>目标：把一个完整的 Transformer Block 跑通</strong></p>
+<pre class="giallo z-code"><code data-lang="plain"><span class="giallo-l"><span>实现：两层线性 + ReLU（FFN）</span></span>
+<span class="giallo-l"><span>实现：LayerNorm（减均值、除方差、scale + shift）</span></span>
+<span class="giallo-l"><span>实现：残差连接（直接相加）</span></span>
+<span class="giallo-l"><span>验证：单个 Block 前向跑通，输入输出 shape 一致</span></span></code></pre>
+<p>LayerNorm 的实现看起来简单，但反向传播时梯度推导是这个项目里最绕的部分之一——Day 9 会专门对付它。</p>
+<p><strong>Rust 能力：</strong> 结构体组合、Vec<Layer> 层叠</p>
+<hr />
+<h3 id="day-8-wan-zheng-qian-xiang-wen-zi-cai-yang">Day 8 —— 完整前向 + 文字采样<a class="zola-anchor" href="#day-8-wan-zheng-qian-xiang-wen-zi-cai-yang" aria-label="Anchor link for: day-8-wan-zheng-qian-xiang-wen-zi-cai-yang" style="visibility: hidden;"></a>
+</h3>
+<p><strong>目标：随机初始化权重，能生成（乱的）文字</strong></p>
+<pre class="giallo z-code"><code data-lang="plain"><span class="giallo-l"><span>组装：N 个 Block 堆叠 / 输出 logits / temperature softmax 采样</span></span>
+<span class="giallo-l"><span>验证：能输出文字就算过，这时候权重是随机的，内容肯定是乱码</span></span></code></pre>
+<p>这一天是第一个里程碑——<strong>前向通了</strong>。乱码不丢人，说明架构没问题。</p>
+<hr />
+<h2 id="di-2-zhou-fan-xiang-chuan-bo-xun-lian">第 2 周：反向传播 + 训练<a class="zola-anchor" href="#di-2-zhou-fan-xiang-chuan-bo-xun-lian" aria-label="Anchor link for: di-2-zhou-fan-xiang-chuan-bo-xun-lian" style="visibility: hidden;"></a>
+</h2>
+<h3 id="day-9-10-fan-xiang-chuan-bo-zui-ying-de-bu-fen">Day 9-10 —— 反向传播：最硬的部分<a class="zola-anchor" href="#day-9-10-fan-xiang-chuan-bo-zui-ying-de-bu-fen" aria-label="Anchor link for: day-9-10-fan-xiang-chuan-bo-zui-ying-de-bu-fen" style="visibility: hidden;"></a>
+</h3>
+<p><strong>目标：手动推导并实现每个操作的梯度</strong></p>
+<p>这是整个计划最难的两天，也是最有价值的两天。</p>
+<p>建议顺序：</p>
+<pre class="giallo z-code"><code data-lang="plain"><span class="giallo-l"><span>matmul 梯度</span></span>
+<span class="giallo-l"><span>→ softmax 梯度（Jacobian 矩阵，化简后很优雅）</span></span>
+<span class="giallo-l"><span>→ attention 梯度（链式法则展开）</span></span>
+<span class="giallo-l"><span>→ LayerNorm 梯度（最绕，建议先推导再实现）</span></span></code></pre>
+<p><strong>每个梯度都必须用数值验证（finite difference）：</strong></p>
+<pre class="giallo z-code"><code data-lang="rust"><span class="giallo-l"><span class="z-punctuation z-definition z-comment">//</span><span class="z-comment"> 数值梯度检验：扰动输入，看 loss 变化量是否和解析梯度一致</span></span>
+<span class="giallo-l"><span class="z-keyword">fn</span><span class="z-entity z-name"> finite_diff_check</span><span>&lt;</span><span class="z-entity z-name">F</span><span>&gt;</span><span>(</span><span class="z-variable z-other">f</span><span class="z-keyword">:</span><span class="z-entity z-name"> F</span><span>,</span><span class="z-variable z-other"> x</span><span class="z-keyword">:</span><span class="z-keyword"> &amp;</span><span class="z-entity z-name">Array2</span><span>&lt;</span><span class="z-entity z-name">f32</span><span>&gt;</span><span>,</span><span class="z-variable z-other"> eps</span><span class="z-keyword">:</span><span class="z-entity z-name"> f32</span><span>)</span><span class="z-keyword"> -&gt;</span><span class="z-entity z-name"> Array2</span><span>&lt;</span><span class="z-entity z-name">f32</span><span>&gt;</span></span>
+<span class="giallo-l"><span class="z-keyword">where</span></span>
+<span class="giallo-l"><span class="z-entity z-name">    F</span><span class="z-keyword">:</span><span class="z-entity z-name"> Fn</span><span>(</span><span class="z-keyword">&amp;</span><span class="z-entity z-name">Array2</span><span>&lt;</span><span class="z-entity z-name">f32</span><span>&gt;</span><span>)</span><span class="z-keyword"> -&gt;</span><span class="z-entity z-name"> f32</span><span>,</span></span>
+<span class="giallo-l"><span>{</span></span>
+<span class="giallo-l"><span class="z-storage z-type">    let</span><span class="z-storage"> mut</span><span class="z-variable z-other"> grad</span><span class="z-keyword"> =</span><span class="z-entity z-name"> Array2</span><span class="z-keyword">::</span><span class="z-entity z-name">zeros</span><span>(</span><span class="z-variable z-other">x</span><span class="z-keyword">.</span><span class="z-entity z-name">dim</span><span>(</span><span>)</span><span>)</span><span>;</span></span>
+<span class="giallo-l"><span class="z-keyword">    for</span><span class="z-variable z-other"> i</span><span class="z-keyword"> in</span><span class="z-constant"> 0</span><span class="z-keyword">..</span><span class="z-variable z-other">x</span><span class="z-keyword">.</span><span class="z-entity z-name">nrows</span><span>(</span><span>)</span><span> {</span></span>
+<span class="giallo-l"><span class="z-keyword">        for</span><span class="z-variable z-other"> j</span><span class="z-keyword"> in</span><span class="z-constant"> 0</span><span class="z-keyword">..</span><span class="z-variable z-other">x</span><span class="z-keyword">.</span><span class="z-entity z-name">ncols</span><span>(</span><span>)</span><span> {</span></span>
+<span class="giallo-l"><span class="z-storage z-type">            let</span><span class="z-storage"> mut</span><span class="z-variable z-other"> x_plus</span><span class="z-keyword"> =</span><span class="z-variable z-other"> x</span><span class="z-keyword">.</span><span class="z-entity z-name">clone</span><span>(</span><span>)</span><span>;</span></span>
+<span class="giallo-l"><span class="z-storage z-type">            let</span><span class="z-storage"> mut</span><span class="z-variable z-other"> x_minus</span><span class="z-keyword"> =</span><span class="z-variable z-other"> x</span><span class="z-keyword">.</span><span class="z-entity z-name">clone</span><span>(</span><span>)</span><span>;</span></span>
+<span class="giallo-l"><span class="z-variable z-other">            x_plus</span><span>[</span><span>[</span><span class="z-variable z-other">i</span><span>,</span><span class="z-variable z-other"> j</span><span>]</span><span>]</span><span class="z-keyword"> +=</span><span class="z-variable z-other"> eps</span><span>;</span></span>
+<span class="giallo-l"><span class="z-variable z-other">            x_minus</span><span>[</span><span>[</span><span class="z-variable z-other">i</span><span>,</span><span class="z-variable z-other"> j</span><span>]</span><span>]</span><span class="z-keyword"> -=</span><span class="z-variable z-other"> eps</span><span>;</span></span>
+<span class="giallo-l"><span class="z-variable z-other">            grad</span><span>[</span><span>[</span><span class="z-variable z-other">i</span><span>,</span><span class="z-variable z-other"> j</span><span>]</span><span>]</span><span class="z-keyword"> =</span><span> (</span><span class="z-entity z-name">f</span><span>(</span><span class="z-keyword">&amp;</span><span class="z-variable z-other">x_plus</span><span>)</span><span class="z-keyword"> -</span><span class="z-entity z-name"> f</span><span>(</span><span class="z-keyword">&amp;</span><span class="z-variable z-other">x_minus</span><span>)</span><span>)</span><span class="z-keyword"> /</span><span> (</span><span class="z-constant">2</span><span class="z-constant">.</span><span class="z-constant">0</span><span class="z-keyword"> *</span><span class="z-variable z-other"> eps</span><span>)</span><span>;</span></span>
+<span class="giallo-l"><span>        }</span></span>
+<span class="giallo-l"><span>    }</span></span>
+<span class="giallo-l"><span class="z-variable z-other">    grad</span></span>
+<span class="giallo-l"><span>}</span></span></code></pre>
+<p>解析梯度和数值梯度的相对误差小于 <code>1e-4</code> 就算通过。<strong>绝对不要攒到最后一起调——那时候根本不知道错在哪。</strong></p>
+<p><strong>Rust 能力：</strong> 闭包、泛型函数、多维数组迭代</p>
+<hr />
+<h3 id="day-11-sgd-xun-lian-xun-huan">Day 11 —— SGD + 训练循环<a class="zola-anchor" href="#day-11-sgd-xun-lian-xun-huan" aria-label="Anchor link for: day-11-sgd-xun-lian-xun-huan" style="visibility: hidden;"></a>
+</h3>
+<p><strong>目标：loss 能下降，说明反向传播是对的</strong></p>
+<pre class="giallo z-code"><code data-lang="plain"><span class="giallo-l"><span>实现：cross-entropy loss（logits → softmax → -log）</span></span>
+<span class="giallo-l"><span>实现：SGD（参数 -= lr * 梯度）</span></span>
+<span class="giallo-l"><span>跑通：loss 从 ~4.0 开始下降</span></span></code></pre>
+<p>先用 SGD，不用 Adam。原因是 SGD 足够简单，如果 loss 不降，100% 是反向传播有 bug，不会是优化器的问题。</p>
+<p><strong>Rust 能力：</strong> 可变借用、训练循环结构</p>
+<hr />
+<h3 id="day-12-adam-you-hua-qi">Day 12 —— Adam 优化器<a class="zola-anchor" href="#day-12-adam-you-hua-qi" aria-label="Anchor link for: day-12-adam-you-hua-qi" style="visibility: hidden;"></a>
+</h3>
+<p><strong>目标：加上 Adam，loss 下降明显变快</strong></p>
+<pre class="giallo z-code"><code data-lang="plain"><span class="giallo-l"><span>实现：一阶矩 m / 二阶矩 v / bias correction</span></span>
+<span class="giallo-l"><span>替换 SGD：lr 同样，看收敛速度的差异</span></span></code></pre>
+<p>Adam 在稀疏梯度（比如 embedding）上的效果比 SGD 好得多，这个项目里会体会非常明显。</p>
+<p><strong>Rust 能力：</strong> 状态持久化（把矩的状态存在 struct 里）</p>
+<hr />
+<h3 id="day-13-xun-lian-sha-shi-bi-ya">Day 13 —— 训练莎士比亚<a class="zola-anchor" href="#day-13-xun-lian-sha-shi-bi-ya" aria-label="Anchor link for: day-13-xun-lian-sha-shi-bi-ya" style="visibility: hidden;"></a>
+</h3>
+<p><strong>目标：让模型真正学到东西</strong></p>
+<pre class="giallo z-code"><code data-lang="plain"><span class="giallo-l"><span>数据：tinyshakespeare（~1MB，约 100 万字符）</span></span>
+<span class="giallo-l"><span>下载：curl -O https://raw.githubusercontent.com/karpathy/char-rnn/master/data/tinyshakespeare/input.txt</span></span>
+<span class="giallo-l"><span>跑：loss 从 ~4.0 降到 ~1.5 说明模型在学</span></span>
+<span class="giallo-l"><span>生成：看输出像不像莎士比亚的风格</span></span></code></pre>
+<p>1.5 附近的 loss 对应的生成内容大概是这样的：</p>
+<pre class="giallo z-code"><code data-lang="plain"><span class="giallo-l"><span>KING RICHARD III:</span></span>
+<span class="giallo-l"><span>So, but I have not been the lord,</span></span>
+<span class="giallo-l"><span>And with the state of the world...</span></span></code></pre>
+<p>不完全通顺，但已经有莎士比亚的味道——单词选用、对话格式、人物称呼都开始像了。这就是语言模型"在学东西"的标志。</p>
+<hr />
+<h3 id="day-14-zheng-li-fa-bu">Day 14 —— 整理 + 发布<a class="zola-anchor" href="#day-14-zheng-li-fa-bu" aria-label="Anchor link for: day-14-zheng-li-fa-bu" style="visibility: hidden;"></a>
+</h3>
+<p><strong>目标：代码整洁，文章写好，对外发布</strong></p>
+<pre class="giallo z-code"><code data-lang="plain"><span class="giallo-l"><span>README 配架构图（用 ASCII 画也行）</span></span>
+<span class="giallo-l"><span>每个模块写注释：解释为什么这么实现，不只是 what，要有 why</span></span>
+<span class="giallo-l"><span>发布：blog.cirray.cn / V2EX / Reddit r/rust</span></span></code></pre>
+<hr />
+<h2 id="feng-xian-yu-an">风险预案<a class="zola-anchor" href="#feng-xian-yu-an" aria-label="Anchor link for: feng-xian-yu-an" style="visibility: hidden;"></a>
+</h2>
+<table><thead><tr><th>如果……</th><th>怎么办</th></tr></thead><tbody>
+<tr><td>梯度验证一直不过</td><td>逐层二分排查，先确认 matmul 再往上</td></tr>
+<tr><td>LayerNorm 反向搞不定</td><td>先用一个简化版（不带 scale/shift），后补</td></tr>
+<tr><td>训练太慢</td><td>缩小模型（d_model=64, n_heads=2, n_layers=2），先跑通</td></tr>
+<tr><td>ndarray 维度对不上</td><td>打印每步的 shape，用 .dim() 检查</td></tr>
+<tr><td>某天完全卡死</td><td>周末缓冲就是为这个准备的，不要跳天</td></tr>
+</tbody></table>
+<hr />
+<h2 id="mei-ri-jie-zou">每日节奏<a class="zola-anchor" href="#mei-ri-jie-zou" aria-label="Anchor link for: mei-ri-jie-zou" style="visibility: hidden;"></a>
+</h2>
+<pre class="giallo z-code"><code data-lang="plain"><span class="giallo-l"><span>09:00 - 09:30  读当天的数学推导（论文 / 笔记）</span></span>
+<span class="giallo-l"><span>09:30 - 12:00  写 Rust 实现</span></span>
+<span class="giallo-l"><span>12:00 - 13:00  午饭休息</span></span>
+<span class="giallo-l"><span>13:00 - 15:30  调试 + 单元测试（梯度验证）</span></span>
+<span class="giallo-l"><span>15:30 - 16:30  整理代码，写注释</span></span>
+<span class="giallo-l"><span>16:30 - 17:00  git push，预习明天内容</span></span></code></pre>
+<hr />
+<h2 id="zui-di-ke-jiao-fu-ban-ben">最低可交付版本<a class="zola-anchor" href="#zui-di-ke-jiao-fu-ban-ben" aria-label="Anchor link for: zui-di-ke-jiao-fu-ban-ben" style="visibility: hidden;"></a>
+</h2>
+<p>如果两周结束时没有全部完成，<strong>最低标准是：前向传播跑通 + 反向传播至少验证过 matmul 和 softmax + 能跑一个训练循环。</strong></p>
+<p>这三件事完成，你对 Transformer 的理解已经远超大多数"用过 PyTorch"的人。</p>
+<p>Adam、多头 attention 的反向传播、完整训练可以标成 <code>🚧 TODO</code>，后续补完。做了 70% 但每行代码都清楚，远胜于做了 100% 但靠 ChatGPT 粘贴的。</p>
+<hr />
+<h2 id="zui-hou">最后<a class="zola-anchor" href="#zui-hou" aria-label="Anchor link for: zui-hou" style="visibility: hidden;"></a>
+</h2>
+<p>两周之后，不管 loss 降到多少，你会真正知道：</p>
+<ul>
+<li>attention 为什么需要 scale</li>
+<li>LayerNorm 的梯度为什么那么写</li>
+<li>Adam 为什么比 SGD 快</li>
+<li>Transformer 的 residual 连接在反向传播里起什么作用</li>
+</ul>
+<p>这些问题，用 PyTorch 跑一百遍也不一定能回答出来。</p>
+<p>这件事值得做，今天就开始。</p>
+
+      </article>
+
+      
+      
+
+      
+      
+      <div class="giscus"></div>
+      <style>
+#comments { margin-top: 3rem; padding: 0 15px; }
+.c-item { margin: 1.2rem 0; }
+.c-reply { margin-left: 1.5rem; padding-left: 1rem; border-left: 2px solid var(--text-decoration-color); }
+.c-meta { display: flex; align-items: center; gap: 0.6rem; margin-bottom: 0.3rem; font-size: 0.85em; }
+.c-name { font-weight: bold; color: var(--text-color); }
+.c-time { color: var(--text-pale-color); }
+.c-reply-btn {
+  background: none; border: none; padding: 0;
+  color: var(--primary-color); cursor: pointer;
+  font-size: 0.85em; opacity: 0;
+  transition: opacity 0.15s;
+}
+.c-item:hover .c-reply-btn { opacity: 1; }
+.c-body { color: var(--text-color); line-height: var(--line-height); white-space: pre-wrap; word-break: break-word; }
+.c-loading, .c-empty { color: var(--text-pale-color); font-size: 0.9em; padding: 1rem 0; }
+.c-form { margin-top: 2rem; display: flex; flex-direction: column; gap: 0.6rem; }
+.c-form-row { display: flex; gap: 0.6rem; }
+.c-input {
+  width: 100%; padding: 0.5rem 0.7rem;
+  border: 1.5px solid var(--text-decoration-color);
+  border-radius: 4px;
+  background: var(--bg-color); color: var(--text-color);
+  font-size: 0.9em; font-family: var(--main-font);
+  outline: none; transition: border-color 0.15s;
+}
+.c-input:focus { border-color: var(--primary-color); }
+.c-input-content { resize: vertical; min-height: 100px; }
+.c-reply-tip {
+  font-size: 0.85em; color: var(--primary-color);
+  padding: 0.2rem 0.5rem;
+  background: var(--inline-code-bg-color);
+  border-radius: 4px; align-self: flex-start;
+}
+.c-reply-tip::after { content: " ✕"; opacity: 0.5; }
+.c-form-actions { display: flex; justify-content: flex-end; }
+.c-submit {
+  padding: 0.4rem 1.2rem;
+  background: var(--primary-color); color: var(--bg-color);
+  border: none; border-radius: 4px;
+  cursor: pointer; font-size: 0.9em;
+  transition: opacity 0.15s;
+}
+.c-submit:hover { opacity: 0.85; }
+.c-submit:disabled { opacity: 0.5; cursor: not-allowed; }
+</style>
+<div id="comments" data-page="&#x2F;posts&#x2F;transformer-from-ndarray-two-week-plan-2026-04-24&#x2F;"></div>
+<script src="/comments.js"></script>
+
+
+      
+    </div>
+
+    
+
+
+<footer>
+  <div class="left">
+    <div class="copyright">
+      © 2026 Cirray AI
+      
+      <span>|</span>
+      Built with <a href="https://www.getzola.org" rel="noreferrer" target="_blank">zola</a> and <a href="https://github.com/isunjn/serene" rel="noreferrer" target="_blank">serene</a>
+      
+    </div>
+  </div>
+
+  <div class="right">
+    
+    
+    
+    
+
+    
+    
+    
+    <button id="theme-toggle" aria-label="theme switch">
+      <span class="moon-icon"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="18" height="18"><path d="M10 7C10 10.866 13.134 14 17 14C18.9584 14 20.729 13.1957 21.9995 11.8995C22 11.933 22 11.9665 22 12C22 17.5228 17.5228 22 12 22C6.47715 22 2 17.5228 2 12C2 6.47715 6.47715 2 12 2C12.0335 2 12.067 2 12.1005 2.00049C10.8043 3.27098 10 5.04157 10 7ZM4 12C4 16.4183 7.58172 20 12 20C15.0583 20 17.7158 18.2839 19.062 15.7621C18.3945 15.9187 17.7035 16 17 16C12.0294 16 8 11.9706 8 7C8 6.29648 8.08133 5.60547 8.2379 4.938C5.71611 6.28423 4 8.9417 4 12Z" fill="currentColor"></path></svg>
+</span>
+      <span class="sun-icon"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="18" height="18"><path d="M12 18C8.68629 18 6 15.3137 6 12C6 8.68629 8.68629 6 12 6C15.3137 6 18 8.68629 18 12C18 15.3137 15.3137 18 12 18ZM12 16C14.2091 16 16 14.2091 16 12C16 9.79086 14.2091 8 12 8C9.79086 8 8 9.79086 8 12C8 14.2091 9.79086 16 12 16ZM11 1H13V4H11V1ZM11 20H13V23H11V20ZM3.51472 4.92893L4.92893 3.51472L7.05025 5.63604L5.63604 7.05025L3.51472 4.92893ZM16.9497 18.364L18.364 16.9497L20.4853 19.0711L19.0711 20.4853L16.9497 18.364ZM19.0711 3.51472L20.4853 4.92893L18.364 7.05025L16.9497 5.63604L19.0711 3.51472ZM5.63604 16.9497L7.05025 18.364L4.92893 20.4853L3.51472 19.0711L5.63604 16.9497ZM23 11V13H20V11H23ZM4 11V13H1V11H4Z" fill="currentColor"></path></svg>
+</span>
+    </button>
+    
+  </div>
+</footer>
+
+
+
+
+
+  </main>
+</div>
+
+  
+<script src="/js/lightense.min.js"></script>
+
+
+  <script src="https://blog.cirray.cn/js/main.js"></script>
+</body>
+
+</html>

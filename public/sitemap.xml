@@ -16,6 +16,9 @@
         <loc>https://blog.cirray.cn/categories/xiang-mu/</loc>
     </url>
     <url>
+        <loc>https://blog.cirray.cn/categories/xue-xi/</loc>
+    </url>
+    <url>
         <loc>https://blog.cirray.cn/posts/</loc>
     </url>
     <url>
@@ -167,6 +170,10 @@
         <lastmod>2026-04-01</lastmod>
     </url>
     <url>
+        <loc>https://blog.cirray.cn/posts/transformer-from-ndarray-two-week-plan-2026-04-24/</loc>
+        <lastmod>2026-04-23</lastmod>
+    </url>
+    <url>
         <loc>https://blog.cirray.cn/tags/</loc>
     </url>
     <url>
@@ -275,10 +282,16 @@
         <loc>https://blog.cirray.cn/tags/debug/</loc>
     </url>
     <url>
+        <loc>https://blog.cirray.cn/tags/deep-learning/</loc>
+    </url>
+    <url>
         <loc>https://blog.cirray.cn/tags/documentation/</loc>
     </url>
     <url>
         <loc>https://blog.cirray.cn/tags/enterprise/</loc>
+    </url>
+    <url>
+        <loc>https://blog.cirray.cn/tags/fan-xiang-chuan-bo/</loc>
     </url>
     <url>
         <loc>https://blog.cirray.cn/tags/fastembed/</loc>
@@ -345,6 +358,9 @@
     </url>
     <url>
         <loc>https://blog.cirray.cn/tags/multi-agent/</loc>
+    </url>
+    <url>
+        <loc>https://blog.cirray.cn/tags/ndarray/</loc>
     </url>
     <url>
         <loc>https://blog.cirray.cn/tags/neumorphic/</loc>
@@ -444,6 +460,9 @@
     </url>
     <url>
         <loc>https://blog.cirray.cn/tags/trait/</loc>
+    </url>
+    <url>
+        <loc>https://blog.cirray.cn/tags/transformer/</loc>
     </url>
     <url>
         <loc>https://blog.cirray.cn/tags/trojan/</loc>
