@@ -1,0 +1,489 @@
+<!DOCTYPE html>
+
+<html lang="en">
+
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="color-scheme" content="light dark">
+  
+  
+    
+  
+  <meta name="description" content="从 Loss=(预测-真实)² 出发，一轮一轮看 w 怎么被训练出来，再推广到矩阵">
+
+  <title>用 Rust 手写 Transformer —— Day 2：反向传播与softmax的理论基础</title>
+  <link rel="icon" type="image/png" sizes="32x32" href="https://blog.cirray.cn/img/favicon-32x32.png">
+  <link rel="icon" type="image/png" sizes="16x16" href="https://blog.cirray.cn/img/favicon-16x16.png">
+  <link rel="apple-touch-icon" sizes="180x180" href="https://blog.cirray.cn/img/apple-touch-icon.png">
+  
+  <style>
+
+  /* light mode colors */
+  body {
+    --primary-color: #5871a2;
+    --primary-pale-color: #5871a233;
+    --primary-decoration-color: #5871a210;
+    --bg-color: #ffffff;
+    --text-color: #2f3030;
+    --text-pale-color: #767676;
+    --text-decoration-color: #a9a9a9;
+    --highlight-mark-color: #5f75b020;
+
+    --callout-note-color: #5871a2;
+    --callout-tip-color: #268556;
+    --callout-important-color: #885fc9;
+    --callout-warning-color: #ab6632;
+    --callout-caution-color: #c64e4e;
+  }
+
+  /* dark mode colors */
+  body.dark {
+    --primary-color: #6f8fd1;
+    --primary-pale-color: #6f8fd166;
+    --primary-decoration-color: #6f8fd112;
+    --bg-color: #1c1c1c;
+    --text-color: #c1c1c1;
+    --text-pale-color: #848484;
+    --text-decoration-color: #5f5f5f;
+    --highlight-mark-color: #8296cb3b;
+
+    --callout-note-color: #6f8fd1;
+    --callout-tip-color: #47976f;
+    --callout-important-color: #9776cd;
+    --callout-warning-color: #ad7a52;
+    --callout-caution-color: #d06161;
+  }
+
+  /* typography */
+  body {
+    --main-font: ui-sans-serif, system-ui, sans-serif, 'Apple Color Emoji', 'Segoe UI Emoji', 'Segoe UI Symbol', 'Noto Color Emoji';
+    --code-font: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, 'Liberation Mono', 'Courier New', monospace;
+    --homepage-max-width: 768px;
+    --main-max-width: 768px;
+    --avatar-size: 60px;
+    --font-size: 16px;
+    --line-height: 1.75;
+    --img-border-radius: 0px;
+    --detail-border-radius: 0px;
+    --dark-mode-img-brightness: 0.75;
+    --dark-mode-chart-brightness: 0.75;
+    --inline-code-border-radius: 2px;
+    --inline-code-bg-color: var(--primary-decoration-color);
+    --block-code-border-radius: 0px;
+    --block-code-border-color: var(--primary-color);
+    --detail-border-color: var(--primary-color);
+  }
+
+</style>
+
+  <link rel="stylesheet" href="https://blog.cirray.cn/main.css">
+  
+
+<link id="hl" rel="stylesheet" type="text/css" href="/giallo-light.css" />
+
+
+
+  
+</head>
+
+<body class="post">
+  
+  <script>
+    const theme = sessionStorage.getItem('theme');
+    const match = window.matchMedia("(prefers-color-scheme: dark)").matches;
+    if ((theme && theme == 'dark') || (!theme && match)) {
+      document.body.classList.add('dark');
+      const hl = document.querySelector('link#hl');
+      if (hl) hl.href = 'https://blog.cirray.cn/giallo-dark.css';
+    }
+  </script>
+  
+  
+<div id="wrapper">
+  <div id="blank"></div>
+  <aside>
+    
+    
+    <nav>
+      <ul>
+        
+        <li>
+          <a class="h2" href="#yu-ce-hen-lan-loss-hen-da">预测很烂，Loss 很大</a>
+          
+        </li>
+        
+        <li>
+          <a class="h2" href="#shu-xue-gei-chu-da-an-kan-loss-dui-w-de-dao-shu">数学给出答案: 看 Loss 对 w 的导数</a>
+          
+        </li>
+        
+        <li>
+          <a class="h2" href="#yi-lun-yi-lun-pao">一轮一轮跑</a>
+          
+        </li>
+        
+        <li>
+          <a class="h2" href="#fan-xiang-chuan-bo-mei-you-xin-shu-xue">反向传播没有新数学</a>
+          
+        </li>
+        
+        <li>
+          <a class="h2" href="#cong-biao-liang-dao-ju-zhen">从标量到矩阵</a>
+          
+          <ul>
+            
+            <li>
+              <a class="h3" href="#dw-zen-me-suan">dW 怎么算</a>
+            </li>
+            
+            <li>
+              <a class="h3" href="#dx-zen-me-suan">dX 怎么算</a>
+            </li>
+            
+          </ul>
+          
+        </li>
+        
+        <li>
+          <a class="h2" href="#ju-zhen-gong-shi-bu-shi-mo-fa">矩阵公式不是魔法</a>
+          
+        </li>
+        
+        <li>
+          <a class="h2" href="#softmax-logits-bian-gai-lu">Softmax：logits 变概率</a>
+          
+        </li>
+        
+        <li>
+          <a class="h2" href="#softmax-fan-xiang-chuan-bo">Softmax 反向传播</a>
+          
+        </li>
+        
+        <li>
+          <a class="h2" href="#rust-shi-xian">Rust 实现</a>
+          
+        </li>
+        
+      </ul>
+    </nav>
+    
+    
+    <button id="back-to-top" aria-label="back to top">
+      
+      <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="feather feather-arrow-up"><line x1="12" y1="19" x2="12" y2="5"></line><polyline points="5 12 12 5 19 12"></polyline></svg>
+
+    </button>
+    
+  </aside>
+  <main>
+    
+<header>
+  <nav>
+    <a id="back-link" href="https:&#x2F;&#x2F;blog.cirray.cn&#x2F;posts">← Back</a>
+  </nav>
+</header>
+
+
+    <div>
+      
+      
+      
+      
+      <div id="copy-cfg" style="display: none;" data-copy-icon="&lt;svg xmlns=&quot;http:&#x2F;&#x2F;www.w3.org&#x2F;2000&#x2F;svg&quot; viewBox=&quot;0 0 24 24&quot; width=&quot;18&quot; height=&quot;18&quot;&gt;&lt;path d=&quot;M6.9998 6V3C6.9998 2.44772 7.44752 2 7.9998 2H19.9998C20.5521 2 20.9998 2.44772 20.9998 3V17C20.9998 17.5523 20.5521 18 19.9998 18H16.9998V20.9991C16.9998 21.5519 16.5499 22 15.993 22H4.00666C3.45059 22 3 21.5554 3 20.9991L3.0026 7.00087C3.0027 6.44811 3.45264 6 4.00942 6H6.9998ZM5.00242 8L5.00019 20H14.9998V8H5.00242ZM8.9998 6H16.9998V16H18.9998V4H8.9998V6Z&quot; fill=&quot;currentColor&quot;&gt;&lt;&#x2F;path&gt;&lt;&#x2F;svg&gt;
+" data-check-icon="&lt;svg xmlns=&quot;http:&#x2F;&#x2F;www.w3.org&#x2F;2000&#x2F;svg&quot; viewBox=&quot;0 0 24 24&quot; width=&quot;18&quot; height=&quot;18&quot;&gt;&lt;path d=&quot;M10.0007 15.1709L19.1931 5.97852L20.6073 7.39273L10.0007 17.9993L3.63672 11.6354L5.05093 10.2212L10.0007 15.1709Z&quot; fill=&quot;currentColor&quot;&gt;&lt;&#x2F;path&gt;&lt;&#x2F;svg&gt;
+"></div>
+      
+      <article class="prose">
+        <h1>用 Rust 手写 Transformer —— Day 2：反向传播与softmax的理论基础</h1>
+        <div id="post-info">
+          <div id="date">
+            <span id="publish">2026-04-27</span>
+            </div>
+
+          
+          <div id="tags">
+            <a class="instant" href="https://blog.cirray.cn/tags/deep-learning"><span>#</span>deep-learning</a><a class="instant" href="https://blog.cirray.cn/tags/transformer"><span>#</span>transformer</a>
+          </div>
+          
+        </div>
+
+        
+        
+
+        
+
+        <h2 id="yu-ce-hen-lan-loss-hen-da">预测很烂，Loss 很大<a class="zola-anchor" href="#yu-ce-hen-lan-loss-hen-da" aria-label="Anchor link for: yu-ce-hen-lan-loss-hen-da" style="visibility: hidden;"></a>
+</h2>
+<p>最简单的模型：</p>
+<pre class="giallo z-code"><code data-lang="plain"><span class="giallo-l"><span>y_pred = w * x</span></span></code></pre>
+<p>初始 <code>w = 0.5</code>，输入 <code>x = 10</code>，真实答案 <code>y_true = 100</code>。</p>
+<pre class="giallo z-code"><code data-lang="plain"><span class="giallo-l"><span>y_pred = 0.5 * 10 = 5</span></span></code></pre>
+<p>预测是 5，真实是 100，相差甚远。</p>
+<p>用平方误差量化Loss：</p>
+<pre class="giallo z-code"><code data-lang="plain"><span class="giallo-l"><span>Loss = (y_pred - y_true)²</span></span>
+<span class="giallo-l"><span>     = (5 - 100)²</span></span>
+<span class="giallo-l"><span>     = 9025</span></span></code></pre>
+<p><strong>w怎么调能让Loss减小？</strong></p>
+<hr />
+<h2 id="shu-xue-gei-chu-da-an-kan-loss-dui-w-de-dao-shu">数学给出答案: 看 Loss 对 w 的导数<a class="zola-anchor" href="#shu-xue-gei-chu-da-an-kan-loss-dui-w-de-dao-shu" aria-label="Anchor link for: shu-xue-gei-chu-da-an-kan-loss-dui-w-de-dao-shu" style="visibility: hidden;"></a>
+</h2>
+<p>导数 &gt; 0 -&gt; w 应该减小
+导数 &lt; 0 -&gt; w 应该增大</p>
+<pre class="giallo z-code"><code data-lang="plain"><span class="giallo-l"><span>Loss = (w*x - y_true)²</span></span>
+<span class="giallo-l"></span>
+<span class="giallo-l"><span>dLoss/dw = 2 * (w*x - y_true) * x</span></span>
+<span class="giallo-l"><span>         = 2 * (5 - 100) * 10</span></span>
+<span class="giallo-l"><span>         = -1900</span></span></code></pre>
+<p>导数是 <strong>-1900</strong>。</p>
+<p>w 应增大</p>
+<p>用学习率 <code>lr = 0.001</code> 更新：</p>
+<pre class="giallo z-code"><code data-lang="plain"><span class="giallo-l"><span>w_new = w - lr * dLoss/dw</span></span>
+<span class="giallo-l"><span>      = 0.5 - 0.001 * (-1900)</span></span>
+<span class="giallo-l"><span>      = 0.5 + 1.9</span></span>
+<span class="giallo-l"><span>      = 2.4</span></span></code></pre>
+<hr />
+<h2 id="yi-lun-yi-lun-pao">一轮一轮跑<a class="zola-anchor" href="#yi-lun-yi-lun-pao" aria-label="Anchor link for: yi-lun-yi-lun-pao" style="visibility: hidden;"></a>
+</h2>
+<table><thead><tr><th>轮次</th><th>w</th><th>y_pred</th><th>Loss</th><th>梯度</th></tr></thead><tbody>
+<tr><td>初始</td><td>0.50</td><td>5.0</td><td>9025.0</td><td>—</td></tr>
+<tr><td>第 1 轮</td><td>2.40</td><td>24.0</td><td>5776.0</td><td>-1900</td></tr>
+<tr><td>第 2 轮</td><td>4.06</td><td>40.6</td><td>3494.4</td><td>-1520</td></tr>
+<tr><td>第 3 轮</td><td>5.43</td><td>54.3</td><td>2088.5</td><td>-1188</td></tr>
+<tr><td>第 4 轮</td><td>6.54</td><td>65.4</td><td>1193.6</td><td>-891.4</td></tr>
+<tr><td>第 5 轮</td><td>7.43</td><td>74.3</td><td>655.3</td><td>-651.2</td></tr>
+<tr><td>第 10 轮</td><td>9.26</td><td>92.6</td><td>54.8</td><td>-148</td></tr>
+<tr><td>第 15 轮</td><td>9.83</td><td>98.3</td><td>2.9</td><td>-34</td></tr>
+<tr><td>第 20 轮</td><td>9.97</td><td>99.7</td><td>0.09</td><td>—</td></tr>
+</tbody></table>
+<p>w 从 0.5 一步步逼近 10（<code>y_true/x = 100/10 = 10</code>），Loss 从 9025 掉到接近 0。</p>
+<p><strong>这就是训练的全部本质：前向算 Loss，反向算梯度，更新 w，循环。</strong></p>
+<p>神经网络只是把这个套娃。</p>
+<hr />
+<h2 id="fan-xiang-chuan-bo-mei-you-xin-shu-xue">反向传播没有新数学<a class="zola-anchor" href="#fan-xiang-chuan-bo-mei-you-xin-shu-xue" aria-label="Anchor link for: fan-xiang-chuan-bo-mei-you-xin-shu-xue" style="visibility: hidden;"></a>
+</h2>
+<p>上面那个 <code>dLoss/dw = -1900</code> 怎么算出来的？</p>
+<p>两步链式法则，仅此而已。</p>
+<p>设 <code>u = w*x - y_true</code>，则 <code>Loss = u²</code>：</p>
+<pre class="giallo z-code"><code data-lang="plain"><span class="giallo-l"><span>dLoss/du = 2u = 2 * (5 - 100) = -190</span></span>
+<span class="giallo-l"><span>du/dw    = x  = 10</span></span>
+<span class="giallo-l"></span>
+<span class="giallo-l"><span>dLoss/dw = dLoss/du * du/dw = -190 * 10 = -1900</span></span></code></pre>
+<p>链式法则就是高中微积分。反向传播只是给它起了个名字，然后在神经网络的计算图上系统地用一遍。</p>
+<p>层数再深，也是同一件事：从 Loss 往回，一层一层用链式法则。</p>
+<hr />
+<h2 id="cong-biao-liang-dao-ju-zhen">从标量到矩阵<a class="zola-anchor" href="#cong-biao-liang-dao-ju-zhen" aria-label="Anchor link for: cong-biao-liang-dao-ju-zhen" style="visibility: hidden;"></a>
+</h2>
+<p>现实中一次处理多个样本，每个样本多个特征，输出多个神经元——标量变矩阵。</p>
+<pre class="giallo z-code"><code data-lang="plain"><span class="giallo-l"><span>X = [[1, 2],      # 样本0：特征1=1, 特征2=2</span></span>
+<span class="giallo-l"><span>     [3, 4]]      # 样本1：特征1=3, 特征2=4</span></span>
+<span class="giallo-l"></span>
+<span class="giallo-l"><span>W = [[0.1, 0.5],  # 特征0 → 输出0权重=0.1, 输出1权重=0.5</span></span>
+<span class="giallo-l"><span>     [0.2, 0.6]]  # 特征1 → 输出0权重=0.2, 输出1权重=0.6</span></span>
+<span class="giallo-l"></span>
+<span class="giallo-l"><span>Y_pred = X @ W</span></span></code></pre>
+<p>算出来：</p>
+<pre class="giallo z-code"><code data-lang="plain"><span class="giallo-l"><span>Y_pred[0,0] = 1*0.1 + 2*0.2 = 0.5</span></span>
+<span class="giallo-l"><span>Y_pred[0,1] = 1*0.5 + 2*0.6 = 1.7</span></span>
+<span class="giallo-l"><span>Y_pred[1,0] = 3*0.1 + 4*0.2 = 1.1</span></span>
+<span class="giallo-l"><span>Y_pred[1,1] = 3*0.5 + 4*0.6 = 3.9</span></span></code></pre>
+<p>真实标签：</p>
+<pre class="giallo z-code"><code data-lang="plain"><span class="giallo-l"><span>Y_true = [[2.0, 3.0],</span></span>
+<span class="giallo-l"><span>          [5.0, 7.0]]</span></span>
+<span class="giallo-l"></span>
+<span class="giallo-l"><span>Loss = sum((Y_pred - Y_true)²)</span></span></code></pre>
+<p><code>dout</code> 是 Loss 对 Y_pred 每个元素的导数，跟标量时一样，<code>d(u²)/du = 2u</code>：</p>
+<pre class="giallo z-code"><code data-lang="plain"><span class="giallo-l"><span>dout = 2 * (Y_pred - Y_true)</span></span>
+<span class="giallo-l"><span>     = [[-3.0, -2.6],</span></span>
+<span class="giallo-l"><span>        [-7.8, -6.2]]</span></span></code></pre><h3 id="dw-zen-me-suan">dW 怎么算<a class="zola-anchor" href="#dw-zen-me-suan" aria-label="Anchor link for: dw-zen-me-suan" style="visibility: hidden;"></a>
+</h3>
+<p>W[0,0] = 0.1 参与了哪些 Y 的计算？</p>
+<pre class="giallo z-code"><code data-lang="plain"><span class="giallo-l"><span>Y_pred[0,0] = X[0,0]*W[0,0] + ...   # 样本0</span></span>
+<span class="giallo-l"><span>Y_pred[1,0] = X[1,0]*W[0,0] + ...   # 样本1</span></span></code></pre>
+<p>链式法则，两个样本的贡献加起来：</p>
+<pre class="giallo z-code"><code data-lang="plain"><span class="giallo-l"><span>dLoss/dW[0,0] = dout[0,0] * X[0,0] + dout[1,0] * X[1,0]</span></span>
+<span class="giallo-l"><span>              = (-3.0)*1 + (-7.8)*3</span></span>
+<span class="giallo-l"><span>              = -26.4</span></span></code></pre>
+<p>对所有元素这样做，整理成矩阵：</p>
+<pre class="giallo z-code"><code data-lang="plain"><span class="giallo-l"><span>dW = X.T @ dout</span></span></code></pre>
+<p>形状：<code>(2,2).T @ (2,2) = (2,2)</code>——和 W 同形状，正确。</p>
+<h3 id="dx-zen-me-suan">dX 怎么算<a class="zola-anchor" href="#dx-zen-me-suan" aria-label="Anchor link for: dx-zen-me-suan" style="visibility: hidden;"></a>
+</h3>
+<p>X[0,0] 参与了哪些 Y 的计算？</p>
+<pre class="giallo z-code"><code data-lang="plain"><span class="giallo-l"><span>Y_pred[0,0] = X[0,0]*W[0,0] + ...   # 输出神经元0</span></span>
+<span class="giallo-l"><span>Y_pred[0,1] = X[0,0]*W[0,1] + ...   # 输出神经元1</span></span></code></pre><pre class="giallo z-code"><code data-lang="plain"><span class="giallo-l"><span>dLoss/dX[0,0] = dout[0,0]*W[0,0] + dout[0,1]*W[0,1]</span></span>
+<span class="giallo-l"><span>              = (-3.0)*0.1 + (-2.6)*0.5</span></span>
+<span class="giallo-l"><span>              = -1.6</span></span></code></pre>
+<p>整理成矩阵：</p>
+<pre class="giallo z-code"><code data-lang="plain"><span class="giallo-l"><span>dX = dout @ W.T</span></span></code></pre>
+<hr />
+<h2 id="ju-zhen-gong-shi-bu-shi-mo-fa">矩阵公式不是魔法<a class="zola-anchor" href="#ju-zhen-gong-shi-bu-shi-mo-fa" aria-label="Anchor link for: ju-zhen-gong-shi-bu-shi-mo-fa" style="visibility: hidden;"></a>
+</h2>
+<p><code>dW = X.T @ dout</code>，<code>dX = dout @ W.T</code>——这两行公式不是背出来的。</p>
+<p>每一个，都是"对某个元素写链式法则，然后发现可以整理成矩阵乘法"。</p>
+<p>验证正确性最简单的方式：<strong>形状对得上就基本对了</strong>。</p>
+<pre class="giallo z-code"><code data-lang="plain"><span class="giallo-l"><span>dW: (C, B) @ (B, D) = (C, D)    ← 和 W 同形状 ✓</span></span>
+<span class="giallo-l"><span>dX: (B, D) @ (D, C) = (B, C)    ← 和 X 同形状 ✓</span></span></code></pre>
+<hr />
+<h2 id="softmax-logits-bian-gai-lu">Softmax：logits 变概率<a class="zola-anchor" href="#softmax-logits-bian-gai-lu" aria-label="Anchor link for: softmax-logits-bian-gai-lu" style="visibility: hidden;"></a>
+</h2>
+<p>矩阵乘法输出任意实数（logits），无法直接解释为概率：</p>
+<pre class="giallo z-code"><code data-lang="plain"><span class="giallo-l"><span>logits = [2.1, -0.5, 3.8]</span></span></code></pre>
+<p>Softmax 把它变成合法概率分布（每项 &gt; 0，加起来 = 1）：</p>
+<pre class="giallo z-code"><code data-lang="plain"><span class="giallo-l"><span>softmax(x[i]) = exp(x[i]) / Σ exp(x[j])</span></span></code></pre>
+<p>计算：</p>
+<pre class="giallo z-code"><code data-lang="plain"><span class="giallo-l"><span>exp(2.1)  = 8.17</span></span>
+<span class="giallo-l"><span>exp(-0.5) = 0.61</span></span>
+<span class="giallo-l"><span>exp(3.8)  = 44.70</span></span>
+<span class="giallo-l"><span>sum       = 53.48</span></span>
+<span class="giallo-l"></span>
+<span class="giallo-l"><span>probs = [0.153, 0.011, 0.836]   # 加起来 = 1.0 ✓</span></span></code></pre>
+<p><code>exp</code> 的作用：把负数变正数，同时放大差距（3.8 比 2.1 大 1.7 倍，但 exp 之后大 5.5 倍）。</p>
+<hr />
+<h2 id="softmax-fan-xiang-chuan-bo">Softmax 反向传播<a class="zola-anchor" href="#softmax-fan-xiang-chuan-bo" aria-label="Anchor link for: softmax-fan-xiang-chuan-bo" style="visibility: hidden;"></a>
+</h2>
+<p>设 softmax 输出为 <code>s</code>，上层传来的梯度为 <code>grad_out</code>：</p>
+<pre class="giallo z-code"><code data-lang="plain"><span class="giallo-l"><span>grad_in[i] = s[i] * (grad_out[i] - Σ(grad_out * s))</span></span></code></pre>
+<p><code>Σ(grad_out * s)</code> 是梯度的加权平均（权重是概率）。每个位置减去这个"基准线"，再乘以自身概率。</p>
+<p>为什么有这个基准线？softmax 是归一化操作，一个位置概率升高，其他位置必然降低——梯度必须体现这个相互制约。</p>
+<hr />
+<h2 id="rust-shi-xian">Rust 实现<a class="zola-anchor" href="#rust-shi-xian" aria-label="Anchor link for: rust-shi-xian" style="visibility: hidden;"></a>
+</h2>
+<pre class="giallo z-code"><code data-lang="rust"><span class="giallo-l"><span class="z-keyword">fn</span><span class="z-entity z-name"> matmul_backward</span><span>(</span></span>
+<span class="giallo-l"><span class="z-variable z-other">    dout</span><span class="z-keyword">:</span><span class="z-keyword"> &amp;</span><span class="z-entity z-name">Array3</span><span>&lt;</span><span class="z-entity z-name">f32</span><span>&gt;</span><span>,</span><span class="z-punctuation z-definition z-comment">   //</span><span class="z-comment"> (B, T, D)</span></span>
+<span class="giallo-l"><span class="z-variable z-other">    x</span><span class="z-keyword">:</span><span class="z-keyword"> &amp;</span><span class="z-entity z-name">Array3</span><span>&lt;</span><span class="z-entity z-name">f32</span><span>&gt;</span><span>,</span><span class="z-punctuation z-definition z-comment">      //</span><span class="z-comment"> (B, T, C)</span></span>
+<span class="giallo-l"><span class="z-variable z-other">    w</span><span class="z-keyword">:</span><span class="z-keyword"> &amp;</span><span class="z-entity z-name">Array2</span><span>&lt;</span><span class="z-entity z-name">f32</span><span>&gt;</span><span>,</span><span class="z-punctuation z-definition z-comment">      //</span><span class="z-comment"> (C, D)</span></span>
+<span class="giallo-l"><span>)</span><span class="z-keyword"> -&gt;</span><span> (</span><span class="z-entity z-name">Array3</span><span>&lt;</span><span class="z-entity z-name">f32</span><span>&gt;</span><span>,</span><span class="z-entity z-name"> Array2</span><span>&lt;</span><span class="z-entity z-name">f32</span><span>&gt;</span><span>)</span><span> {</span></span>
+<span class="giallo-l"><span class="z-storage z-type">    let</span><span> (</span><span class="z-variable z-other">b</span><span>,</span><span class="z-variable z-other"> t</span><span>,</span><span class="z-variable z-other"> c</span><span>)</span><span class="z-keyword"> =</span><span class="z-variable z-other"> x</span><span class="z-keyword">.</span><span class="z-entity z-name">dim</span><span>(</span><span>)</span><span>;</span></span>
+<span class="giallo-l"><span class="z-storage z-type">    let</span><span class="z-variable z-other"> d</span><span class="z-keyword"> =</span><span class="z-variable z-other"> w</span><span class="z-keyword">.</span><span class="z-entity z-name">shape</span><span>(</span><span>)</span><span>[</span><span class="z-constant">1</span><span>]</span><span>;</span></span>
+<span class="giallo-l"></span>
+<span class="giallo-l"><span class="z-storage z-type">    let</span><span class="z-variable z-other"> dx</span><span class="z-keyword"> =</span><span class="z-variable z-other"> dout</span><span class="z-keyword">.</span><span class="z-entity z-name">dot</span><span>(</span><span class="z-keyword">&amp;</span><span class="z-variable z-other">w</span><span class="z-keyword">.</span><span class="z-entity z-name">t</span><span>(</span><span>)</span><span>)</span><span>;</span><span class="z-punctuation z-definition z-comment">                                    //</span><span class="z-comment"> dX = dout @ W.T</span></span>
+<span class="giallo-l"></span>
+<span class="giallo-l"><span class="z-storage z-type">    let</span><span class="z-variable z-other"> x_2d</span><span class="z-keyword">   =</span><span class="z-variable z-other"> x</span><span class="z-keyword">.</span><span class="z-entity z-name">view</span><span>(</span><span>)</span><span class="z-keyword">.</span><span class="z-entity z-name">into_shape</span><span>(</span><span>(</span><span class="z-variable z-other">b</span><span class="z-keyword"> *</span><span class="z-variable z-other"> t</span><span>,</span><span class="z-variable z-other"> c</span><span>)</span><span>)</span><span class="z-keyword">.</span><span class="z-entity z-name">unwrap</span><span>(</span><span>)</span><span>;</span></span>
+<span class="giallo-l"><span class="z-storage z-type">    let</span><span class="z-variable z-other"> dout_2d</span><span class="z-keyword"> =</span><span class="z-variable z-other"> dout</span><span class="z-keyword">.</span><span class="z-entity z-name">view</span><span>(</span><span>)</span><span class="z-keyword">.</span><span class="z-entity z-name">into_shape</span><span>(</span><span>(</span><span class="z-variable z-other">b</span><span class="z-keyword"> *</span><span class="z-variable z-other"> t</span><span>,</span><span class="z-variable z-other"> d</span><span>)</span><span>)</span><span class="z-keyword">.</span><span class="z-entity z-name">unwrap</span><span>(</span><span>)</span><span>;</span></span>
+<span class="giallo-l"><span class="z-storage z-type">    let</span><span class="z-variable z-other"> dw</span><span class="z-keyword"> =</span><span class="z-variable z-other"> x_2d</span><span class="z-keyword">.</span><span class="z-entity z-name">t</span><span>(</span><span>)</span><span class="z-keyword">.</span><span class="z-entity z-name">dot</span><span>(</span><span class="z-keyword">&amp;</span><span class="z-variable z-other">dout_2d</span><span>)</span><span>;</span><span class="z-punctuation z-definition z-comment">                             //</span><span class="z-comment"> dW = X.T @ dout</span></span>
+<span class="giallo-l"></span>
+<span class="giallo-l"><span>    (</span><span class="z-variable z-other">dx</span><span>,</span><span class="z-variable z-other"> dw</span><span>)</span></span>
+<span class="giallo-l"><span>}</span></span>
+<span class="giallo-l"></span>
+<span class="giallo-l"><span class="z-keyword">pub</span><span class="z-keyword"> fn</span><span class="z-entity z-name"> softmax</span><span>(</span><span class="z-variable z-other">x</span><span class="z-keyword">:</span><span class="z-keyword"> &amp;</span><span class="z-entity z-name">Array2</span><span>&lt;</span><span class="z-entity z-name">f32</span><span>&gt;</span><span>)</span><span class="z-keyword"> -&gt;</span><span class="z-entity z-name"> Array2</span><span>&lt;</span><span class="z-entity z-name">f32</span><span>&gt;</span><span> {</span></span>
+<span class="giallo-l"><span class="z-storage z-type">    let</span><span class="z-variable z-other"> max</span><span class="z-keyword"> =</span><span class="z-variable z-other"> x</span><span class="z-keyword">.</span><span class="z-entity z-name">map_axis</span><span>(</span><span class="z-entity z-name">Axis</span><span>(</span><span class="z-constant">1</span><span>)</span><span>,</span><span class="z-keyword"> |</span><span class="z-variable z-other">r</span><span class="z-keyword">|</span><span class="z-variable z-other"> r</span><span class="z-keyword">.</span><span class="z-entity z-name">fold</span><span>(</span><span class="z-entity z-name">f32</span><span class="z-keyword">::</span><span class="z-constant">NEG_INFINITY</span><span>,</span><span class="z-keyword"> |</span><span class="z-variable z-other">a</span><span>,</span><span class="z-keyword"> &amp;</span><span class="z-variable z-other">b</span><span class="z-keyword">|</span><span class="z-variable z-other"> a</span><span class="z-keyword">.</span><span class="z-entity z-name">max</span><span>(</span><span class="z-variable z-other">b</span><span>)</span><span>)</span><span>)</span><span>;</span></span>
+<span class="giallo-l"><span class="z-storage z-type">    let</span><span class="z-variable z-other"> exp</span><span class="z-keyword"> =</span><span> (</span><span class="z-variable z-other">x</span><span class="z-keyword"> -</span><span class="z-keyword"> &amp;</span><span class="z-variable z-other">max</span><span class="z-keyword">.</span><span class="z-entity z-name">insert_axis</span><span>(</span><span class="z-entity z-name">Axis</span><span>(</span><span class="z-constant">1</span><span>)</span><span>)</span><span>)</span><span class="z-keyword">.</span><span class="z-entity z-name">mapv</span><span>(</span><span class="z-entity z-name">f32</span><span class="z-keyword">::</span><span class="z-variable z-other">exp</span><span>)</span><span>;</span></span>
+<span class="giallo-l"><span class="z-keyword">    &amp;</span><span class="z-variable z-other">exp</span><span class="z-keyword"> /</span><span class="z-keyword"> &amp;</span><span class="z-variable z-other">exp</span><span class="z-keyword">.</span><span class="z-entity z-name">sum_axis</span><span>(</span><span class="z-entity z-name">Axis</span><span>(</span><span class="z-constant">1</span><span>)</span><span>)</span><span class="z-keyword">.</span><span class="z-entity z-name">insert_axis</span><span>(</span><span class="z-entity z-name">Axis</span><span>(</span><span class="z-constant">1</span><span>)</span><span>)</span></span>
+<span class="giallo-l"><span>}</span></span>
+<span class="giallo-l"></span>
+<span class="giallo-l"><span class="z-keyword">pub</span><span class="z-keyword"> fn</span><span class="z-entity z-name"> softmax_backward</span><span>(</span><span class="z-variable z-other">s</span><span class="z-keyword">:</span><span class="z-keyword"> &amp;</span><span class="z-entity z-name">Array2</span><span>&lt;</span><span class="z-entity z-name">f32</span><span>&gt;</span><span>,</span><span class="z-variable z-other"> grad_out</span><span class="z-keyword">:</span><span class="z-keyword"> &amp;</span><span class="z-entity z-name">Array2</span><span>&lt;</span><span class="z-entity z-name">f32</span><span>&gt;</span><span>)</span><span class="z-keyword"> -&gt;</span><span class="z-entity z-name"> Array2</span><span>&lt;</span><span class="z-entity z-name">f32</span><span>&gt;</span><span> {</span></span>
+<span class="giallo-l"><span class="z-storage z-type">    let</span><span class="z-variable z-other"> dot</span><span class="z-keyword"> =</span><span> (</span><span class="z-variable z-other">s</span><span class="z-keyword"> *</span><span class="z-variable z-other"> grad_out</span><span>)</span><span class="z-keyword">.</span><span class="z-entity z-name">sum_axis</span><span>(</span><span class="z-entity z-name">Axis</span><span>(</span><span class="z-constant">1</span><span>)</span><span>)</span><span class="z-keyword">.</span><span class="z-entity z-name">insert_axis</span><span>(</span><span class="z-entity z-name">Axis</span><span>(</span><span class="z-constant">1</span><span>)</span><span>)</span><span>;</span></span>
+<span class="giallo-l"><span class="z-variable z-other">    s</span><span class="z-keyword"> *</span><span> (</span><span class="z-variable z-other">grad_out</span><span class="z-keyword"> -</span><span class="z-keyword"> &amp;</span><span class="z-variable z-other">dot</span><span>)</span></span>
+<span class="giallo-l"><span>}</span></span></code></pre>
+<p>从标量求导，到链式法则，到矩阵整理，到 ndarray 实现——每一步都是同一件事的不同规模。</p>
+
+      </article>
+
+      
+      
+
+      
+      
+      <div class="giscus"></div>
+      <style>
+#comments { margin-top: 3rem; padding: 0 15px; }
+.c-item { margin: 1.2rem 0; }
+.c-reply { margin-left: 1.5rem; padding-left: 1rem; border-left: 2px solid var(--text-decoration-color); }
+.c-meta { display: flex; align-items: center; gap: 0.6rem; margin-bottom: 0.3rem; font-size: 0.85em; }
+.c-name { font-weight: bold; color: var(--text-color); }
+.c-time { color: var(--text-pale-color); }
+.c-reply-btn {
+  background: none; border: none; padding: 0;
+  color: var(--primary-color); cursor: pointer;
+  font-size: 0.85em; opacity: 0;
+  transition: opacity 0.15s;
+}
+.c-item:hover .c-reply-btn { opacity: 1; }
+.c-body { color: var(--text-color); line-height: var(--line-height); white-space: pre-wrap; word-break: break-word; }
+.c-loading, .c-empty { color: var(--text-pale-color); font-size: 0.9em; padding: 1rem 0; }
+.c-form { margin-top: 2rem; display: flex; flex-direction: column; gap: 0.6rem; }
+.c-form-row { display: flex; gap: 0.6rem; }
+.c-input {
+  width: 100%; padding: 0.5rem 0.7rem;
+  border: 1.5px solid var(--text-decoration-color);
+  border-radius: 4px;
+  background: var(--bg-color); color: var(--text-color);
+  font-size: 0.9em; font-family: var(--main-font);
+  outline: none; transition: border-color 0.15s;
+}
+.c-input:focus { border-color: var(--primary-color); }
+.c-input-content { resize: vertical; min-height: 100px; }
+.c-reply-tip {
+  font-size: 0.85em; color: var(--primary-color);
+  padding: 0.2rem 0.5rem;
+  background: var(--inline-code-bg-color);
+  border-radius: 4px; align-self: flex-start;
+}
+.c-reply-tip::after { content: " ✕"; opacity: 0.5; }
+.c-form-actions { display: flex; justify-content: flex-end; }
+.c-submit {
+  padding: 0.4rem 1.2rem;
+  background: var(--primary-color); color: var(--bg-color);
+  border: none; border-radius: 4px;
+  cursor: pointer; font-size: 0.9em;
+  transition: opacity 0.15s;
+}
+.c-submit:hover { opacity: 0.85; }
+.c-submit:disabled { opacity: 0.5; cursor: not-allowed; }
+</style>
+<div id="comments" data-page="&#x2F;posts&#x2F;backprop-softmax-2026-04-28&#x2F;"></div>
+<script src="/comments.js"></script>
+
+
+      
+    </div>
+
+    
+
+
+<footer>
+  <div class="left">
+    <div class="copyright">
+      © 2026 Cirray AI
+      
+      <span>|</span>
+      Built with <a href="https://www.getzola.org" rel="noreferrer" target="_blank">zola</a> and <a href="https://github.com/isunjn/serene" rel="noreferrer" target="_blank">serene</a>
+      
+    </div>
+  </div>
+
+  <div class="right">
+    
+    
+    
+    
+
+    
+    
+    
+    <button id="theme-toggle" aria-label="theme switch">
+      <span class="moon-icon"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="18" height="18"><path d="M10 7C10 10.866 13.134 14 17 14C18.9584 14 20.729 13.1957 21.9995 11.8995C22 11.933 22 11.9665 22 12C22 17.5228 17.5228 22 12 22C6.47715 22 2 17.5228 2 12C2 6.47715 6.47715 2 12 2C12.0335 2 12.067 2 12.1005 2.00049C10.8043 3.27098 10 5.04157 10 7ZM4 12C4 16.4183 7.58172 20 12 20C15.0583 20 17.7158 18.2839 19.062 15.7621C18.3945 15.9187 17.7035 16 17 16C12.0294 16 8 11.9706 8 7C8 6.29648 8.08133 5.60547 8.2379 4.938C5.71611 6.28423 4 8.9417 4 12Z" fill="currentColor"></path></svg>
+</span>
+      <span class="sun-icon"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="18" height="18"><path d="M12 18C8.68629 18 6 15.3137 6 12C6 8.68629 8.68629 6 12 6C15.3137 6 18 8.68629 18 12C18 15.3137 15.3137 18 12 18ZM12 16C14.2091 16 16 14.2091 16 12C16 9.79086 14.2091 8 12 8C9.79086 8 8 9.79086 8 12C8 14.2091 9.79086 16 12 16ZM11 1H13V4H11V1ZM11 20H13V23H11V20ZM3.51472 4.92893L4.92893 3.51472L7.05025 5.63604L5.63604 7.05025L3.51472 4.92893ZM16.9497 18.364L18.364 16.9497L20.4853 19.0711L19.0711 20.4853L16.9497 18.364ZM19.0711 3.51472L20.4853 4.92893L18.364 7.05025L16.9497 5.63604L19.0711 3.51472ZM5.63604 16.9497L7.05025 18.364L4.92893 20.4853L3.51472 19.0711L5.63604 16.9497ZM23 11V13H20V11H23ZM4 11V13H1V11H4Z" fill="currentColor"></path></svg>
+</span>
+    </button>
+    
+  </div>
+</footer>
+
+
+
+
+
+  </main>
+</div>
+
+  
+<script src="/js/lightense.min.js"></script>
+
+
+  <script src="https://blog.cirray.cn/js/main.js"></script>
+</body>
+
+</html>
