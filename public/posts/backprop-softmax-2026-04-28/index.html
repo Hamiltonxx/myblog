@@ -215,7 +215,7 @@
 
         <h2 id="yu-ce-hen-lan-loss-hen-da">预测很烂，Loss 很大<a class="zola-anchor" href="#yu-ce-hen-lan-loss-hen-da" aria-label="Anchor link for: yu-ce-hen-lan-loss-hen-da" style="visibility: hidden;"></a>
 </h2>
-<p>最简单的模型：</p>
+<p>最简单的模型, 如预测房价，x是面积，y是价格：</p>
 <pre class="giallo z-code"><code data-lang="plain"><span class="giallo-l"><span>y_pred = w * x</span></span></code></pre>
 <p>初始 <code>w = 0.5</code>，输入 <code>x = 10</code>，真实答案 <code>y_true = 100</code>。</p>
 <pre class="giallo z-code"><code data-lang="plain"><span class="giallo-l"><span>y_pred = 0.5 * 10 = 5</span></span></code></pre>
@@ -228,7 +228,7 @@
 <hr />
 <h2 id="shu-xue-gei-chu-da-an-kan-loss-dui-w-de-dao-shu">数学给出答案: 看 Loss 对 w 的导数<a class="zola-anchor" href="#shu-xue-gei-chu-da-an-kan-loss-dui-w-de-dao-shu" aria-label="Anchor link for: shu-xue-gei-chu-da-an-kan-loss-dui-w-de-dao-shu" style="visibility: hidden;"></a>
 </h2>
-<p>导数 &gt; 0 -&gt; w 应该减小
+<p>导数 &gt; 0 -&gt; w 应该减小<br />
 导数 &lt; 0 -&gt; w 应该增大</p>
 <pre class="giallo z-code"><code data-lang="plain"><span class="giallo-l"><span>Loss = (w*x - y_true)²</span></span>
 <span class="giallo-l"></span>

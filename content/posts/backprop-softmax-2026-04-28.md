@@ -8,7 +8,7 @@ tags = ["deep-learning", "transformer"]
 
 ## 预测很烂，Loss 很大
 
-最简单的模型：
+最简单的模型, 如预测房价，x是面积，y是价格：
 
 ```
 y_pred = w * x
@@ -35,7 +35,7 @@ Loss = (y_pred - y_true)²
 ---
 
 ## 数学给出答案: 看 Loss 对 w 的导数
-导数 > 0 -> w 应该减小
+导数 > 0 -> w 应该减小  
 导数 < 0 -> w 应该增大
 
 ```
