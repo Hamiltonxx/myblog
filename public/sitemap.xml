@@ -186,6 +186,10 @@
         <lastmod>2026-05-06</lastmod>
     </url>
     <url>
+        <loc>https://blog.cirray.cn/posts/transformer-rs-day4-2026-05-07/</loc>
+        <lastmod>2026-05-07</lastmod>
+    </url>
+    <url>
         <loc>https://blog.cirray.cn/tags/</loc>
     </url>
     <url>
@@ -229,6 +233,9 @@
     </url>
     <url>
         <loc>https://blog.cirray.cn/tags/async/</loc>
+    </url>
+    <url>
+        <loc>https://blog.cirray.cn/tags/attention/</loc>
     </url>
     <url>
         <loc>https://blog.cirray.cn/tags/authentication/</loc>
