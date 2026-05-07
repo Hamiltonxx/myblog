@@ -10,6 +10,7 @@ tags = ["rust", "transformer", "ndarray", "deep-learning", "attention"]
 [extra]
 lang = "zh"
 toc = true
+math = true
 +++
 
 今天把单头 Attention 的前向跑通了，2 个测试全过。但更有意思的是——写完这 6 行代码之后，我终于搞清楚 Q、K、V 这三个矩阵到底在干什么。
@@ -23,6 +24,10 @@ toc = true
 想象一个键值数据库。你用一个 Query 去查，数据库里有一堆 Key-Value 对。传统数据库是硬匹配——Key 对上了就返回 Value，对不上就没有。
 
 Attention 的改造是：把"对不对得上"变成一个连续的相似度分数，再对所有 Value 做加权平均。每个位置都能看到其他所有位置，只是"看多少"由分数决定。
+
+论文里的完整公式：
+
+$$\text{Attention}(Q, K, V) = \text{softmax}\!\left(\frac{QK^\top}{\sqrt{d_k}}\right)V$$
 
 ```rust
 let scores = matmul(&q, &k.t().to_owned()) / scale; // Q · K^T：算相似度
@@ -52,13 +57,13 @@ let v = matmul(x, &self.w_v);
 
 ## scores 矩阵长什么样
 
-`Q · K^T` 的结果是一个 `(seq, seq)` 的矩阵，第 `[i, j]` 个元素是位置 `i` 的 Query 和位置 `j` 的 Key 的点积：
+$QK^\top$ 的结果是一个 $(T \times T)$ 的矩阵，第 $[i, j]$ 个元素是位置 $i$ 的 Query 和位置 $j$ 的 Key 的内积：
 
-```
-scores[i][j] = Q[i] · K[j]  （两个 d_k 维向量的内积）
-```
+$$\text{scores}[i][j] = Q_i \cdot K_j = \sum_{k=1}^{d_k} Q_{ik} \cdot K_{jk}$$
 
-这个值越大，说明位置 `i` 和位置 `j` 的内容越"相关"。之后 softmax 把每一行归一化成概率分布——每个位置的注意力权重加起来等于 1。
+这个值越大，说明位置 $i$ 和位置 $j$ 的内容越"相关"。之后 softmax 把每一行归一化成概率分布——每个位置的注意力权重加起来等于 1：
+
+$$\text{attn}[i][j] = \frac{\exp(\text{scores}[i][j])}{\sum_{j'} \exp(\text{scores}[i][j'])}$$
 
 这也是为什么测试里要验证行和：
 
@@ -75,11 +80,15 @@ for row in weights.axis_iter(Axis(0)) {
 
 ## 为什么除以 sqrt(d_k)
 
-`d_k` 维向量的点积，方差随 `d_k` 线性增长。`d_k` 一大，`scores` 的值会变得很极端。
+假设 $Q_i$ 和 $K_j$ 的每个分量都是独立的标准正态分布（均值 0、方差 1），那么它们的点积：
 
-极端的输入进 softmax 会发生什么？梯度趋近于零。概率几乎全压在一个位置上，其他位置对梯度几乎没有贡献，模型退化成硬检索，失去了"软"的优势。
+$$Q_i \cdot K_j = \sum_{k=1}^{d_k} Q_{ik} K_{jk}$$
 
-除以 `sqrt(d_k)` 把方差压回 1，让 softmax 工作在梯度充足的区域：
+是 $d_k$ 个独立随机变量之和，方差为 $d_k$，标准差为 $\sqrt{d_k}$。
+
+`d_k` 一大，`scores` 的绝对值就会很大，进 softmax 之后概率几乎全压在最大值那一项。softmax 的梯度是 $s_i(1 - s_i)$，趋近于 1 的地方梯度接近 0，其他位置梯度也接近 0——整层失去学习能力。
+
+除以 $\sqrt{d_k}$ 把标准差归一化回 1，scores 落在 softmax 梯度充足的区域：
 
 ```rust
 let scale = (self.d_k as f32).sqrt();
@@ -101,7 +110,7 @@ pub fn forward(&self, x: &Array2<f32>) -> (Array2<f32>, Array2<f32>) {
 
 返回 `attn`（注意力权重矩阵）不是为了可视化，是因为反向传播需要它。
 
-`context = attn · V` 这一步，反向传播时要算 `grad_attn = grad_context · V^T`。如果 `attn` 在前向里不存起来，反向就得重新算一遍 softmax，多花一倍时间。这是手写反向传播的惯例：前向里凡是反向会用到的中间值，都顺手存下来。
+`context = attn · V` 这一步，反向传播时要算 $\frac{\partial L}{\partial \text{attn}} = \frac{\partial L}{\partial \text{context}} \cdot V^\top$。如果 `attn` 在前向里不存起来，反向就得重新算一遍 softmax，多花一倍时间。这是手写反向传播的惯例：前向里凡是反向会用到的中间值，都顺手存下来。
 
 ---
 

@@ -83,6 +83,24 @@
 <link id="hl" rel="stylesheet" type="text/css" href="/giallo-light.css" />
 
 
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.11/dist/katex.min.css" integrity="sha384-nB0miv6/jRmo5UMMR1wu3Gz6NLsoTkbqJghGIsx//Rlm+ZU03BU6SQNC66uf4l5+" crossorigin="anonymous">
+<script defer src="https://cdn.jsdelivr.net/npm/katex@0.16.11/dist/katex.min.js" integrity="sha384-7zkQWkzuo3B5mTepMUcHkMB5jZaolc2xDwL6VFqjFALcbeS9Ggm/Yr2r3Dy4lfFg" crossorigin="anonymous"></script>
+<script defer src="https://cdn.jsdelivr.net/npm/katex@0.16.11/dist/contrib/auto-render.min.js" integrity="sha384-43gviWU0YVjaDtb/GhzOouOXtZMP/7XUzwPTstBeZFe/+rCMvRwr4yROQP43s0Xk" crossorigin="anonymous"></script>
+<script defer src="https://cdn.jsdelivr.net/npm/katex@0.16.11/dist/contrib/copy-tex.min.js" integrity="sha384-HORx6nWi8j5/mYA+y57/9/CZc5z8HnEw4WUZWy5yOn9ToKBv1l58vJaufFAn9Zzi" crossorigin="anonymous"></script>
+<script>
+    document.addEventListener("DOMContentLoaded", function () {
+        renderMathInElement(document.body, {
+            delimiters: [
+                { left: '$$', right: '$$', display: true },
+                { left: '$', right: '$', display: false },
+                { left: '\\(', right: '\\)', display: false },
+                { left: '\\[', right: '\\]', display: true }
+            ],
+            throwOnError: false
+        });
+    });
+</script>
+
 
   
 </head>
@@ -193,6 +211,8 @@
 <p>先说结论：Attention 本质上是<strong>软检索（soft retrieval）</strong>。</p>
 <p>想象一个键值数据库。你用一个 Query 去查，数据库里有一堆 Key-Value 对。传统数据库是硬匹配——Key 对上了就返回 Value，对不上就没有。</p>
 <p>Attention 的改造是：把"对不对得上"变成一个连续的相似度分数，再对所有 Value 做加权平均。每个位置都能看到其他所有位置，只是"看多少"由分数决定。</p>
+<p>论文里的完整公式：</p>
+<p>$$\text{Attention}(Q, K, V) = \text{softmax}!\left(\frac{QK^\top}{\sqrt{d_k}}\right)V$$</p>
 <pre class="giallo z-code"><code data-lang="rust"><span class="giallo-l"><span class="z-storage z-type">let</span><span class="z-variable z-other"> scores</span><span class="z-keyword"> =</span><span class="z-entity z-name"> matmul</span><span>(</span><span class="z-keyword">&amp;</span><span class="z-variable z-other">q</span><span>,</span><span class="z-keyword"> &amp;</span><span class="z-variable z-other">k</span><span class="z-keyword">.</span><span class="z-entity z-name">t</span><span>(</span><span>)</span><span class="z-keyword">.</span><span class="z-entity z-name">to_owned</span><span>(</span><span>)</span><span>)</span><span class="z-keyword"> /</span><span class="z-variable z-other"> scale</span><span>;</span><span class="z-punctuation z-definition z-comment"> //</span><span class="z-comment"> Q · K^T：算相似度</span></span>
 <span class="giallo-l"><span class="z-storage z-type">let</span><span class="z-variable z-other"> attn</span><span class="z-keyword"> =</span><span class="z-entity z-name"> softmax</span><span>(</span><span class="z-keyword">&amp;</span><span class="z-variable z-other">scores</span><span>)</span><span>;</span><span class="z-punctuation z-definition z-comment">                         //</span><span class="z-comment"> 归一化成概率</span></span>
 <span class="giallo-l"><span class="z-storage z-type">let</span><span class="z-variable z-other"> context</span><span class="z-keyword"> =</span><span class="z-entity z-name"> matmul</span><span>(</span><span class="z-keyword">&amp;</span><span class="z-variable z-other">attn</span><span>,</span><span class="z-keyword"> &amp;</span><span class="z-variable z-other">v</span><span>)</span><span>;</span><span class="z-punctuation z-definition z-comment">                     //</span><span class="z-comment"> 加权求和 Value</span></span></code></pre>
@@ -209,9 +229,10 @@
 <hr />
 <h2 id="scores-ju-zhen-chang-shen-me-yang">scores 矩阵长什么样<a class="zola-anchor" href="#scores-ju-zhen-chang-shen-me-yang" aria-label="Anchor link for: scores-ju-zhen-chang-shen-me-yang" style="visibility: hidden;"></a>
 </h2>
-<p><code>Q · K^T</code> 的结果是一个 <code>(seq, seq)</code> 的矩阵，第 <code>[i, j]</code> 个元素是位置 <code>i</code> 的 Query 和位置 <code>j</code> 的 Key 的点积：</p>
-<pre class="giallo z-code"><code data-lang="plain"><span class="giallo-l"><span>scores[i][j] = Q[i] · K[j]  （两个 d_k 维向量的内积）</span></span></code></pre>
-<p>这个值越大，说明位置 <code>i</code> 和位置 <code>j</code> 的内容越"相关"。之后 softmax 把每一行归一化成概率分布——每个位置的注意力权重加起来等于 1。</p>
+<p>$QK^\top$ 的结果是一个 $(T \times T)$ 的矩阵，第 $[i, j]$ 个元素是位置 $i$ 的 Query 和位置 $j$ 的 Key 的内积：</p>
+<p>$$\text{scores}[i][j] = Q_i \cdot K_j = \sum_{k=1}^{d_k} Q_{ik} \cdot K_{jk}$$</p>
+<p>这个值越大，说明位置 $i$ 和位置 $j$ 的内容越"相关"。之后 softmax 把每一行归一化成概率分布——每个位置的注意力权重加起来等于 1：</p>
+<p>$$\text{attn}[i][j] = \frac{\exp(\text{scores}[i][j])}{\sum_{j'} \exp(\text{scores}[i][j'])}$$</p>
 <p>这也是为什么测试里要验证行和：</p>
 <pre class="giallo z-code"><code data-lang="rust"><span class="giallo-l"><span class="z-keyword">for</span><span class="z-variable z-other"> row</span><span class="z-keyword"> in</span><span class="z-variable z-other"> weights</span><span class="z-keyword">.</span><span class="z-entity z-name">axis_iter</span><span>(</span><span class="z-entity z-name">Axis</span><span>(</span><span class="z-constant">0</span><span>)</span><span>)</span><span> {</span></span>
 <span class="giallo-l"><span class="z-storage z-type">    let</span><span class="z-variable z-other"> s</span><span class="z-keyword">:</span><span class="z-entity z-name"> f32</span><span class="z-keyword"> =</span><span class="z-variable z-other"> row</span><span class="z-keyword">.</span><span class="z-entity z-name">sum</span><span>(</span><span>)</span><span>;</span></span>
@@ -221,9 +242,11 @@
 <hr />
 <h2 id="wei-shen-me-chu-yi-sqrt-d-k">为什么除以 sqrt(d_k)<a class="zola-anchor" href="#wei-shen-me-chu-yi-sqrt-d-k" aria-label="Anchor link for: wei-shen-me-chu-yi-sqrt-d-k" style="visibility: hidden;"></a>
 </h2>
-<p><code>d_k</code> 维向量的点积，方差随 <code>d_k</code> 线性增长。<code>d_k</code> 一大，<code>scores</code> 的值会变得很极端。</p>
-<p>极端的输入进 softmax 会发生什么？梯度趋近于零。概率几乎全压在一个位置上，其他位置对梯度几乎没有贡献，模型退化成硬检索，失去了"软"的优势。</p>
-<p>除以 <code>sqrt(d_k)</code> 把方差压回 1，让 softmax 工作在梯度充足的区域：</p>
+<p>假设 $Q_i$ 和 $K_j$ 的每个分量都是独立的标准正态分布（均值 0、方差 1），那么它们的点积：</p>
+<p>$$Q_i \cdot K_j = \sum_{k=1}^{d_k} Q_{ik} K_{jk}$$</p>
+<p>是 $d_k$ 个独立随机变量之和，方差为 $d_k$，标准差为 $\sqrt{d_k}$。</p>
+<p><code>d_k</code> 一大，<code>scores</code> 的绝对值就会很大，进 softmax 之后概率几乎全压在最大值那一项。softmax 的梯度是 $s_i(1 - s_i)$，趋近于 1 的地方梯度接近 0，其他位置梯度也接近 0——整层失去学习能力。</p>
+<p>除以 $\sqrt{d_k}$ 把标准差归一化回 1，scores 落在 softmax 梯度充足的区域：</p>
 <pre class="giallo z-code"><code data-lang="rust"><span class="giallo-l"><span class="z-storage z-type">let</span><span class="z-variable z-other"> scale</span><span class="z-keyword"> =</span><span> (</span><span class="z-variable z-language">self</span><span class="z-keyword">.</span><span>d_k </span><span class="z-keyword">as</span><span class="z-entity z-name"> f32</span><span>)</span><span class="z-keyword">.</span><span class="z-entity z-name">sqrt</span><span>(</span><span>)</span><span>;</span></span>
 <span class="giallo-l"><span class="z-storage z-type">let</span><span class="z-variable z-other"> scores</span><span class="z-keyword"> =</span><span class="z-entity z-name"> matmul</span><span>(</span><span class="z-keyword">&amp;</span><span class="z-variable z-other">q</span><span>,</span><span class="z-keyword"> &amp;</span><span class="z-variable z-other">k</span><span class="z-keyword">.</span><span class="z-entity z-name">t</span><span>(</span><span>)</span><span class="z-keyword">.</span><span class="z-entity z-name">to_owned</span><span>(</span><span>)</span><span>)</span><span class="z-keyword"> /</span><span class="z-variable z-other"> scale</span><span>;</span></span></code></pre>
 <p>这一行如果漏掉，训练早期梯度就会消失，loss 不会动。</p>
@@ -235,7 +258,7 @@
 <span class="giallo-l"><span>    (</span><span class="z-variable z-other">out</span><span>,</span><span class="z-variable z-other"> attn</span><span>)</span></span>
 <span class="giallo-l"><span>}</span></span></code></pre>
 <p>返回 <code>attn</code>（注意力权重矩阵）不是为了可视化，是因为反向传播需要它。</p>
-<p><code>context = attn · V</code> 这一步，反向传播时要算 <code>grad_attn = grad_context · V^T</code>。如果 <code>attn</code> 在前向里不存起来，反向就得重新算一遍 softmax，多花一倍时间。这是手写反向传播的惯例：前向里凡是反向会用到的中间值，都顺手存下来。</p>
+<p><code>context = attn · V</code> 这一步，反向传播时要算 $\frac{\partial L}{\partial \text{attn}} = \frac{\partial L}{\partial \text{context}} \cdot V^\top$。如果 <code>attn</code> 在前向里不存起来，反向就得重新算一遍 softmax，多花一倍时间。这是手写反向传播的惯例：前向里凡是反向会用到的中间值，都顺手存下来。</p>
 <hr />
 <h2 id="ce-shi-jie-guo">测试结果<a class="zola-anchor" href="#ce-shi-jie-guo" aria-label="Anchor link for: ce-shi-jie-guo" style="visibility: hidden;"></a>
 </h2>
