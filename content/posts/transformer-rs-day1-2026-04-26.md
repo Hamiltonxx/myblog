@@ -10,6 +10,7 @@ tags = ["rust", "transformer", "ndarray", "deep-learning", "反向传播"]
 [extra]
 lang = "zh"
 toc = true
+math = true
 +++
 
 今天是"两周手写 Transformer"计划的第一天。目标很简单：把矩阵运算实现出来，写反向传播，然后用数值验证证明梯度是对的。
@@ -163,17 +164,21 @@ pub fn broadcast_add_backward(grad_out: &Array2<f32>) -> (Array2<f32>, Array1<f3
 
 ### matmul_backward：链式法则的矩阵形式
 
-`C = A · B`，loss 对 A 的梯度是 `dL/dA = grad_out · B^T`，对 B 是 `dL/dB = A^T · grad_out`。
+$C = A \cdot B$，loss 对 $A$ 和 $B$ 的梯度：
+
+$$\frac{\partial L}{\partial A} = \frac{\partial L}{\partial C} \cdot B^\top \qquad \frac{\partial L}{\partial B} = A^\top \cdot \frac{\partial L}{\partial C}$$
 
 这是链式法则在矩阵上的展开形式。直觉上：**梯度沿着转置方向流回去**。不理解也没关系，验证过了就是对的，反复推导几次自然就记住了。
 
 ### softmax：减 max 是关键
 
-softmax 公式是 `exp(x) / sum(exp(x))`，但直接算会溢出（`exp(1000)` 是 inf）。标准做法是先减掉每行的最大值：
+softmax 的标准公式：
 
-```
-softmax(x) = softmax(x - max(x))  ← 数学上等价，数值上稳定
-```
+$$\text{softmax}(x)_i = \frac{e^{x_i}}{\sum_j e^{x_j}}$$
+
+但直接算会溢出（`exp(1000)` 是 inf）。注意到分子分母同除 $e^{\max(x)}$ 后值不变，所以标准做法是先减最大值：
+
+$$\text{softmax}(x) = \text{softmax}(x - \max(x)) \quad \leftarrow \text{数学等价，数值稳定}$$
 
 代码里的 `insert_axis(Axis(1))` 是为了广播：`max` 是 shape `(n,)` 的一维数组，要减掉一个 `(n, d)` 的矩阵，需要先变成 `(n, 1)` 才能自动广播。
 
@@ -181,11 +186,9 @@ softmax(x) = softmax(x - max(x))  ← 数学上等价，数值上稳定
 
 softmax 的梯度推导是本项目最有价值的练习之一。完整推导需要用到雅可比矩阵，化简后得到：
 
-```
-grad_in[i] = s[i] * (grad_out[i] - Σ(s * grad_out))
-```
+$$\frac{\partial L}{\partial x_i} = s_i \left( \frac{\partial L}{\partial s_i} - \sum_j \frac{\partial L}{\partial s_j} s_j \right)$$
 
-代码里 `sum_axis(Axis(1))` 是对每行求那个 `Σ`，`insert_axis` 再把它广播回 `(n, d)` 的形状做减法。
+代码里 `sum_axis(Axis(1))` 是对每行求那个 $\sum_j$，`insert_axis` 再把它广播回 `(n, d)` 的形状做减法。
 
 ### broadcast_add_backward：偏置梯度为什么要求和
 
@@ -195,7 +198,9 @@ grad_in[i] = s[i] * (grad_out[i] - Σ(s * grad_out))
 
 ## 梯度验证：finite difference
 
-每写一个梯度，立刻用数值方法验证。思路是：微微扰动输入，看 loss 变化量是否和解析梯度一致。
+每写一个梯度，立刻用数值方法验证。思路是：微微扰动输入，看 loss 变化量是否和解析梯度一致：
+
+$$\frac{\partial L}{\partial x_{ij}} \approx \frac{L(x_{ij}+\varepsilon) - L(x_{ij}-\varepsilon)}{2\varepsilon}$$
 
 ```rust
 fn numerical_grad<F: Fn(&Array2<f32>) -> f32>(
