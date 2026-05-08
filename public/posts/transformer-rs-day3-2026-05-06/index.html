@@ -109,6 +109,11 @@
       <ul>
         
         <li>
+          <a class="h2" href="#token-shi-shen-me">Token 是什么</a>
+          
+        </li>
+        
+        <li>
           <a class="h2" href="#jin-tian-zuo-liao-shen-me">今天做了什么</a>
           
         </li>
@@ -186,7 +191,21 @@
 
         
 
-        <p>今天实现了 Embedding 查表和正弦位置编码，新建了 <code>src/layers/</code> 模块，4 个测试全部通过。</p>
+        <p>实现 Embedding 查表和正弦位置编码，新建了 <code>src/layers/</code> 模块，4 个测试全部通过。</p>
+<hr />
+<h2 id="token-shi-shen-me">Token 是什么<a class="zola-anchor" href="#token-shi-shen-me" aria-label="Anchor link for: token-shi-shen-me" style="visibility: hidden;"></a>
+</h2>
+<p>Token 就是文本被切割后的最小单位，把一段文字切成一块一块，每一块是一个 token。</p>
+<p>字符级（这个项目用的）：</p>
+<pre class="giallo z-code"><code data-lang="plain"><span class="giallo-l"><span>&quot;Hello&quot; → [&#39;H&#39;, &#39;e&#39;, &#39;l&#39;, &#39;l&#39;, &#39;o&#39;]  →  5 个 token</span></span></code></pre>
+<p>每个字符是一个 token，<code>vocab_size = 65</code>（莎士比亚语料里出现的所有字符数）。</p>
+<p>词级（更常见）：</p>
+<pre class="giallo z-code"><code data-lang="plain"><span class="giallo-l"><span>&quot;I love cats&quot; → [&quot;I&quot;, &quot;love&quot;, &quot;cats&quot;]  →  3 个 token</span></span></code></pre>
+<p>神经网络只认数字，所以每个 token 要先映射成一个整数 id，再由 Embedding 层查表变成向量：</p>
+<pre class="giallo z-code"><code data-lang="plain"><span class="giallo-l"><span>&#39;H&#39; → 40  →  查第 40 行  →  [0.1, 0.3, ..., 0.9]   (d_model 个数)</span></span>
+<span class="giallo-l"><span>&#39;e&#39; → 28  →  查第 28 行  →  [...]</span></span>
+<span class="giallo-l"><span>&#39;l&#39; → 37  →  查第 37 行  →  [...]</span></span></code></pre>
+<p>这才是进入 Transformer 的输入 <code>x: (seq, d_model)</code>。</p>
 <hr />
 <h2 id="jin-tian-zuo-liao-shen-me">今天做了什么<a class="zola-anchor" href="#jin-tian-zuo-liao-shen-me" aria-label="Anchor link for: jin-tian-zuo-liao-shen-me" style="visibility: hidden;"></a>
 </h2>
