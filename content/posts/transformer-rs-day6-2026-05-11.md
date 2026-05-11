@@ -123,9 +123,11 @@ out:        (seq, d_model)
 
 ## Causal Mask 的数学
 
-做法是在 softmax **之前**，把 scores 矩阵的上三角（$j > i$ 的位置）加上 $-\infty$：
+做法是在 softmax **之前**，把 scores 矩阵的上三角加上 $-\infty$：
 
-$$\tilde{s}_{ij} = s_{ij} + m_{ij}, \quad m_{ij} = \begin{cases} 0 & j \leq i \\\\ -\infty & j > i \end{cases}$$
+$$\tilde{s}_{ij} = s_{ij} + m_{ij}$$
+
+其中 $m_{ij} = 0$（$j \leq i$），$m_{ij} = -\infty$（$j > i$）。
 
 然后 softmax：
 
@@ -135,14 +137,15 @@ $$\text{attn}_{ij} = \frac{e^{\tilde{s}_{ij}}}{\sum_{j'} e^{\tilde{s}_{ij'}}}$$
 
 对于合法位置 $j \leq i$，加了 0，不影响结果。
 
-以 4 个 token 为例，mask 矩阵长这样：
+以 4 个 token 为例，mask 矩阵长这样（0 表示可看，$-\infty$ 表示屏蔽）：
 
-$$M = \begin{bmatrix} 0 & -\infty & -\infty & -\infty \\\\ 0 & 0 & -\infty & -\infty \\\\ 0 & 0 & 0 & -\infty \\\\ 0 & 0 & 0 & 0 \end{bmatrix}$$
-
-- token 0 只能看自己
-- token 1 能看 token 0 和 1
-- token 2 能看 token 0、1、2
-- token 3 能看所有
+```
+     t=0   t=1   t=2   t=3
+i=0 [  0,   -∞,   -∞,   -∞ ]   token 0 只能看自己
+i=1 [  0,    0,   -∞,   -∞ ]   token 1 能看 0 和 1
+i=2 [  0,    0,    0,   -∞ ]   token 2 能看 0、1、2
+i=3 [  0,    0,    0,    0 ]   token 3 能看所有
+```
 
 这在 Rust 里一行生成：
 
