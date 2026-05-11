@@ -194,6 +194,10 @@
         <lastmod>2026-05-08</lastmod>
     </url>
     <url>
+        <loc>https://blog.cirray.cn/posts/transformer-rs-day6-2026-05-11/</loc>
+        <lastmod>2026-05-10</lastmod>
+    </url>
+    <url>
         <loc>https://blog.cirray.cn/tags/</loc>
     </url>
     <url>
@@ -264,6 +268,9 @@
     </url>
     <url>
         <loc>https://blog.cirray.cn/tags/bu-shu/</loc>
+    </url>
+    <url>
+        <loc>https://blog.cirray.cn/tags/causal-mask/</loc>
     </url>
     <url>
         <loc>https://blog.cirray.cn/tags/chat/</loc>

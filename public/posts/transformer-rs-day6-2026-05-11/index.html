@@ -1,0 +1,445 @@
+<!DOCTYPE html>
+
+<html lang="zh">
+
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="color-scheme" content="light dark">
+  
+  
+    
+  
+  <meta name="description" content="单头 Attention 只能学一种关系，多头让模型同时看多个角度；Causal Mask 让语言模型只能看过去——这两个设计背后的数学和动机，今天全部弄清楚。">
+
+  <title>用 Rust 手写 Transformer —— Day 6：多头注意力和因果掩码</title>
+  <link rel="icon" type="image/png" sizes="32x32" href="https://blog.cirray.cn/img/favicon-32x32.png">
+  <link rel="icon" type="image/png" sizes="16x16" href="https://blog.cirray.cn/img/favicon-16x16.png">
+  <link rel="apple-touch-icon" sizes="180x180" href="https://blog.cirray.cn/img/apple-touch-icon.png">
+  
+  <style>
+
+  /* light mode colors */
+  body {
+    --primary-color: #5871a2;
+    --primary-pale-color: #5871a233;
+    --primary-decoration-color: #5871a210;
+    --bg-color: #ffffff;
+    --text-color: #2f3030;
+    --text-pale-color: #767676;
+    --text-decoration-color: #a9a9a9;
+    --highlight-mark-color: #5f75b020;
+
+    --callout-note-color: #5871a2;
+    --callout-tip-color: #268556;
+    --callout-important-color: #885fc9;
+    --callout-warning-color: #ab6632;
+    --callout-caution-color: #c64e4e;
+  }
+
+  /* dark mode colors */
+  body.dark {
+    --primary-color: #6f8fd1;
+    --primary-pale-color: #6f8fd166;
+    --primary-decoration-color: #6f8fd112;
+    --bg-color: #1c1c1c;
+    --text-color: #c1c1c1;
+    --text-pale-color: #848484;
+    --text-decoration-color: #5f5f5f;
+    --highlight-mark-color: #8296cb3b;
+
+    --callout-note-color: #6f8fd1;
+    --callout-tip-color: #47976f;
+    --callout-important-color: #9776cd;
+    --callout-warning-color: #ad7a52;
+    --callout-caution-color: #d06161;
+  }
+
+  /* typography */
+  body {
+    --main-font: ui-sans-serif, system-ui, sans-serif, 'Apple Color Emoji', 'Segoe UI Emoji', 'Segoe UI Symbol', 'Noto Color Emoji';
+    --code-font: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, 'Liberation Mono', 'Courier New', monospace;
+    --homepage-max-width: 768px;
+    --main-max-width: 768px;
+    --avatar-size: 60px;
+    --font-size: 16px;
+    --line-height: 1.75;
+    --img-border-radius: 0px;
+    --detail-border-radius: 0px;
+    --dark-mode-img-brightness: 0.75;
+    --dark-mode-chart-brightness: 0.75;
+    --inline-code-border-radius: 2px;
+    --inline-code-bg-color: var(--primary-decoration-color);
+    --block-code-border-radius: 0px;
+    --block-code-border-color: var(--primary-color);
+    --detail-border-color: var(--primary-color);
+  }
+
+</style>
+
+  <link rel="stylesheet" href="https://blog.cirray.cn/main.css">
+  
+
+<link id="hl" rel="stylesheet" type="text/css" href="/giallo-light.css" />
+
+
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.11/dist/katex.min.css" integrity="sha384-nB0miv6/jRmo5UMMR1wu3Gz6NLsoTkbqJghGIsx//Rlm+ZU03BU6SQNC66uf4l5+" crossorigin="anonymous">
+<script defer src="https://cdn.jsdelivr.net/npm/katex@0.16.11/dist/katex.min.js" integrity="sha384-7zkQWkzuo3B5mTepMUcHkMB5jZaolc2xDwL6VFqjFALcbeS9Ggm/Yr2r3Dy4lfFg" crossorigin="anonymous"></script>
+<script defer src="https://cdn.jsdelivr.net/npm/katex@0.16.11/dist/contrib/auto-render.min.js" integrity="sha384-43gviWU0YVjaDtb/GhzOouOXtZMP/7XUzwPTstBeZFe/+rCMvRwr4yROQP43s0Xk" crossorigin="anonymous"></script>
+<script defer src="https://cdn.jsdelivr.net/npm/katex@0.16.11/dist/contrib/copy-tex.min.js" integrity="sha384-HORx6nWi8j5/mYA+y57/9/CZc5z8HnEw4WUZWy5yOn9ToKBv1l58vJaufFAn9Zzi" crossorigin="anonymous"></script>
+<script>
+    document.addEventListener("DOMContentLoaded", function () {
+        renderMathInElement(document.body, {
+            delimiters: [
+                { left: '$$', right: '$$', display: true },
+                { left: '$', right: '$', display: false },
+                { left: '\\(', right: '\\)', display: false },
+                { left: '\\[', right: '\\]', display: true }
+            ],
+            throwOnError: false
+        });
+    });
+</script>
+
+
+  
+</head>
+
+<body class="post">
+  
+  <script>
+    const theme = sessionStorage.getItem('theme');
+    const match = window.matchMedia("(prefers-color-scheme: dark)").matches;
+    if ((theme && theme == 'dark') || (!theme && match)) {
+      document.body.classList.add('dark');
+      const hl = document.querySelector('link#hl');
+      if (hl) hl.href = 'https://blog.cirray.cn/giallo-dark.css';
+    }
+  </script>
+  
+  
+<div id="wrapper">
+  <div id="blank"></div>
+  <aside>
+    
+    
+    <nav>
+      <ul>
+        
+        <li>
+          <a class="h2" href="#wei-shen-me-xu-yao-duo-tou">为什么需要多头？</a>
+          
+        </li>
+        
+        <li>
+          <a class="h2" href="#duo-tou-de-shu-xue">多头的数学</a>
+          
+        </li>
+        
+        <li>
+          <a class="h2" href="#shi-xian-yi-ci-tou-ying-an-head-qie-pian">实现：一次投影，按 head 切片</a>
+          
+        </li>
+        
+        <li>
+          <a class="h2" href="#causal-mask-wei-shen-me-yu-yan-mo-xing-bu-neng-tou-kan-wei-lai">Causal Mask：为什么语言模型不能偷看未来</a>
+          
+        </li>
+        
+        <li>
+          <a class="h2" href="#causal-mask-de-shu-xue">Causal Mask 的数学</a>
+          
+        </li>
+        
+        <li>
+          <a class="h2" href="#yi-ge-rong-yi-cai-de-xi-jie">一个容易踩的细节</a>
+          
+        </li>
+        
+        <li>
+          <a class="h2" href="#ce-shi">测试</a>
+          
+        </li>
+        
+      </ul>
+    </nav>
+    
+    
+    <button id="back-to-top" aria-label="back to top">
+      
+      <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="feather feather-arrow-up"><line x1="12" y1="19" x2="12" y2="5"></line><polyline points="5 12 12 5 19 12"></polyline></svg>
+
+    </button>
+    
+  </aside>
+  <main>
+    
+<header>
+  <nav>
+    <a id="back-link" href="https:&#x2F;&#x2F;blog.cirray.cn&#x2F;posts">← Back</a>
+  </nav>
+</header>
+
+
+    <div>
+      
+      
+      
+      
+      <div id="copy-cfg" style="display: none;" data-copy-icon="&lt;svg xmlns=&quot;http:&#x2F;&#x2F;www.w3.org&#x2F;2000&#x2F;svg&quot; viewBox=&quot;0 0 24 24&quot; width=&quot;18&quot; height=&quot;18&quot;&gt;&lt;path d=&quot;M6.9998 6V3C6.9998 2.44772 7.44752 2 7.9998 2H19.9998C20.5521 2 20.9998 2.44772 20.9998 3V17C20.9998 17.5523 20.5521 18 19.9998 18H16.9998V20.9991C16.9998 21.5519 16.5499 22 15.993 22H4.00666C3.45059 22 3 21.5554 3 20.9991L3.0026 7.00087C3.0027 6.44811 3.45264 6 4.00942 6H6.9998ZM5.00242 8L5.00019 20H14.9998V8H5.00242ZM8.9998 6H16.9998V16H18.9998V4H8.9998V6Z&quot; fill=&quot;currentColor&quot;&gt;&lt;&#x2F;path&gt;&lt;&#x2F;svg&gt;
+" data-check-icon="&lt;svg xmlns=&quot;http:&#x2F;&#x2F;www.w3.org&#x2F;2000&#x2F;svg&quot; viewBox=&quot;0 0 24 24&quot; width=&quot;18&quot; height=&quot;18&quot;&gt;&lt;path d=&quot;M10.0007 15.1709L19.1931 5.97852L20.6073 7.39273L10.0007 17.9993L3.63672 11.6354L5.05093 10.2212L10.0007 15.1709Z&quot; fill=&quot;currentColor&quot;&gt;&lt;&#x2F;path&gt;&lt;&#x2F;svg&gt;
+"></div>
+      
+      <article class="prose">
+        <h1>用 Rust 手写 Transformer —— Day 6：多头注意力和因果掩码</h1>
+        <div id="post-info">
+          <div id="date">
+            <span id="publish">2026-05-10</span>
+            </div>
+
+          
+          <div id="tags">
+            <a class="instant" href="https://blog.cirray.cn/tags/rust"><span>#</span>rust</a><a class="instant" href="https://blog.cirray.cn/tags/transformer"><span>#</span>transformer</a><a class="instant" href="https://blog.cirray.cn/tags/ndarray"><span>#</span>ndarray</a><a class="instant" href="https://blog.cirray.cn/tags/deep-learning"><span>#</span>deep-learning</a><a class="instant" href="https://blog.cirray.cn/tags/attention"><span>#</span>attention</a><a class="instant" href="https://blog.cirray.cn/tags/causal-mask"><span>#</span>causal-mask</a>
+          </div>
+          
+        </div>
+
+        
+        
+
+        
+
+        <p>实现 Multi-Head Attention 和 Causal Mask，这两个机制是 Transformer 用于语言建模的两个关键设计。 背后的动机也值得认真想清楚。</p>
+<hr />
+<h2 id="wei-shen-me-xu-yao-duo-tou">为什么需要多头？<a class="zola-anchor" href="#wei-shen-me-xu-yao-duo-tou" aria-label="Anchor link for: wei-shen-me-xu-yao-duo-tou" style="visibility: hidden;"></a>
+</h2>
+<p>先回想单头 Attention 在做什么：给定序列里的每个位置，用 $Q \cdot K^\top$ 算出"谁和谁相关"，再用这个相关权重去加权平均 $V$。</p>
+<p>问题是：<strong>一个序列里，"相关性"可能同时存在很多种</strong>。</p>
+<p>举个例子，"The animal didn't cross the street because <strong>it</strong> was too tired."这句话里，"it" 这个词：</p>
+<ul>
+<li>从<strong>句法</strong>角度，"it" 是主语，需要找到它所指代的名词（animal）</li>
+<li>从<strong>语义</strong>角度，"tired" 修饰的对象是"it"，要把这个语义关联建立起来</li>
+<li>从<strong>位置</strong>角度，"it" 在句子靠后，需要感知自己的相对位置信息</li>
+</ul>
+<p>如果只有一个 head，一个 $Q \cdot K^\top$ 矩阵要同时捕获这三种关系——它做不到，或者说它只能捕获训练中"最强的那一种信号"，其他的被忽略了。</p>
+<p>多头的解决方案很直接：<strong>跑 $h$ 个独立的 Attention，每个 head 有自己的 $W_Q^{(i)}, W_K^{(i)}, W_V^{(i)}$，学不同的关系模式，最后把所有 head 的输出拼起来</strong>。</p>
+<hr />
+<h2 id="duo-tou-de-shu-xue">多头的数学<a class="zola-anchor" href="#duo-tou-de-shu-xue" aria-label="Anchor link for: duo-tou-de-shu-xue" style="visibility: hidden;"></a>
+</h2>
+<p>原论文的定义：</p>
+<p>$$\text{MultiHead}(Q, K, V) = \text{Concat}(\text{head}_1, \dots, \text{head}_h) \cdot W^O$$</p>
+<p>其中每个 head：</p>
+<p>$$\text{head}_i = \text{Attention}(Q W_Q^{(i)},\ K W_K^{(i)},\ V W_V^{(i)})$$</p>
+<p>参数量怎么控制？原来单头用 $d_k = d_{model}$，现在 $n$ 个 head 每个用 $d_k = d_{model} / n$，总参数量不变，但"看问题的角度"变成了 $n$ 个。</p>
+<p>原论文里 $d_{model} = 512$，$n_{heads} = 8$，所以每个 head 的 $d_k = 64$。</p>
+<hr />
+<h2 id="shi-xian-yi-ci-tou-ying-an-head-qie-pian">实现：一次投影，按 head 切片<a class="zola-anchor" href="#shi-xian-yi-ci-tou-ying-an-head-qie-pian" aria-label="Anchor link for: shi-xian-yi-ci-tou-ying-an-head-qie-pian" style="visibility: hidden;"></a>
+</h2>
+<p>最直接的实现是给每个 head 存独立的权重矩阵，但更高效的做法是<strong>把所有 head 的权重合并成一个大矩阵，一次 <code>matmul</code> 完成所有投影，再按 head 切片</strong>：</p>
+<pre class="giallo z-code"><code data-lang="rust"><span class="giallo-l"><span class="z-keyword">pub</span><span class="z-storage z-type"> struct</span><span class="z-entity z-name"> MultiHeadAttention</span><span> {</span></span>
+<span class="giallo-l"><span class="z-keyword">    pub</span><span class="z-variable z-other"> w_q</span><span class="z-keyword">:</span><span class="z-entity z-name"> Array2</span><span>&lt;</span><span class="z-entity z-name">f32</span><span>&gt;</span><span>,</span><span class="z-punctuation z-definition z-comment">  //</span><span class="z-comment"> (d_model, n_heads * d_k)  ← 所有 head 的 W_Q 拼在一起</span></span>
+<span class="giallo-l"><span class="z-keyword">    pub</span><span class="z-variable z-other"> w_k</span><span class="z-keyword">:</span><span class="z-entity z-name"> Array2</span><span>&lt;</span><span class="z-entity z-name">f32</span><span>&gt;</span><span>,</span></span>
+<span class="giallo-l"><span class="z-keyword">    pub</span><span class="z-variable z-other"> w_v</span><span class="z-keyword">:</span><span class="z-entity z-name"> Array2</span><span>&lt;</span><span class="z-entity z-name">f32</span><span>&gt;</span><span>,</span></span>
+<span class="giallo-l"><span class="z-keyword">    pub</span><span class="z-variable z-other"> w_o</span><span class="z-keyword">:</span><span class="z-entity z-name"> Array2</span><span>&lt;</span><span class="z-entity z-name">f32</span><span>&gt;</span><span>,</span><span class="z-punctuation z-definition z-comment">  //</span><span class="z-comment"> (n_heads * d_k, d_model)</span></span>
+<span class="giallo-l"><span class="z-keyword">    pub</span><span class="z-variable z-other"> n_heads</span><span class="z-keyword">:</span><span class="z-entity z-name"> usize</span><span>,</span></span>
+<span class="giallo-l"><span class="z-keyword">    pub</span><span class="z-variable z-other"> d_k</span><span class="z-keyword">:</span><span class="z-entity z-name"> usize</span><span>,</span></span>
+<span class="giallo-l"><span>}</span></span></code></pre>
+<p>前向传播：</p>
+<pre class="giallo z-code"><code data-lang="rust"><span class="giallo-l"><span class="z-punctuation z-definition z-comment">//</span><span class="z-comment"> 一次矩阵乘法，得到所有 head 的 Q/K/V</span></span>
+<span class="giallo-l"><span class="z-storage z-type">let</span><span class="z-variable z-other"> q_full</span><span class="z-keyword"> =</span><span class="z-entity z-name"> matmul</span><span>(</span><span class="z-variable z-other">x</span><span>,</span><span class="z-keyword"> &amp;</span><span class="z-variable z-language">self</span><span class="z-keyword">.</span><span>w_q</span><span>)</span><span>;</span><span class="z-punctuation z-definition z-comment"> //</span><span class="z-comment"> (seq, n_heads * d_k)</span></span>
+<span class="giallo-l"><span class="z-storage z-type">let</span><span class="z-variable z-other"> k_full</span><span class="z-keyword"> =</span><span class="z-entity z-name"> matmul</span><span>(</span><span class="z-variable z-other">x</span><span>,</span><span class="z-keyword"> &amp;</span><span class="z-variable z-language">self</span><span class="z-keyword">.</span><span>w_k</span><span>)</span><span>;</span></span>
+<span class="giallo-l"><span class="z-storage z-type">let</span><span class="z-variable z-other"> v_full</span><span class="z-keyword"> =</span><span class="z-entity z-name"> matmul</span><span>(</span><span class="z-variable z-other">x</span><span>,</span><span class="z-keyword"> &amp;</span><span class="z-variable z-language">self</span><span class="z-keyword">.</span><span>w_v</span><span>)</span><span>;</span></span>
+<span class="giallo-l"></span>
+<span class="giallo-l"><span class="z-punctuation z-definition z-comment">//</span><span class="z-comment"> 按 head 切片，独立跑 attention</span></span>
+<span class="giallo-l"><span class="z-keyword">for</span><span class="z-variable z-other"> h</span><span class="z-keyword"> in</span><span class="z-constant"> 0</span><span class="z-keyword">..</span><span class="z-variable z-language">self</span><span class="z-keyword">.</span><span>n_heads </span><span>{</span></span>
+<span class="giallo-l"><span class="z-storage z-type">    let</span><span class="z-variable z-other"> start</span><span class="z-keyword"> =</span><span class="z-variable z-other"> h</span><span class="z-keyword"> *</span><span class="z-variable z-language"> self</span><span class="z-keyword">.</span><span>d_k</span><span>;</span></span>
+<span class="giallo-l"><span class="z-storage z-type">    let</span><span class="z-variable z-other"> end</span><span class="z-keyword">   =</span><span class="z-variable z-other"> start</span><span class="z-keyword"> +</span><span class="z-variable z-language"> self</span><span class="z-keyword">.</span><span>d_k</span><span>;</span></span>
+<span class="giallo-l"><span class="z-storage z-type">    let</span><span class="z-variable z-other"> q_h</span><span class="z-keyword"> =</span><span class="z-variable z-other"> q_full</span><span class="z-keyword">.</span><span class="z-entity z-name">slice</span><span>(</span><span class="z-entity z-name">s!</span><span>[</span><span class="z-keyword">..</span><span>,</span><span class="z-variable z-other"> start</span><span class="z-keyword">..</span><span class="z-variable z-other">end</span><span>]</span><span>)</span><span class="z-keyword">.</span><span class="z-entity z-name">to_owned</span><span>(</span><span>)</span><span>;</span><span class="z-punctuation z-definition z-comment"> //</span><span class="z-comment"> (seq, d_k)</span></span>
+<span class="giallo-l"><span class="z-storage z-type">    let</span><span class="z-variable z-other"> k_h</span><span class="z-keyword"> =</span><span class="z-variable z-other"> k_full</span><span class="z-keyword">.</span><span class="z-entity z-name">slice</span><span>(</span><span class="z-entity z-name">s!</span><span>[</span><span class="z-keyword">..</span><span>,</span><span class="z-variable z-other"> start</span><span class="z-keyword">..</span><span class="z-variable z-other">end</span><span>]</span><span>)</span><span class="z-keyword">.</span><span class="z-entity z-name">to_owned</span><span>(</span><span>)</span><span>;</span></span>
+<span class="giallo-l"><span class="z-storage z-type">    let</span><span class="z-variable z-other"> v_h</span><span class="z-keyword"> =</span><span class="z-variable z-other"> v_full</span><span class="z-keyword">.</span><span class="z-entity z-name">slice</span><span>(</span><span class="z-entity z-name">s!</span><span>[</span><span class="z-keyword">..</span><span>,</span><span class="z-variable z-other"> start</span><span class="z-keyword">..</span><span class="z-variable z-other">end</span><span>]</span><span>)</span><span class="z-keyword">.</span><span class="z-entity z-name">to_owned</span><span>(</span><span>)</span><span>;</span></span>
+<span class="giallo-l"><span class="z-punctuation z-definition z-comment">    //</span><span class="z-comment"> ... attention ...</span></span>
+<span class="giallo-l"><span>}</span></span></code></pre>
+<p>最后把所有 head 的输出沿 axis=1 拼接，再经过 $W^O$ 投影回 <code>d_model</code>：</p>
+<pre class="giallo z-code"><code data-lang="rust"><span class="giallo-l"><span class="z-storage z-type">let</span><span class="z-variable z-other"> views</span><span class="z-keyword">:</span><span class="z-entity z-name"> Vec</span><span>&lt;</span><span class="z-variable z-other">_</span><span>&gt;</span><span class="z-keyword"> =</span><span class="z-variable z-other"> head_contexts</span><span class="z-keyword">.</span><span class="z-entity z-name">iter</span><span>(</span><span>)</span><span class="z-keyword">.</span><span class="z-entity z-name">map</span><span>(</span><span class="z-keyword">|</span><span class="z-variable z-other">a</span><span class="z-keyword">|</span><span class="z-variable z-other"> a</span><span class="z-keyword">.</span><span class="z-entity z-name">view</span><span>(</span><span>)</span><span>)</span><span class="z-keyword">.</span><span class="z-entity z-name">collect</span><span>(</span><span>)</span><span>;</span></span>
+<span class="giallo-l"><span class="z-storage z-type">let</span><span class="z-variable z-other"> concat</span><span class="z-keyword"> =</span><span class="z-entity z-name"> concatenate</span><span>(</span><span class="z-entity z-name">Axis</span><span>(</span><span class="z-constant">1</span><span>)</span><span>,</span><span class="z-keyword"> &amp;</span><span class="z-variable z-other">views</span><span>)</span><span class="z-keyword">.</span><span class="z-entity z-name">unwrap</span><span>(</span><span>)</span><span>;</span><span class="z-punctuation z-definition z-comment"> //</span><span class="z-comment"> (seq, n_heads * d_k)</span></span>
+<span class="giallo-l"><span class="z-storage z-type">let</span><span class="z-variable z-other"> out</span><span class="z-keyword"> =</span><span class="z-entity z-name"> matmul</span><span>(</span><span class="z-keyword">&amp;</span><span class="z-variable z-other">concat</span><span>,</span><span class="z-keyword"> &amp;</span><span class="z-variable z-language">self</span><span class="z-keyword">.</span><span>w_o</span><span>)</span><span>;</span><span class="z-punctuation z-definition z-comment">               //</span><span class="z-comment"> (seq, d_model)</span></span></code></pre>
+<p>完整的 shape 流：</p>
+<pre class="giallo z-code"><code data-lang="plain"><span class="giallo-l"><span>x:          (seq, d_model)</span></span>
+<span class="giallo-l"><span>  ↓ × W_q/W_k/W_v</span></span>
+<span class="giallo-l"><span>q/k/v_full: (seq, n_heads * d_k)</span></span>
+<span class="giallo-l"><span>  ↓ 按 head 切列</span></span>
+<span class="giallo-l"><span>q_h/k_h/v_h: (seq, d_k)     × n_heads 份</span></span>
+<span class="giallo-l"><span>  ↓ scores + mask → softmax → × v_h</span></span>
+<span class="giallo-l"><span>context_h:  (seq, d_k)       × n_heads 份</span></span>
+<span class="giallo-l"><span>  ↓ concatenate(Axis(1))</span></span>
+<span class="giallo-l"><span>concat:     (seq, n_heads * d_k)  == (seq, d_model)</span></span>
+<span class="giallo-l"><span>  ↓ × W_o</span></span>
+<span class="giallo-l"><span>out:        (seq, d_model)</span></span></code></pre>
+<hr />
+<h2 id="causal-mask-wei-shen-me-yu-yan-mo-xing-bu-neng-tou-kan-wei-lai">Causal Mask：为什么语言模型不能偷看未来<a class="zola-anchor" href="#causal-mask-wei-shen-me-yu-yan-mo-xing-bu-neng-tou-kan-wei-lai" aria-label="Anchor link for: causal-mask-wei-shen-me-yu-yan-mo-xing-bu-neng-tou-kan-wei-lai" style="visibility: hidden;"></a>
+</h2>
+<p>普通的 Transformer（比如用于翻译的 encoder）里，每个位置可以自由地关注序列里所有其他位置——这是合理的，因为翻译时整句话都已知。</p>
+<p>但<strong>语言模型的任务是预测下一个词</strong>：给定 <code>["The", "cat", "sat"]</code>，预测 <code>"on"</code>。这时位置 3（"on"）在训练中是已知的，但推理时它是我们要预测的目标。如果模型在训练时被允许看到位置 3 来预测位置 3，它直接抄答案就好了，什么也学不到。</p>
+<p>因果掩码（Causal Mask）的作用：<strong>训练时强制位置 $t$ 只能看到位置 $0, 1, \dots, t$，不能看 $t+1$ 之后的任何位置</strong>。推理时自然满足这个约束（未来的 token 还没生成），训练时需要人工施加。</p>
+<hr />
+<h2 id="causal-mask-de-shu-xue">Causal Mask 的数学<a class="zola-anchor" href="#causal-mask-de-shu-xue" aria-label="Anchor link for: causal-mask-de-shu-xue" style="visibility: hidden;"></a>
+</h2>
+<p>做法是在 softmax <strong>之前</strong>，把 scores 矩阵的上三角（$j &gt; i$ 的位置）加上 $-\infty$：</p>
+<p>$$\tilde{s}<em>{ij} = s</em>{ij} + m_{ij}, \quad m_{ij} = \begin{cases} 0 &amp; j \leq i \ -\infty &amp; j &gt; i \end{cases}$$</p>
+<p>然后 softmax：</p>
+<p>$$\text{attn}<em>{ij} = \frac{e^{\tilde{s}</em>{ij}}}{\sum_{j'} e^{\tilde{s}_{ij'}}}$$</p>
+<p>对于 $j &gt; i$ 的位置，$e^{-\infty} = 0$，所以它们的注意力权重恰好为 0，不参与加权平均。</p>
+<p>对于合法位置 $j \leq i$，加了 0，不影响结果。</p>
+<p>以 4 个 token 为例，mask 矩阵长这样：</p>
+<p>$$M = \begin{bmatrix} 0 &amp; -\infty &amp; -\infty &amp; -\infty \ 0 &amp; 0 &amp; -\infty &amp; -\infty \ 0 &amp; 0 &amp; 0 &amp; -\infty \ 0 &amp; 0 &amp; 0 &amp; 0 \end{bmatrix}$$</p>
+<ul>
+<li>token 0 只能看自己</li>
+<li>token 1 能看 token 0 和 1</li>
+<li>token 2 能看 token 0、1、2</li>
+<li>token 3 能看所有</li>
+</ul>
+<p>这在 Rust 里一行生成：</p>
+<pre class="giallo z-code"><code data-lang="rust"><span class="giallo-l"><span class="z-keyword">pub</span><span class="z-keyword"> fn</span><span class="z-entity z-name"> causal_mask</span><span>(</span><span class="z-variable z-other">seq</span><span class="z-keyword">:</span><span class="z-entity z-name"> usize</span><span>)</span><span class="z-keyword"> -&gt;</span><span class="z-entity z-name"> Array2</span><span>&lt;</span><span class="z-entity z-name">f32</span><span>&gt;</span><span> {</span></span>
+<span class="giallo-l"><span class="z-entity z-name">    Array2</span><span class="z-keyword">::</span><span class="z-entity z-name">from_shape_fn</span><span>(</span><span>(</span><span class="z-variable z-other">seq</span><span>,</span><span class="z-variable z-other"> seq</span><span>)</span><span>,</span><span class="z-keyword"> |</span><span>(</span><span class="z-variable z-other">i</span><span>,</span><span class="z-variable z-other"> j</span><span>)</span><span class="z-keyword">|</span><span> {</span></span>
+<span class="giallo-l"><span class="z-keyword">        if</span><span class="z-variable z-other"> j</span><span class="z-keyword"> &gt;</span><span class="z-variable z-other"> i</span><span> {</span><span class="z-entity z-name"> f32</span><span class="z-keyword">::</span><span class="z-constant">NEG_INFINITY</span><span> }</span><span class="z-keyword"> else</span><span> {</span><span class="z-constant"> 0</span><span class="z-constant">.</span><span class="z-constant">0</span><span> }</span></span>
+<span class="giallo-l"><span>    }</span><span>)</span></span>
+<span class="giallo-l"><span>}</span></span></code></pre>
+<hr />
+<h2 id="yi-ge-rong-yi-cai-de-xi-jie">一个容易踩的细节<a class="zola-anchor" href="#yi-ge-rong-yi-cai-de-xi-jie" aria-label="Anchor link for: yi-ge-rong-yi-cai-de-xi-jie" style="visibility: hidden;"></a>
+</h2>
+<p>softmax 里做了数值稳定处理（减最大值）。有了 $-\infty$ 之后，每行的最大值可能就是某个合法位置的 score，$-\infty$ 减去任何有限数还是 $-\infty$，$e^{-\infty}$ 还是 0，不影响结果。所以 mask 和数值稳定 softmax 是兼容的，不需要特殊处理。</p>
+<hr />
+<h2 id="ce-shi">测试<a class="zola-anchor" href="#ce-shi" aria-label="Anchor link for: ce-shi" style="visibility: hidden;"></a>
+</h2>
+<p>四个测试验证了不同方面：</p>
+<pre class="giallo z-code"><code data-lang="rust"><span class="giallo-l"><span class="z-punctuation z-definition z-comment">//</span><span class="z-comment"> mask 矩阵的值对不对</span></span>
+<span class="giallo-l"><span class="z-variable z-other">test_causal_mask_values</span></span>
+<span class="giallo-l"></span>
+<span class="giallo-l"><span class="z-punctuation z-definition z-comment">//</span><span class="z-comment"> 加了 mask 之后，attn[i][j] 当 j &gt; i 时是否真的为 0</span></span>
+<span class="giallo-l"><span class="z-variable z-other">test_causal_mask_blocks_future</span></span>
+<span class="giallo-l"></span>
+<span class="giallo-l"><span class="z-punctuation z-definition z-comment">//</span><span class="z-comment"> 每行的 attention 权重加起来是否等于 1</span></span>
+<span class="giallo-l"><span class="z-variable z-other">test_attn_weights_sum_to_one</span></span>
+<span class="giallo-l"></span>
+<span class="giallo-l"><span class="z-punctuation z-definition z-comment">//</span><span class="z-comment"> 输出 shape 是否正确，head 数量和 shape 是否对</span></span>
+<span class="giallo-l"><span class="z-variable z-other">test_output_shape</span></span></code></pre><pre class="giallo z-code"><code data-lang="plain"><span class="giallo-l"><span>running 13 tests</span></span>
+<span class="giallo-l"><span>...</span></span>
+<span class="giallo-l"><span>test layers::multihead_attention::tests::test_causal_mask_values ... ok</span></span>
+<span class="giallo-l"><span>test layers::multihead_attention::tests::test_causal_mask_blocks_future ... ok</span></span>
+<span class="giallo-l"><span>test layers::multihead_attention::tests::test_output_shape ... ok</span></span>
+<span class="giallo-l"><span>test layers::multihead_attention::tests::test_attn_weights_sum_to_one ... ok</span></span>
+<span class="giallo-l"><span>...</span></span>
+<span class="giallo-l"></span>
+<span class="giallo-l"><span>test result: ok. 13 passed; 0 failed</span></span></code></pre>
+<hr />
+<p>明天 Day 7：FFN + LayerNorm + 残差连接，把一个完整的 Transformer Block 拼出来。LayerNorm 的反向传播是后面最绕的部分，前向先把结构搭好。</p>
+
+      </article>
+
+      
+      
+
+      
+      
+      <div class="giscus"></div>
+      <style>
+#comments { margin-top: 3rem; padding: 0 15px; }
+.c-item { margin: 1.2rem 0; }
+.c-reply { margin-left: 1.5rem; padding-left: 1rem; border-left: 2px solid var(--text-decoration-color); }
+.c-meta { display: flex; align-items: center; gap: 0.6rem; margin-bottom: 0.3rem; font-size: 0.85em; }
+.c-name { font-weight: bold; color: var(--text-color); }
+.c-time { color: var(--text-pale-color); }
+.c-reply-btn {
+  background: none; border: none; padding: 0;
+  color: var(--primary-color); cursor: pointer;
+  font-size: 0.85em; opacity: 0;
+  transition: opacity 0.15s;
+}
+.c-item:hover .c-reply-btn { opacity: 1; }
+.c-body { color: var(--text-color); line-height: var(--line-height); white-space: pre-wrap; word-break: break-word; }
+.c-loading, .c-empty { color: var(--text-pale-color); font-size: 0.9em; padding: 1rem 0; }
+.c-form { margin-top: 2rem; display: flex; flex-direction: column; gap: 0.6rem; }
+.c-form-row { display: flex; gap: 0.6rem; }
+.c-input {
+  width: 100%; padding: 0.5rem 0.7rem;
+  border: 1.5px solid var(--text-decoration-color);
+  border-radius: 4px;
+  background: var(--bg-color); color: var(--text-color);
+  font-size: 0.9em; font-family: var(--main-font);
+  outline: none; transition: border-color 0.15s;
+}
+.c-input:focus { border-color: var(--primary-color); }
+.c-input-content { resize: vertical; min-height: 100px; }
+.c-reply-tip {
+  font-size: 0.85em; color: var(--primary-color);
+  padding: 0.2rem 0.5rem;
+  background: var(--inline-code-bg-color);
+  border-radius: 4px; align-self: flex-start;
+}
+.c-reply-tip::after { content: " ✕"; opacity: 0.5; }
+.c-form-actions { display: flex; justify-content: flex-end; }
+.c-submit {
+  padding: 0.4rem 1.2rem;
+  background: var(--primary-color); color: var(--bg-color);
+  border: none; border-radius: 4px;
+  cursor: pointer; font-size: 0.9em;
+  transition: opacity 0.15s;
+}
+.c-submit:hover { opacity: 0.85; }
+.c-submit:disabled { opacity: 0.5; cursor: not-allowed; }
+</style>
+<div id="comments" data-page="&#x2F;posts&#x2F;transformer-rs-day6-2026-05-11&#x2F;"></div>
+<script src="/comments.js"></script>
+
+
+      
+    </div>
+
+    
+
+
+<footer>
+  <div class="left">
+    <div class="copyright">
+      © 2026 Cirray AI
+      
+      <span>|</span>
+      Built with <a href="https://www.getzola.org" rel="noreferrer" target="_blank">zola</a> and <a href="https://github.com/isunjn/serene" rel="noreferrer" target="_blank">serene</a>
+      
+    </div>
+  </div>
+
+  <div class="right">
+    
+    
+    
+    
+
+    
+    
+    
+    <button id="theme-toggle" aria-label="theme switch">
+      <span class="moon-icon"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="18" height="18"><path d="M10 7C10 10.866 13.134 14 17 14C18.9584 14 20.729 13.1957 21.9995 11.8995C22 11.933 22 11.9665 22 12C22 17.5228 17.5228 22 12 22C6.47715 22 2 17.5228 2 12C2 6.47715 6.47715 2 12 2C12.0335 2 12.067 2 12.1005 2.00049C10.8043 3.27098 10 5.04157 10 7ZM4 12C4 16.4183 7.58172 20 12 20C15.0583 20 17.7158 18.2839 19.062 15.7621C18.3945 15.9187 17.7035 16 17 16C12.0294 16 8 11.9706 8 7C8 6.29648 8.08133 5.60547 8.2379 4.938C5.71611 6.28423 4 8.9417 4 12Z" fill="currentColor"></path></svg>
+</span>
+      <span class="sun-icon"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="18" height="18"><path d="M12 18C8.68629 18 6 15.3137 6 12C6 8.68629 8.68629 6 12 6C15.3137 6 18 8.68629 18 12C18 15.3137 15.3137 18 12 18ZM12 16C14.2091 16 16 14.2091 16 12C16 9.79086 14.2091 8 12 8C9.79086 8 8 9.79086 8 12C8 14.2091 9.79086 16 12 16ZM11 1H13V4H11V1ZM11 20H13V23H11V20ZM3.51472 4.92893L4.92893 3.51472L7.05025 5.63604L5.63604 7.05025L3.51472 4.92893ZM16.9497 18.364L18.364 16.9497L20.4853 19.0711L19.0711 20.4853L16.9497 18.364ZM19.0711 3.51472L20.4853 4.92893L18.364 7.05025L16.9497 5.63604L19.0711 3.51472ZM5.63604 16.9497L7.05025 18.364L4.92893 20.4853L3.51472 19.0711L5.63604 16.9497ZM23 11V13H20V11H23ZM4 11V13H1V11H4Z" fill="currentColor"></path></svg>
+</span>
+    </button>
+    
+  </div>
+</footer>
+
+
+
+
+
+  </main>
+</div>
+
+  
+<script src="/js/lightense.min.js"></script>
+
+
+  <script src="https://blog.cirray.cn/js/main.js"></script>
+</body>
+
+</html>
