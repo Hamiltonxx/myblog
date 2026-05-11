@@ -125,7 +125,7 @@ out:        (seq, d_model)
 
 做法是在 softmax **之前**，把 scores 矩阵的上三角（$j > i$ 的位置）加上 $-\infty$：
 
-$$\tilde{s}_{ij} = s_{ij} + m_{ij}, \quad m_{ij} = \begin{cases} 0 & j \leq i \\ -\infty & j > i \end{cases}$$
+$$\tilde{s}_{ij} = s_{ij} + m_{ij}, \quad m_{ij} = \begin{cases} 0 & j \leq i \\\\ -\infty & j > i \end{cases}$$
 
 然后 softmax：
 
@@ -137,7 +137,7 @@ $$\text{attn}_{ij} = \frac{e^{\tilde{s}_{ij}}}{\sum_{j'} e^{\tilde{s}_{ij'}}}$$
 
 以 4 个 token 为例，mask 矩阵长这样：
 
-$$M = \begin{bmatrix} 0 & -\infty & -\infty & -\infty \\ 0 & 0 & -\infty & -\infty \\ 0 & 0 & 0 & -\infty \\ 0 & 0 & 0 & 0 \end{bmatrix}$$
+$$M = \begin{bmatrix} 0 & -\infty & -\infty & -\infty \\\\ 0 & 0 & -\infty & -\infty \\\\ 0 & 0 & 0 & -\infty \\\\ 0 & 0 & 0 & 0 \end{bmatrix}$$
 
 - token 0 只能看自己
 - token 1 能看 token 0 和 1

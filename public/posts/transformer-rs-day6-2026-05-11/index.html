@@ -285,13 +285,13 @@
 <h2 id="causal-mask-de-shu-xue">Causal Mask 的数学<a class="zola-anchor" href="#causal-mask-de-shu-xue" aria-label="Anchor link for: causal-mask-de-shu-xue" style="visibility: hidden;"></a>
 </h2>
 <p>做法是在 softmax <strong>之前</strong>，把 scores 矩阵的上三角（$j &gt; i$ 的位置）加上 $-\infty$：</p>
-<p>$$\tilde{s}<em>{ij} = s</em>{ij} + m_{ij}, \quad m_{ij} = \begin{cases} 0 &amp; j \leq i \ -\infty &amp; j &gt; i \end{cases}$$</p>
+<p>$$\tilde{s}<em>{ij} = s</em>{ij} + m_{ij}, \quad m_{ij} = \begin{cases} 0 &amp; j \leq i \\ -\infty &amp; j &gt; i \end{cases}$$</p>
 <p>然后 softmax：</p>
 <p>$$\text{attn}<em>{ij} = \frac{e^{\tilde{s}</em>{ij}}}{\sum_{j'} e^{\tilde{s}_{ij'}}}$$</p>
 <p>对于 $j &gt; i$ 的位置，$e^{-\infty} = 0$，所以它们的注意力权重恰好为 0，不参与加权平均。</p>
 <p>对于合法位置 $j \leq i$，加了 0，不影响结果。</p>
 <p>以 4 个 token 为例，mask 矩阵长这样：</p>
-<p>$$M = \begin{bmatrix} 0 &amp; -\infty &amp; -\infty &amp; -\infty \ 0 &amp; 0 &amp; -\infty &amp; -\infty \ 0 &amp; 0 &amp; 0 &amp; -\infty \ 0 &amp; 0 &amp; 0 &amp; 0 \end{bmatrix}$$</p>
+<p>$$M = \begin{bmatrix} 0 &amp; -\infty &amp; -\infty &amp; -\infty \\ 0 &amp; 0 &amp; -\infty &amp; -\infty \\ 0 &amp; 0 &amp; 0 &amp; -\infty \\ 0 &amp; 0 &amp; 0 &amp; 0 \end{bmatrix}$$</p>
 <ul>
 <li>token 0 只能看自己</li>
 <li>token 1 能看 token 0 和 1</li>
