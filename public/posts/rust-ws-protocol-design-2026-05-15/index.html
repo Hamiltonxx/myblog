@@ -1,0 +1,505 @@
+<!DOCTYPE html>
+
+<html lang="zh">
+
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="color-scheme" content="light dark">
+  
+  
+    
+  
+  <meta name="description" content="工业测试仪器的 WebSocket 服务要同时处理低频 JSON 指令和 10KHz 二进制数据流，两者的格式差异决定了协议层的核心设计思路。">
+
+  <title>工控 Rust WebSocket协议层的设计</title>
+  <link rel="icon" type="image/png" sizes="32x32" href="https://blog.cirray.cn/img/favicon-32x32.png">
+  <link rel="icon" type="image/png" sizes="16x16" href="https://blog.cirray.cn/img/favicon-16x16.png">
+  <link rel="apple-touch-icon" sizes="180x180" href="https://blog.cirray.cn/img/apple-touch-icon.png">
+  
+  <style>
+
+  /* light mode colors */
+  body {
+    --primary-color: #5871a2;
+    --primary-pale-color: #5871a233;
+    --primary-decoration-color: #5871a210;
+    --bg-color: #ffffff;
+    --text-color: #2f3030;
+    --text-pale-color: #767676;
+    --text-decoration-color: #a9a9a9;
+    --highlight-mark-color: #5f75b020;
+
+    --callout-note-color: #5871a2;
+    --callout-tip-color: #268556;
+    --callout-important-color: #885fc9;
+    --callout-warning-color: #ab6632;
+    --callout-caution-color: #c64e4e;
+  }
+
+  /* dark mode colors */
+  body.dark {
+    --primary-color: #6f8fd1;
+    --primary-pale-color: #6f8fd166;
+    --primary-decoration-color: #6f8fd112;
+    --bg-color: #1c1c1c;
+    --text-color: #c1c1c1;
+    --text-pale-color: #848484;
+    --text-decoration-color: #5f5f5f;
+    --highlight-mark-color: #8296cb3b;
+
+    --callout-note-color: #6f8fd1;
+    --callout-tip-color: #47976f;
+    --callout-important-color: #9776cd;
+    --callout-warning-color: #ad7a52;
+    --callout-caution-color: #d06161;
+  }
+
+  /* typography */
+  body {
+    --main-font: ui-sans-serif, system-ui, sans-serif, 'Apple Color Emoji', 'Segoe UI Emoji', 'Segoe UI Symbol', 'Noto Color Emoji';
+    --code-font: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, 'Liberation Mono', 'Courier New', monospace;
+    --homepage-max-width: 768px;
+    --main-max-width: 768px;
+    --avatar-size: 60px;
+    --font-size: 16px;
+    --line-height: 1.75;
+    --img-border-radius: 0px;
+    --detail-border-radius: 0px;
+    --dark-mode-img-brightness: 0.75;
+    --dark-mode-chart-brightness: 0.75;
+    --inline-code-border-radius: 2px;
+    --inline-code-bg-color: var(--primary-decoration-color);
+    --block-code-border-radius: 0px;
+    --block-code-border-color: var(--primary-color);
+    --detail-border-color: var(--primary-color);
+  }
+
+</style>
+
+  <link rel="stylesheet" href="https://blog.cirray.cn/main.css">
+  
+
+<link id="hl" rel="stylesheet" type="text/css" href="/giallo-light.css" />
+
+
+
+  
+</head>
+
+<body class="post">
+  
+  <script>
+    const theme = sessionStorage.getItem('theme');
+    const match = window.matchMedia("(prefers-color-scheme: dark)").matches;
+    if ((theme && theme == 'dark') || (!theme && match)) {
+      document.body.classList.add('dark');
+      const hl = document.querySelector('link#hl');
+      if (hl) hl.href = 'https://blog.cirray.cn/giallo-dark.css';
+    }
+  </script>
+  
+  
+<div id="wrapper">
+  <div id="blank"></div>
+  <aside>
+    
+    
+    <nav>
+      <ul>
+        
+        <li>
+          <a class="h2" href="#bei-jing-fu-wu-yao-tong-shi-he-liang-lei-ke-hu-duan-shuo-hua">背景：服务要同时和两类客户端说话</a>
+          
+        </li>
+        
+        <li>
+          <a class="h2" href="#liang-tiao-shu-ju-tong-dao-fen-kai-she-ji">两条数据通道，分开设计</a>
+          
+          <ul>
+            
+            <li>
+              <a class="h3" href="#json-envelope-kong-zhi-xiao-xi">JSON Envelope（控制消息）</a>
+            </li>
+            
+            <li>
+              <a class="h3" href="#er-jin-zhi-zheng-gao-pin-chuan-gan-qi-shu-ju">二进制帧（高频传感器数据）</a>
+            </li>
+            
+          </ul>
+          
+        </li>
+        
+        <li>
+          <a class="h2" href="#dai-ma-jie-du-common-protocol-src-lib-rs">代码解读：common&#x2F;protocol&#x2F;src&#x2F;lib.rs</a>
+          
+          <ul>
+            
+            <li>
+              <a class="h3" href="#jiao-se-he-xiao-xi-lei-xing-mei-ju">角色和消息类型枚举</a>
+            </li>
+            
+            <li>
+              <a class="h3" href="#envelope-jie-gou-ti-serde-zhu-jie-shi-guan-jian">Envelope 结构体——serde 注解是关键</a>
+            </li>
+            
+            <li>
+              <a class="h3" href="#nei-bu-xiao-xi-mei-ju">内部消息枚举</a>
+            </li>
+            
+            <li>
+              <a class="h3" href="#er-jin-zhi-zheng-parse-frame-he-build-frame">二进制帧：parse_frame 和 build_frame</a>
+            </li>
+            
+            <li>
+              <a class="h3" href="#ce-shi-yan-zheng">测试验证</a>
+            </li>
+            
+          </ul>
+          
+        </li>
+        
+        <li>
+          <a class="h2" href="#cargo-workspace-jie-gou">Cargo Workspace 结构</a>
+          
+        </li>
+        
+      </ul>
+    </nav>
+    
+    
+    <button id="back-to-top" aria-label="back to top">
+      
+      <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="feather feather-arrow-up"><line x1="12" y1="19" x2="12" y2="5"></line><polyline points="5 12 12 5 19 12"></polyline></svg>
+
+    </button>
+    
+  </aside>
+  <main>
+    
+<header>
+  <nav>
+    <a id="back-link" href="https:&#x2F;&#x2F;blog.cirray.cn&#x2F;posts">← Back</a>
+  </nav>
+</header>
+
+
+    <div>
+      
+      
+      
+      
+      <div id="copy-cfg" style="display: none;" data-copy-icon="&lt;svg xmlns=&quot;http:&#x2F;&#x2F;www.w3.org&#x2F;2000&#x2F;svg&quot; viewBox=&quot;0 0 24 24&quot; width=&quot;18&quot; height=&quot;18&quot;&gt;&lt;path d=&quot;M6.9998 6V3C6.9998 2.44772 7.44752 2 7.9998 2H19.9998C20.5521 2 20.9998 2.44772 20.9998 3V17C20.9998 17.5523 20.5521 18 19.9998 18H16.9998V20.9991C16.9998 21.5519 16.5499 22 15.993 22H4.00666C3.45059 22 3 21.5554 3 20.9991L3.0026 7.00087C3.0027 6.44811 3.45264 6 4.00942 6H6.9998ZM5.00242 8L5.00019 20H14.9998V8H5.00242ZM8.9998 6H16.9998V16H18.9998V4H8.9998V6Z&quot; fill=&quot;currentColor&quot;&gt;&lt;&#x2F;path&gt;&lt;&#x2F;svg&gt;
+" data-check-icon="&lt;svg xmlns=&quot;http:&#x2F;&#x2F;www.w3.org&#x2F;2000&#x2F;svg&quot; viewBox=&quot;0 0 24 24&quot; width=&quot;18&quot; height=&quot;18&quot;&gt;&lt;path d=&quot;M10.0007 15.1709L19.1931 5.97852L20.6073 7.39273L10.0007 17.9993L3.63672 11.6354L5.05093 10.2212L10.0007 15.1709Z&quot; fill=&quot;currentColor&quot;&gt;&lt;&#x2F;path&gt;&lt;&#x2F;svg&gt;
+"></div>
+      
+      <article class="prose">
+        <h1>工控 Rust WebSocket协议层的设计</h1>
+        <div id="post-info">
+          <div id="date">
+            <span id="publish">2026-05-15</span>
+            </div>
+
+          
+          <div id="tags">
+            <a class="instant" href="https://blog.cirray.cn/tags/rust"><span>#</span>rust</a><a class="instant" href="https://blog.cirray.cn/tags/websocket"><span>#</span>websocket</a><a class="instant" href="https://blog.cirray.cn/tags/protocol"><span>#</span>protocol</a><a class="instant" href="https://blog.cirray.cn/tags/serde"><span>#</span>serde</a><a class="instant" href="https://blog.cirray.cn/tags/binary-protocol"><span>#</span>binary-protocol</a><a class="instant" href="https://blog.cirray.cn/tags/axum"><span>#</span>axum</a>
+          </div>
+          
+        </div>
+
+        
+        
+
+        
+
+        <p>近来要做材料检测工控项目，今天把 <code>wsserver</code> 工程的协议层（<code>common/protocol</code> crate）从零实现到测试通过。</p>
+<hr />
+<h2 id="bei-jing-fu-wu-yao-tong-shi-he-liang-lei-ke-hu-duan-shuo-hua">背景：服务要同时和两类客户端说话<a class="zola-anchor" href="#bei-jing-fu-wu-yao-tong-shi-he-liang-lei-ke-hu-duan-shuo-hua" aria-label="Anchor link for: bei-jing-fu-wu-yao-tong-shi-he-liang-lei-ke-hu-duan-shuo-hua" style="visibility: hidden;"></a>
+</h2>
+<p>这个项目是工业拉伸试验机的后端服务，WebSocket 上挂着两类连接：</p>
+<ul>
+<li><strong>设备</strong>（STM32 / 模拟器）：上报传感器数据、发送状态事件</li>
+<li><strong>前端</strong>（Vue 界面）：发控制指令、接收实时曲线</li>
+</ul>
+<p>如果两类连接各用各的格式，server 里会到处是 if-else。解法是在 <code>common/</code> 下放一个共用的 <code>protocol</code> crate，server 和 simulator 都引用它，不重复定义。</p>
+<hr />
+<h2 id="liang-tiao-shu-ju-tong-dao-fen-kai-she-ji">两条数据通道，分开设计<a class="zola-anchor" href="#liang-tiao-shu-ju-tong-dao-fen-kai-she-ji" aria-label="Anchor link for: liang-tiao-shu-ju-tong-dao-fen-kai-she-ji" style="visibility: hidden;"></a>
+</h2>
+<h3 id="json-envelope-kong-zhi-xiao-xi">JSON Envelope（控制消息）<a class="zola-anchor" href="#json-envelope-kong-zhi-xiao-xi" aria-label="Anchor link for: json-envelope-kong-zhi-xiao-xi" style="visibility: hidden;"></a>
+</h3>
+<p>低频消息（每秒几次到几十次）：握手、指令、状态通知、响应。格式统一用一个"信封"结构：</p>
+<pre class="giallo z-code"><code data-lang="json"><span class="giallo-l"><span>{</span></span>
+<span class="giallo-l"><span class="z-support">  &quot;</span><span class="z-support">ver</span><span class="z-support">&quot;</span><span>:</span><span class="z-punctuation z-definition z-string"> &quot;</span><span class="z-string">3.0</span><span class="z-punctuation z-definition z-string">&quot;</span><span>,</span></span>
+<span class="giallo-l"><span class="z-support">  &quot;</span><span class="z-support">id</span><span class="z-support">&quot;</span><span>:</span><span class="z-punctuation z-definition z-string"> &quot;</span><span class="z-string">42</span><span class="z-punctuation z-definition z-string">&quot;</span><span>,</span></span>
+<span class="giallo-l"><span class="z-support">  &quot;</span><span class="z-support">ts</span><span class="z-support">&quot;</span><span>:</span><span class="z-constant"> 1716123500000</span><span>,</span></span>
+<span class="giallo-l"><span class="z-support">  &quot;</span><span class="z-support">src</span><span class="z-support">&quot;</span><span>:</span><span class="z-punctuation z-definition z-string"> &quot;</span><span class="z-string">frontend-main</span><span class="z-punctuation z-definition z-string">&quot;</span><span>,</span></span>
+<span class="giallo-l"><span class="z-support">  &quot;</span><span class="z-support">dst</span><span class="z-support">&quot;</span><span>:</span><span class="z-punctuation z-definition z-string"> &quot;</span><span class="z-string">device-001</span><span class="z-punctuation z-definition z-string">&quot;</span><span>,</span></span>
+<span class="giallo-l"><span class="z-support">  &quot;</span><span class="z-support">type</span><span class="z-support">&quot;</span><span>:</span><span class="z-punctuation z-definition z-string"> &quot;</span><span class="z-string">cmd</span><span class="z-punctuation z-definition z-string">&quot;</span><span>,</span></span>
+<span class="giallo-l"><span class="z-support">  &quot;</span><span class="z-support">name</span><span class="z-support">&quot;</span><span>:</span><span class="z-punctuation z-definition z-string"> &quot;</span><span class="z-string">test.start</span><span class="z-punctuation z-definition z-string">&quot;</span><span>,</span></span>
+<span class="giallo-l"><span class="z-support">  &quot;</span><span class="z-support">data</span><span class="z-support">&quot;</span><span>:</span><span> {</span><span class="z-support"> &quot;</span><span class="z-support">standard_id</span><span class="z-support">&quot;</span><span>:</span><span class="z-punctuation z-definition z-string"> &quot;</span><span class="z-string">GB/T 228.1-2021</span><span class="z-punctuation z-definition z-string">&quot;</span><span> }</span></span>
+<span class="giallo-l"><span>}</span></span></code></pre>
+<p><code>type</code> 只有三种：<code>cmd</code>（指令）/ <code>rsp</code>（响应）/ <code>evt</code>（单向事件）。<code>src</code> 的前缀决定了发送方角色：<code>device-</code> 开头是设备，<code>frontend-</code> 开头是前端，server 靠这个路由消息。</p>
+<h3 id="er-jin-zhi-zheng-gao-pin-chuan-gan-qi-shu-ju">二进制帧（高频传感器数据）<a class="zola-anchor" href="#er-jin-zhi-zheng-gao-pin-chuan-gan-qi-shu-ju" aria-label="Anchor link for: er-jin-zhi-zheng-gao-pin-chuan-gan-qi-shu-ju" style="visibility: hidden;"></a>
+</h3>
+<p>JSON 有格式开销，10KHz 的力-位移数据绝对不能走 JSON。算一下：</p>
+<pre class="giallo z-code"><code data-lang="plain"><span class="giallo-l"><span>16 bytes header + 8 通道 × 6 bytes = 64 bytes/帧</span></span>
+<span class="giallo-l"><span>64 × 10000 帧/s = 640 KB/s</span></span></code></pre>
+<p>WebSocket 承受没问题，但解析必须快。帧结构：</p>
+<pre class="giallo z-code"><code data-lang="plain"><span class="giallo-l"><span>┌── 4 bytes ──┬─ 1 ─┬─ 1 ─┬─── 2 ───┬─── 4 ────┬─── 4 ───┐</span></span>
+<span class="giallo-l"><span>│  &quot;ICT!&quot;     │ ver │flags│  count  │  seq_no  │ reserved│</span></span>
+<span class="giallo-l"><span>└─────────────┴─────┴─────┴─────────┴──────────┴─────────┘</span></span>
+<span class="giallo-l"><span>  然后每个通道 6 bytes: stream_id(2) + f32 value(4)</span></span></code></pre>
+<p><code>seq_no</code> 是检测丢帧的关键：server 收到帧序号跳跃就知道链路出问题了，会打 warn 日志并计数，但不会补帧。</p>
+<hr />
+<h2 id="dai-ma-jie-du-common-protocol-src-lib-rs">代码解读：<code>common/protocol/src/lib.rs</code><a class="zola-anchor" href="#dai-ma-jie-du-common-protocol-src-lib-rs" aria-label="Anchor link for: dai-ma-jie-du-common-protocol-src-lib-rs" style="visibility: hidden;"></a>
+</h2>
+<h3 id="jiao-se-he-xiao-xi-lei-xing-mei-ju">角色和消息类型枚举<a class="zola-anchor" href="#jiao-se-he-xiao-xi-lei-xing-mei-ju" aria-label="Anchor link for: jiao-se-he-xiao-xi-lei-xing-mei-ju" style="visibility: hidden;"></a>
+</h3>
+<pre class="giallo z-code"><code data-lang="rust"><span class="giallo-l"><span>#</span><span>[</span><span>derive</span><span>(</span><span class="z-entity z-name">Debug</span><span>,</span><span class="z-entity z-name"> Clone</span><span>,</span><span class="z-entity z-name"> Serialize</span><span>,</span><span class="z-entity z-name"> Deserialize</span><span>,</span><span class="z-entity z-name"> PartialEq</span><span>,</span><span class="z-entity z-name"> Eq</span><span>)</span><span>]</span></span>
+<span class="giallo-l"><span>#</span><span>[</span><span>serde</span><span>(</span><span>rename_all </span><span class="z-keyword">=</span><span class="z-punctuation z-definition z-string"> &quot;</span><span class="z-string">snake_case</span><span class="z-punctuation z-definition z-string">&quot;</span><span>)</span><span>]</span></span>
+<span class="giallo-l"><span class="z-keyword">pub</span><span class="z-storage z-type"> enum</span><span class="z-entity z-name"> Role</span><span> {</span></span>
+<span class="giallo-l"><span class="z-entity z-name">    Device</span><span>,</span></span>
+<span class="giallo-l"><span class="z-entity z-name">    Frontend</span><span>,</span></span>
+<span class="giallo-l"><span>}</span></span>
+<span class="giallo-l"></span>
+<span class="giallo-l"><span>#</span><span>[</span><span>derive</span><span>(</span><span class="z-entity z-name">Debug</span><span>,</span><span class="z-entity z-name"> Clone</span><span>,</span><span class="z-entity z-name"> Serialize</span><span>,</span><span class="z-entity z-name"> Deserialize</span><span>,</span><span class="z-entity z-name"> PartialEq</span><span>,</span><span class="z-entity z-name"> Eq</span><span>)</span><span>]</span></span>
+<span class="giallo-l"><span>#</span><span>[</span><span>serde</span><span>(</span><span>rename_all </span><span class="z-keyword">=</span><span class="z-punctuation z-definition z-string"> &quot;</span><span class="z-string">lowercase</span><span class="z-punctuation z-definition z-string">&quot;</span><span>)</span><span>]</span></span>
+<span class="giallo-l"><span class="z-keyword">pub</span><span class="z-storage z-type"> enum</span><span class="z-entity z-name"> MsgType</span><span> {</span></span>
+<span class="giallo-l"><span class="z-entity z-name">    Cmd</span><span>,</span></span>
+<span class="giallo-l"><span class="z-entity z-name">    Rsp</span><span>,</span></span>
+<span class="giallo-l"><span class="z-entity z-name">    Evt</span><span>,</span></span>
+<span class="giallo-l"><span>}</span></span></code></pre>
+<p><code>rename_all = "lowercase"</code> 让 <code>MsgType::Cmd</code> 序列化成 <code>"cmd"</code> 而不是 <code>"Cmd"</code>，和协议约定对齐。<code>Role</code> 用 <code>snake_case</code> 是为了和 JSON 里的字符串风格一致。</p>
+<h3 id="envelope-jie-gou-ti-serde-zhu-jie-shi-guan-jian">Envelope 结构体——serde 注解是关键<a class="zola-anchor" href="#envelope-jie-gou-ti-serde-zhu-jie-shi-guan-jian" aria-label="Anchor link for: envelope-jie-gou-ti-serde-zhu-jie-shi-guan-jian" style="visibility: hidden;"></a>
+</h3>
+<pre class="giallo z-code"><code data-lang="rust"><span class="giallo-l"><span>#</span><span>[</span><span>derive</span><span>(</span><span class="z-entity z-name">Debug</span><span>,</span><span class="z-entity z-name"> Clone</span><span>,</span><span class="z-entity z-name"> Serialize</span><span>,</span><span class="z-entity z-name"> Deserialize</span><span>)</span><span>]</span></span>
+<span class="giallo-l"><span class="z-keyword">pub</span><span class="z-storage z-type"> struct</span><span class="z-entity z-name"> Envelope</span><span> {</span></span>
+<span class="giallo-l"><span>    #</span><span>[</span><span>serde</span><span>(</span><span>default </span><span class="z-keyword">=</span><span class="z-punctuation z-definition z-string"> &quot;</span><span class="z-string">default_version</span><span class="z-punctuation z-definition z-string">&quot;</span><span>)</span><span>]</span><span class="z-punctuation z-definition z-comment">   //</span><span class="z-comment"> ①</span></span>
+<span class="giallo-l"><span class="z-keyword">    pub</span><span class="z-variable z-other"> ver</span><span class="z-keyword">:</span><span class="z-entity z-name"> String</span><span>,</span></span>
+<span class="giallo-l"><span class="z-keyword">    pub</span><span class="z-variable z-other"> id</span><span class="z-keyword">:</span><span class="z-entity z-name"> String</span><span>,</span></span>
+<span class="giallo-l"><span class="z-keyword">    pub</span><span class="z-variable z-other"> ts</span><span class="z-keyword">:</span><span class="z-entity z-name"> u64</span><span>,</span></span>
+<span class="giallo-l"><span class="z-keyword">    pub</span><span class="z-variable z-other"> src</span><span class="z-keyword">:</span><span class="z-entity z-name"> String</span><span>,</span></span>
+<span class="giallo-l"><span>    #</span><span>[</span><span>serde</span><span>(</span><span>skip_serializing_if </span><span class="z-keyword">=</span><span class="z-punctuation z-definition z-string"> &quot;</span><span class="z-string">Option::is_none</span><span class="z-punctuation z-definition z-string">&quot;</span><span>)</span><span>]</span><span class="z-punctuation z-definition z-comment">  //</span><span class="z-comment"> ②</span></span>
+<span class="giallo-l"><span class="z-keyword">    pub</span><span class="z-variable z-other"> dst</span><span class="z-keyword">:</span><span class="z-entity z-name"> Option</span><span>&lt;</span><span class="z-entity z-name">String</span><span>&gt;</span><span>,</span></span>
+<span class="giallo-l"><span>    #</span><span>[</span><span>serde</span><span>(</span><span>rename </span><span class="z-keyword">=</span><span class="z-punctuation z-definition z-string"> &quot;</span><span class="z-string">type</span><span class="z-punctuation z-definition z-string">&quot;</span><span>)</span><span>]</span><span class="z-punctuation z-definition z-comment">               //</span><span class="z-comment"> ③</span></span>
+<span class="giallo-l"><span class="z-keyword">    pub</span><span class="z-variable z-other"> msg_type</span><span class="z-keyword">:</span><span class="z-entity z-name"> MsgType</span><span>,</span></span>
+<span class="giallo-l"><span class="z-keyword">    pub</span><span class="z-variable z-other"> name</span><span class="z-keyword">:</span><span class="z-entity z-name"> String</span><span>,</span></span>
+<span class="giallo-l"><span>    #</span><span>[</span><span>serde</span><span>(</span><span>default</span><span>,</span><span> skip_serializing_if </span><span class="z-keyword">=</span><span class="z-punctuation z-definition z-string"> &quot;</span><span class="z-string">Value::is_null</span><span class="z-punctuation z-definition z-string">&quot;</span><span>)</span><span>]</span><span class="z-punctuation z-definition z-comment">  //</span><span class="z-comment"> ④</span></span>
+<span class="giallo-l"><span class="z-keyword">    pub</span><span class="z-variable z-other"> data</span><span class="z-keyword">:</span><span class="z-entity z-name"> Value</span><span>,</span></span>
+<span class="giallo-l"><span>    #</span><span>[</span><span>serde</span><span>(</span><span>skip_serializing_if </span><span class="z-keyword">=</span><span class="z-punctuation z-definition z-string"> &quot;</span><span class="z-string">Option::is_none</span><span class="z-punctuation z-definition z-string">&quot;</span><span>)</span><span>]</span></span>
+<span class="giallo-l"><span class="z-keyword">    pub</span><span class="z-variable z-other"> code</span><span class="z-keyword">:</span><span class="z-entity z-name"> Option</span><span>&lt;</span><span class="z-entity z-name">i32</span><span>&gt;</span><span>,</span></span>
+<span class="giallo-l"><span>    #</span><span>[</span><span>serde</span><span>(</span><span>skip_serializing_if </span><span class="z-keyword">=</span><span class="z-punctuation z-definition z-string"> &quot;</span><span class="z-string">Option::is_none</span><span class="z-punctuation z-definition z-string">&quot;</span><span>)</span><span>]</span></span>
+<span class="giallo-l"><span class="z-keyword">    pub</span><span class="z-variable z-other"> msg</span><span class="z-keyword">:</span><span class="z-entity z-name"> Option</span><span>&lt;</span><span class="z-entity z-name">String</span><span>&gt;</span><span>,</span></span>
+<span class="giallo-l"><span>}</span></span>
+<span class="giallo-l"></span>
+<span class="giallo-l"><span class="z-keyword">fn</span><span class="z-entity z-name"> default_version</span><span>(</span><span>)</span><span class="z-keyword"> -&gt;</span><span class="z-entity z-name"> String</span><span> {</span></span>
+<span class="giallo-l"><span class="z-punctuation z-definition z-string">    &quot;</span><span class="z-string">3.0</span><span class="z-punctuation z-definition z-string">&quot;</span><span class="z-keyword">.</span><span class="z-entity z-name">to_string</span><span>(</span><span>)</span></span>
+<span class="giallo-l"><span>}</span></span></code></pre>
+<p>四个关键注解逐条说明：</p>
+<p>① <strong><code>#[serde(default = "default_version")]</code></strong><br />
+反序列化时，如果 JSON 里没有 <code>"ver"</code> 字段，调用 <code>default_version()</code> 填充。用函数而不是 <code>Default</code> 是因为 <code>String::default()</code> 返回空字符串，我们需要返回 <code>"3.0"</code>。</p>
+<p>② <strong><code>#[serde(skip_serializing_if = "Option::is_none")]</code></strong><br />
+<code>dst</code> 是可选的——不是所有消息都有明确的接收方（比如设备广播事件）。加这个注解后，<code>dst: None</code> 序列化时 JSON 里就不会出现 <code>"dst"</code> 字段，而不是出现 <code>"dst": null</code>。</p>
+<p>③ <strong><code>#[serde(rename = "type")]</code></strong><br />
+字段名必须用 <code>msg_type</code> 因为 <code>type</code> 是 Rust 关键字，但协议要求 JSON key 是 <code>"type"</code>，<code>rename</code> 解决这个冲突。</p>
+<p>④ <strong><code>#[serde(default, skip_serializing_if = "Value::is_null")]</code></strong><br />
+<code>data</code> 是 <code>serde_json::Value</code>，反序列化时 JSON 没有 <code>data</code> 字段就填 <code>Value::Null</code>（<code>default</code> 的效果），序列化时 <code>Null</code> 就不输出（<code>skip_serializing_if</code>）。两个注解配合，让 <code>data</code> 字段变成"真正可选"。</p>
+<h3 id="nei-bu-xiao-xi-mei-ju">内部消息枚举<a class="zola-anchor" href="#nei-bu-xiao-xi-mei-ju" aria-label="Anchor link for: nei-bu-xiao-xi-mei-ju" style="visibility: hidden;"></a>
+</h3>
+<pre class="giallo z-code"><code data-lang="rust"><span class="giallo-l"><span>#</span><span>[</span><span>derive</span><span>(</span><span class="z-entity z-name">Debug</span><span>,</span><span class="z-entity z-name"> Clone</span><span>)</span><span>]</span></span>
+<span class="giallo-l"><span class="z-keyword">pub</span><span class="z-storage z-type"> enum</span><span class="z-entity z-name"> ProtocolMessage</span><span> {</span></span>
+<span class="giallo-l"><span class="z-entity z-name">    Json</span><span>(</span><span class="z-entity z-name">Envelope</span><span>)</span><span>,</span></span>
+<span class="giallo-l"><span class="z-entity z-name">    Binary</span><span>(</span><span class="z-entity z-name">Vec</span><span>&lt;</span><span class="z-entity z-name">u8</span><span>&gt;</span><span>)</span><span>,</span></span>
+<span class="giallo-l"><span>}</span></span></code></pre>
+<p>这个枚举<strong>不实现 Serialize/Deserialize</strong>——它只在 server 内部的 channel 里传递，是已经解析好的结构，不需要再序列化。注释里标注了这一点。</p>
+<h3 id="er-jin-zhi-zheng-parse-frame-he-build-frame">二进制帧：parse_frame 和 build_frame<a class="zola-anchor" href="#er-jin-zhi-zheng-parse-frame-he-build-frame" aria-label="Anchor link for: er-jin-zhi-zheng-parse-frame-he-build-frame" style="visibility: hidden;"></a>
+</h3>
+<pre class="giallo z-code"><code data-lang="rust"><span class="giallo-l"><span class="z-keyword">pub</span><span class="z-keyword"> fn</span><span class="z-entity z-name"> parse_frame</span><span>(</span><span class="z-variable z-other">data</span><span class="z-keyword">:</span><span class="z-keyword"> &amp;</span><span>[</span><span class="z-entity z-name">u8</span><span>]</span><span>)</span><span class="z-keyword"> -&gt;</span><span class="z-entity z-name"> Option</span><span>&lt;</span><span>(</span><span class="z-entity z-name">u32</span><span>,</span><span class="z-entity z-name"> Vec</span><span>&lt;</span><span>(</span><span class="z-entity z-name">u16</span><span>,</span><span class="z-entity z-name"> f32</span><span>)</span><span>&gt;</span><span>)</span><span>&gt;</span><span> {</span></span>
+<span class="giallo-l"><span class="z-keyword">    if</span><span class="z-variable z-other"> data</span><span class="z-keyword">.</span><span class="z-entity z-name">len</span><span>(</span><span>)</span><span> &lt;</span><span class="z-constant"> FRAME_HEADER_SIZE</span><span> {</span><span class="z-keyword"> return</span><span class="z-entity z-name"> None</span><span>;</span><span> }</span></span>
+<span class="giallo-l"><span class="z-keyword">    if</span><span class="z-keyword"> &amp;</span><span class="z-variable z-other">data</span><span>[</span><span class="z-constant">0</span><span class="z-keyword">..</span><span class="z-constant">4</span><span>]</span><span class="z-keyword"> !=</span><span class="z-keyword"> &amp;</span><span class="z-constant">FRAME_MAGIC</span><span> {</span><span class="z-keyword"> return</span><span class="z-entity z-name"> None</span><span>;</span><span> }</span><span class="z-punctuation z-definition z-comment">  //</span><span class="z-comment"> 校验魔数</span></span>
+<span class="giallo-l"></span>
+<span class="giallo-l"><span class="z-storage z-type">    let</span><span class="z-variable z-other"> stream_count</span><span class="z-keyword"> =</span><span class="z-entity z-name"> u16</span><span class="z-keyword">::</span><span class="z-entity z-name">from_le_bytes</span><span>(</span><span>[</span><span class="z-variable z-other">data</span><span>[</span><span class="z-constant">6</span><span>]</span><span>,</span><span class="z-variable z-other"> data</span><span>[</span><span class="z-constant">7</span><span>]</span><span>]</span><span>)</span><span class="z-keyword"> as</span><span class="z-entity z-name"> usize</span><span>;</span></span>
+<span class="giallo-l"><span class="z-storage z-type">    let</span><span class="z-variable z-other"> seq_no</span><span class="z-keyword"> =</span><span class="z-entity z-name"> u32</span><span class="z-keyword">::</span><span class="z-entity z-name">from_le_bytes</span><span>(</span><span>[</span><span class="z-variable z-other">data</span><span>[</span><span class="z-constant">8</span><span>]</span><span>,</span><span class="z-variable z-other"> data</span><span>[</span><span class="z-constant">9</span><span>]</span><span>,</span><span class="z-variable z-other"> data</span><span>[</span><span class="z-constant">10</span><span>]</span><span>,</span><span class="z-variable z-other"> data</span><span>[</span><span class="z-constant">11</span><span>]</span><span>]</span><span>)</span><span>;</span></span>
+<span class="giallo-l"></span>
+<span class="giallo-l"><span class="z-storage z-type">    let</span><span class="z-variable z-other"> expected_len</span><span class="z-keyword"> =</span><span class="z-constant"> FRAME_HEADER_SIZE</span><span class="z-keyword"> +</span><span class="z-variable z-other"> stream_count</span><span class="z-keyword"> *</span><span class="z-constant"> 6</span><span>;</span></span>
+<span class="giallo-l"><span class="z-keyword">    if</span><span class="z-variable z-other"> data</span><span class="z-keyword">.</span><span class="z-entity z-name">len</span><span>(</span><span>)</span><span> &lt;</span><span class="z-variable z-other"> expected_len</span><span> {</span><span class="z-keyword"> return</span><span class="z-entity z-name"> None</span><span>;</span><span> }</span><span class="z-punctuation z-definition z-comment">  //</span><span class="z-comment"> 防截断帧</span></span>
+<span class="giallo-l"></span>
+<span class="giallo-l"><span class="z-storage z-type">    let</span><span class="z-storage"> mut</span><span class="z-variable z-other"> streams</span><span class="z-keyword"> =</span><span class="z-entity z-name"> Vec</span><span class="z-keyword">::</span><span class="z-entity z-name">with_capacity</span><span>(</span><span class="z-variable z-other">stream_count</span><span>)</span><span>;</span></span>
+<span class="giallo-l"><span class="z-keyword">    for</span><span class="z-variable z-other"> i</span><span class="z-keyword"> in</span><span class="z-constant"> 0</span><span class="z-keyword">..</span><span class="z-variable z-other">stream_count</span><span> {</span></span>
+<span class="giallo-l"><span class="z-storage z-type">        let</span><span class="z-variable z-other"> offset</span><span class="z-keyword"> =</span><span class="z-constant"> FRAME_HEADER_SIZE</span><span class="z-keyword"> +</span><span class="z-variable z-other"> i</span><span class="z-keyword"> *</span><span class="z-constant"> 6</span><span>;</span></span>
+<span class="giallo-l"><span class="z-storage z-type">        let</span><span class="z-variable z-other"> stream_id</span><span class="z-keyword"> =</span><span class="z-entity z-name"> u16</span><span class="z-keyword">::</span><span class="z-entity z-name">from_le_bytes</span><span>(</span><span>[</span><span class="z-variable z-other">data</span><span>[</span><span class="z-variable z-other">offset</span><span>]</span><span>,</span><span class="z-variable z-other"> data</span><span>[</span><span class="z-variable z-other">offset</span><span class="z-keyword"> +</span><span class="z-constant"> 1</span><span>]</span><span>]</span><span>)</span><span>;</span></span>
+<span class="giallo-l"><span class="z-storage z-type">        let</span><span class="z-variable z-other"> value</span><span class="z-keyword"> =</span><span class="z-entity z-name"> f32</span><span class="z-keyword">::</span><span class="z-entity z-name">from_le_bytes</span><span>(</span><span>[</span></span>
+<span class="giallo-l"><span class="z-variable z-other">            data</span><span>[</span><span class="z-variable z-other">offset</span><span class="z-keyword"> +</span><span class="z-constant"> 2</span><span>]</span><span>,</span><span class="z-variable z-other"> data</span><span>[</span><span class="z-variable z-other">offset</span><span class="z-keyword"> +</span><span class="z-constant"> 3</span><span>]</span><span>,</span></span>
+<span class="giallo-l"><span class="z-variable z-other">            data</span><span>[</span><span class="z-variable z-other">offset</span><span class="z-keyword"> +</span><span class="z-constant"> 4</span><span>]</span><span>,</span><span class="z-variable z-other"> data</span><span>[</span><span class="z-variable z-other">offset</span><span class="z-keyword"> +</span><span class="z-constant"> 5</span><span>]</span><span>,</span></span>
+<span class="giallo-l"><span>        ]</span><span>)</span><span>;</span></span>
+<span class="giallo-l"><span class="z-variable z-other">        streams</span><span class="z-keyword">.</span><span class="z-entity z-name">push</span><span>(</span><span>(</span><span class="z-variable z-other">stream_id</span><span>,</span><span class="z-variable z-other"> value</span><span>)</span><span>)</span><span>;</span></span>
+<span class="giallo-l"><span>    }</span></span>
+<span class="giallo-l"><span class="z-entity z-name">    Some</span><span>(</span><span>(</span><span class="z-variable z-other">seq_no</span><span>,</span><span class="z-variable z-other"> streams</span><span>)</span><span>)</span></span>
+<span class="giallo-l"><span>}</span></span></code></pre>
+<p>几个设计细节：</p>
+<ul>
+<li>返回 <code>Option</code> 而不是 <code>Result</code>——解析失败就是 <code>None</code>，调用方直接 <code>?</code> 或 <code>if let</code> 处理，不需要具体错误信息</li>
+<li><code>Vec::with_capacity(stream_count)</code>：提前分配，避免 push 时扩容</li>
+<li>全程用 <code>from_le_bytes</code>，和帧格式约定的小端序对应</li>
+<li>三道防线：长度检查 → 魔数校验 → 实际数据长度验证，避免读越界</li>
+</ul>
+<p><code>build_frame</code> 是 <code>parse_frame</code> 的逆操作，主要给模拟器用：</p>
+<pre class="giallo z-code"><code data-lang="rust"><span class="giallo-l"><span class="z-keyword">pub</span><span class="z-keyword"> fn</span><span class="z-entity z-name"> build_frame</span><span>(</span><span class="z-variable z-other">seq_no</span><span class="z-keyword">:</span><span class="z-entity z-name"> u32</span><span>,</span><span class="z-variable z-other"> streams</span><span class="z-keyword">:</span><span class="z-keyword"> &amp;</span><span>[</span><span>(</span><span class="z-entity z-name">u16</span><span>,</span><span class="z-entity z-name"> f32</span><span>)</span><span>]</span><span>)</span><span class="z-keyword"> -&gt;</span><span class="z-entity z-name"> Vec</span><span>&lt;</span><span class="z-entity z-name">u8</span><span>&gt;</span><span> {</span></span>
+<span class="giallo-l"><span class="z-storage z-type">    let</span><span class="z-storage"> mut</span><span class="z-variable z-other"> buf</span><span class="z-keyword"> =</span><span class="z-entity z-name"> Vec</span><span class="z-keyword">::</span><span class="z-entity z-name">with_capacity</span><span>(</span><span class="z-constant">FRAME_HEADER_SIZE</span><span class="z-keyword"> +</span><span class="z-variable z-other"> streams</span><span class="z-keyword">.</span><span class="z-entity z-name">len</span><span>(</span><span>)</span><span class="z-keyword"> *</span><span class="z-constant"> 6</span><span>)</span><span>;</span></span>
+<span class="giallo-l"><span class="z-variable z-other">    buf</span><span class="z-keyword">.</span><span class="z-entity z-name">extend_from_slice</span><span>(</span><span class="z-keyword">&amp;</span><span class="z-constant">FRAME_MAGIC</span><span>)</span><span>;</span></span>
+<span class="giallo-l"><span class="z-variable z-other">    buf</span><span class="z-keyword">.</span><span class="z-entity z-name">push</span><span>(</span><span class="z-constant">0x01</span><span>)</span><span>;</span><span class="z-punctuation z-definition z-comment">   //</span><span class="z-comment"> version</span></span>
+<span class="giallo-l"><span class="z-variable z-other">    buf</span><span class="z-keyword">.</span><span class="z-entity z-name">push</span><span>(</span><span class="z-constant">0x00</span><span>)</span><span>;</span><span class="z-punctuation z-definition z-comment">   //</span><span class="z-comment"> flags</span></span>
+<span class="giallo-l"><span class="z-variable z-other">    buf</span><span class="z-keyword">.</span><span class="z-entity z-name">extend_from_slice</span><span>(</span><span class="z-keyword">&amp;</span><span>(</span><span class="z-variable z-other">streams</span><span class="z-keyword">.</span><span class="z-entity z-name">len</span><span>(</span><span>)</span><span class="z-keyword"> as</span><span class="z-entity z-name"> u16</span><span>)</span><span class="z-keyword">.</span><span class="z-entity z-name">to_le_bytes</span><span>(</span><span>)</span><span>)</span><span>;</span></span>
+<span class="giallo-l"><span class="z-variable z-other">    buf</span><span class="z-keyword">.</span><span class="z-entity z-name">extend_from_slice</span><span>(</span><span class="z-keyword">&amp;</span><span class="z-variable z-other">seq_no</span><span class="z-keyword">.</span><span class="z-entity z-name">to_le_bytes</span><span>(</span><span>)</span><span>)</span><span>;</span></span>
+<span class="giallo-l"><span class="z-variable z-other">    buf</span><span class="z-keyword">.</span><span class="z-entity z-name">extend_from_slice</span><span>(</span><span class="z-keyword">&amp;</span><span>[</span><span class="z-constant">0</span><span class="z-entity z-name">u8</span><span>;</span><span class="z-constant"> 4</span><span>]</span><span>)</span><span>;</span><span class="z-punctuation z-definition z-comment">  //</span><span class="z-comment"> reserved</span></span>
+<span class="giallo-l"></span>
+<span class="giallo-l"><span class="z-keyword">    for</span><span> (</span><span class="z-variable z-other">id</span><span>,</span><span class="z-variable z-other"> value</span><span>)</span><span class="z-keyword"> in</span><span class="z-variable z-other"> streams</span><span> {</span></span>
+<span class="giallo-l"><span class="z-variable z-other">        buf</span><span class="z-keyword">.</span><span class="z-entity z-name">extend_from_slice</span><span>(</span><span class="z-keyword">&amp;</span><span class="z-variable z-other">id</span><span class="z-keyword">.</span><span class="z-entity z-name">to_le_bytes</span><span>(</span><span>)</span><span>)</span><span>;</span></span>
+<span class="giallo-l"><span class="z-variable z-other">        buf</span><span class="z-keyword">.</span><span class="z-entity z-name">extend_from_slice</span><span>(</span><span class="z-keyword">&amp;</span><span class="z-variable z-other">value</span><span class="z-keyword">.</span><span class="z-entity z-name">to_le_bytes</span><span>(</span><span>)</span><span>)</span><span>;</span></span>
+<span class="giallo-l"><span>    }</span></span>
+<span class="giallo-l"><span class="z-variable z-other">    buf</span></span>
+<span class="giallo-l"><span>}</span></span></code></pre><h3 id="ce-shi-yan-zheng">测试验证<a class="zola-anchor" href="#ce-shi-yan-zheng" aria-label="Anchor link for: ce-shi-yan-zheng" style="visibility: hidden;"></a>
+</h3>
+<pre class="giallo z-code"><code data-lang="rust"><span class="giallo-l"><span>#</span><span>[</span><span>test</span><span>]</span></span>
+<span class="giallo-l"><span class="z-keyword">fn</span><span class="z-entity z-name"> test_envelope_serialize</span><span>(</span><span>)</span><span> {</span></span>
+<span class="giallo-l"><span class="z-storage z-type">    let</span><span class="z-variable z-other"> env</span><span class="z-keyword"> =</span><span class="z-entity z-name"> Envelope</span><span> {</span><span class="z-variable z-other"> dst</span><span class="z-keyword">:</span><span class="z-entity z-name"> None</span><span>,</span><span class="z-variable z-other"> msg_type</span><span class="z-keyword">:</span><span class="z-entity z-name"> MsgType</span><span class="z-keyword">::</span><span class="z-entity z-name">Evt</span><span>,</span><span class="z-comment"> /*</span><span class="z-comment"> ... </span><span class="z-comment">*/</span><span> }</span><span>;</span></span>
+<span class="giallo-l"><span class="z-storage z-type">    let</span><span class="z-variable z-other"> json</span><span class="z-keyword"> =</span><span class="z-entity z-name"> serde_json</span><span class="z-keyword">::</span><span class="z-entity z-name">to_string</span><span>(</span><span class="z-keyword">&amp;</span><span class="z-variable z-other">env</span><span>)</span><span class="z-keyword">.</span><span class="z-entity z-name">unwrap</span><span>(</span><span>)</span><span>;</span></span>
+<span class="giallo-l"><span class="z-entity z-name">    assert!</span><span>(</span><span class="z-keyword">!</span><span class="z-variable z-other">json</span><span class="z-keyword">.</span><span class="z-entity z-name">contains</span><span>(</span><span class="z-punctuation z-definition z-string">&quot;</span><span class="z-constant">\</span><span class="z-constant">&quot;</span><span class="z-string">dst</span><span class="z-constant">\</span><span class="z-constant">&quot;</span><span class="z-punctuation z-definition z-string">&quot;</span><span>)</span><span>)</span><span>;</span><span class="z-punctuation z-definition z-comment">        //</span><span class="z-comment"> None 不出现在 JSON 里</span></span>
+<span class="giallo-l"><span class="z-entity z-name">    assert!</span><span>(</span><span class="z-variable z-other">json</span><span class="z-keyword">.</span><span class="z-entity z-name">contains</span><span>(</span><span class="z-punctuation z-definition z-string">&quot;</span><span class="z-constant">\</span><span class="z-constant">&quot;</span><span class="z-string">type</span><span class="z-constant">\</span><span class="z-constant">&quot;</span><span class="z-string">:</span><span class="z-constant">\</span><span class="z-constant">&quot;</span><span class="z-string">evt</span><span class="z-constant">\</span><span class="z-constant">&quot;</span><span class="z-punctuation z-definition z-string">&quot;</span><span>)</span><span>)</span><span>;</span><span class="z-punctuation z-definition z-comment"> //</span><span class="z-comment"> rename 生效</span></span>
+<span class="giallo-l"><span>}</span></span>
+<span class="giallo-l"></span>
+<span class="giallo-l"><span>#</span><span>[</span><span>test</span><span>]</span></span>
+<span class="giallo-l"><span class="z-keyword">fn</span><span class="z-entity z-name"> test_frame_roundtrip</span><span>(</span><span>)</span><span> {</span></span>
+<span class="giallo-l"><span class="z-storage z-type">    let</span><span class="z-variable z-other"> streams</span><span class="z-keyword"> =</span><span class="z-entity z-name"> vec!</span><span>[</span><span>(</span><span class="z-constant">0</span><span class="z-entity z-name">u16</span><span>,</span><span class="z-constant"> 1</span><span class="z-constant">.</span><span class="z-constant">5</span><span class="z-entity z-name">f32</span><span>)</span><span>,</span><span> (</span><span class="z-constant">1</span><span class="z-entity z-name">u16</span><span>,</span><span class="z-constant"> 2</span><span class="z-constant">.</span><span class="z-constant">5</span><span class="z-entity z-name">f32</span><span>)</span><span>]</span><span>;</span></span>
+<span class="giallo-l"><span class="z-storage z-type">    let</span><span class="z-variable z-other"> frame</span><span class="z-keyword"> =</span><span class="z-entity z-name"> build_frame</span><span>(</span><span class="z-constant">42</span><span>,</span><span class="z-keyword"> &amp;</span><span class="z-variable z-other">streams</span><span>)</span><span>;</span></span>
+<span class="giallo-l"><span class="z-storage z-type">    let</span><span> (</span><span class="z-variable z-other">seq</span><span>,</span><span class="z-variable z-other"> parsed</span><span>)</span><span class="z-keyword"> =</span><span class="z-entity z-name"> parse_frame</span><span>(</span><span class="z-keyword">&amp;</span><span class="z-variable z-other">frame</span><span>)</span><span class="z-keyword">.</span><span class="z-entity z-name">unwrap</span><span>(</span><span>)</span><span>;</span></span>
+<span class="giallo-l"><span class="z-entity z-name">    assert_eq!</span><span>(</span><span class="z-variable z-other">seq</span><span>,</span><span class="z-constant"> 42</span><span>)</span><span>;</span></span>
+<span class="giallo-l"><span class="z-entity z-name">    assert_eq!</span><span>(</span><span class="z-variable z-other">parsed</span><span>[</span><span class="z-constant">0</span><span>]</span><span>,</span><span> (</span><span class="z-constant">0</span><span>,</span><span class="z-constant"> 1</span><span class="z-constant">.</span><span class="z-constant">5</span><span>)</span><span>)</span><span>;</span></span>
+<span class="giallo-l"><span class="z-entity z-name">    assert_eq!</span><span>(</span><span class="z-variable z-other">parsed</span><span>[</span><span class="z-constant">1</span><span>]</span><span>,</span><span> (</span><span class="z-constant">1</span><span>,</span><span class="z-constant"> 2</span><span class="z-constant">.</span><span class="z-constant">5</span><span>)</span><span>)</span><span>;</span></span>
+<span class="giallo-l"><span>}</span></span></code></pre>
+<p><code>cargo test -p protocol</code> 全绿。</p>
+<hr />
+<h2 id="cargo-workspace-jie-gou">Cargo Workspace 结构<a class="zola-anchor" href="#cargo-workspace-jie-gou" aria-label="Anchor link for: cargo-workspace-jie-gou" style="visibility: hidden;"></a>
+</h2>
+<pre class="giallo z-code"><code data-lang="plain"><span class="giallo-l"><span>wsserver/</span></span>
+<span class="giallo-l"><span>├── Cargo.toml           # workspace root</span></span>
+<span class="giallo-l"><span>├── common/</span></span>
+<span class="giallo-l"><span>│   └── protocol/        # 共用协议 crate</span></span>
+<span class="giallo-l"><span>│       ├── Cargo.toml</span></span>
+<span class="giallo-l"><span>│       └── src/lib.rs</span></span>
+<span class="giallo-l"><span>└── server/</span></span>
+<span class="giallo-l"><span>    └── backend/         # 实际服务 crate</span></span>
+<span class="giallo-l"><span>        └── Cargo.toml   # protocol = { path = &quot;../../common/protocol&quot; }</span></span></code></pre>
+<p><code>server/backend</code> 的依赖：<code>protocol</code>（本地路径）+ <code>tokio</code> + <code>axum</code> + <code>tracing</code> + <code>clap</code> + <code>anyhow</code>。协议层完全解耦，下一步实现 WebSocket handler 时直接 <code>use protocol::*</code> 就行。</p>
+<hr />
+<p>下一步是会话管理——追踪哪个设备在线、向指定设备发消息。有了今天这层干净的协议抽象，session 层只需要关心 <code>ProtocolMessage</code> 枚举，不用再关心字节怎么解析。</p>
+
+      </article>
+
+      
+      
+
+      
+      
+      <div class="giscus"></div>
+      <style>
+#comments { margin-top: 3rem; padding: 0 15px; }
+.c-item { margin: 1.2rem 0; }
+.c-reply { margin-left: 1.5rem; padding-left: 1rem; border-left: 2px solid var(--text-decoration-color); }
+.c-meta { display: flex; align-items: center; gap: 0.6rem; margin-bottom: 0.3rem; font-size: 0.85em; }
+.c-name { font-weight: bold; color: var(--text-color); }
+.c-time { color: var(--text-pale-color); }
+.c-reply-btn {
+  background: none; border: none; padding: 0;
+  color: var(--primary-color); cursor: pointer;
+  font-size: 0.85em; opacity: 0;
+  transition: opacity 0.15s;
+}
+.c-item:hover .c-reply-btn { opacity: 1; }
+.c-body { color: var(--text-color); line-height: var(--line-height); white-space: pre-wrap; word-break: break-word; }
+.c-loading, .c-empty { color: var(--text-pale-color); font-size: 0.9em; padding: 1rem 0; }
+.c-form { margin-top: 2rem; display: flex; flex-direction: column; gap: 0.6rem; }
+.c-form-row { display: flex; gap: 0.6rem; }
+.c-input {
+  width: 100%; padding: 0.5rem 0.7rem;
+  border: 1.5px solid var(--text-decoration-color);
+  border-radius: 4px;
+  background: var(--bg-color); color: var(--text-color);
+  font-size: 0.9em; font-family: var(--main-font);
+  outline: none; transition: border-color 0.15s;
+}
+.c-input:focus { border-color: var(--primary-color); }
+.c-input-content { resize: vertical; min-height: 100px; }
+.c-reply-tip {
+  font-size: 0.85em; color: var(--primary-color);
+  padding: 0.2rem 0.5rem;
+  background: var(--inline-code-bg-color);
+  border-radius: 4px; align-self: flex-start;
+}
+.c-reply-tip::after { content: " ✕"; opacity: 0.5; }
+.c-form-actions { display: flex; justify-content: flex-end; }
+.c-submit {
+  padding: 0.4rem 1.2rem;
+  background: var(--primary-color); color: var(--bg-color);
+  border: none; border-radius: 4px;
+  cursor: pointer; font-size: 0.9em;
+  transition: opacity 0.15s;
+}
+.c-submit:hover { opacity: 0.85; }
+.c-submit:disabled { opacity: 0.5; cursor: not-allowed; }
+</style>
+<div id="comments" data-page="&#x2F;posts&#x2F;rust-ws-protocol-design-2026-05-15&#x2F;"></div>
+<script src="/comments.js"></script>
+
+
+      
+    </div>
+
+    
+
+
+<footer>
+  <div class="left">
+    <div class="copyright">
+      © 2026 Cirray AI
+      
+      <span>|</span>
+      Built with <a href="https://www.getzola.org" rel="noreferrer" target="_blank">zola</a> and <a href="https://github.com/isunjn/serene" rel="noreferrer" target="_blank">serene</a>
+      
+    </div>
+  </div>
+
+  <div class="right">
+    
+    
+    
+    
+
+    
+    
+    
+    <button id="theme-toggle" aria-label="theme switch">
+      <span class="moon-icon"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="18" height="18"><path d="M10 7C10 10.866 13.134 14 17 14C18.9584 14 20.729 13.1957 21.9995 11.8995C22 11.933 22 11.9665 22 12C22 17.5228 17.5228 22 12 22C6.47715 22 2 17.5228 2 12C2 6.47715 6.47715 2 12 2C12.0335 2 12.067 2 12.1005 2.00049C10.8043 3.27098 10 5.04157 10 7ZM4 12C4 16.4183 7.58172 20 12 20C15.0583 20 17.7158 18.2839 19.062 15.7621C18.3945 15.9187 17.7035 16 17 16C12.0294 16 8 11.9706 8 7C8 6.29648 8.08133 5.60547 8.2379 4.938C5.71611 6.28423 4 8.9417 4 12Z" fill="currentColor"></path></svg>
+</span>
+      <span class="sun-icon"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="18" height="18"><path d="M12 18C8.68629 18 6 15.3137 6 12C6 8.68629 8.68629 6 12 6C15.3137 6 18 8.68629 18 12C18 15.3137 15.3137 18 12 18ZM12 16C14.2091 16 16 14.2091 16 12C16 9.79086 14.2091 8 12 8C9.79086 8 8 9.79086 8 12C8 14.2091 9.79086 16 12 16ZM11 1H13V4H11V1ZM11 20H13V23H11V20ZM3.51472 4.92893L4.92893 3.51472L7.05025 5.63604L5.63604 7.05025L3.51472 4.92893ZM16.9497 18.364L18.364 16.9497L20.4853 19.0711L19.0711 20.4853L16.9497 18.364ZM19.0711 3.51472L20.4853 4.92893L18.364 7.05025L16.9497 5.63604L19.0711 3.51472ZM5.63604 16.9497L7.05025 18.364L4.92893 20.4853L3.51472 19.0711L5.63604 16.9497ZM23 11V13H20V11H23ZM4 11V13H1V11H4Z" fill="currentColor"></path></svg>
+</span>
+    </button>
+    
+  </div>
+</footer>
+
+
+
+
+
+  </main>
+</div>
+
+  
+<script src="/js/lightense.min.js"></script>
+
+
+  <script src="https://blog.cirray.cn/js/main.js"></script>
+</body>
+
+</html>

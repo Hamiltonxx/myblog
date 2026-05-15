@@ -174,6 +174,10 @@
         <lastmod>2026-04-01</lastmod>
     </url>
     <url>
+        <loc>https://blog.cirray.cn/posts/rust-ws-protocol-design-2026-05-15/</loc>
+        <lastmod>2026-05-15</lastmod>
+    </url>
+    <url>
         <loc>https://blog.cirray.cn/posts/transformer-from-ndarray-two-week-plan-2026-04-24/</loc>
         <lastmod>2026-04-23</lastmod>
     </url>
@@ -259,6 +263,9 @@
     </url>
     <url>
         <loc>https://blog.cirray.cn/tags/backtest/</loc>
+    </url>
+    <url>
+        <loc>https://blog.cirray.cn/tags/binary-protocol/</loc>
     </url>
     <url>
         <loc>https://blog.cirray.cn/tags/bitcoin/</loc>
@@ -432,6 +439,9 @@
         <loc>https://blog.cirray.cn/tags/presentation/</loc>
     </url>
     <url>
+        <loc>https://blog.cirray.cn/tags/protocol/</loc>
+    </url>
+    <url>
         <loc>https://blog.cirray.cn/tags/pwa/</loc>
     </url>
     <url>
@@ -451,6 +461,9 @@
     </url>
     <url>
         <loc>https://blog.cirray.cn/tags/rust/</loc>
+    </url>
+    <url>
+        <loc>https://blog.cirray.cn/tags/serde/</loc>
     </url>
     <url>
         <loc>https://blog.cirray.cn/tags/shizuku/</loc>
@@ -511,6 +524,9 @@
     </url>
     <url>
         <loc>https://blog.cirray.cn/tags/wang-luo/</loc>
+    </url>
+    <url>
+        <loc>https://blog.cirray.cn/tags/websocket/</loc>
     </url>
     <url>
         <loc>https://blog.cirray.cn/tags/webview/</loc>
