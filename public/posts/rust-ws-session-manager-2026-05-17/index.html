@@ -1,0 +1,469 @@
+<!DOCTYPE html>
+
+<html lang="zh">
+
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="color-scheme" content="light dark">
+  
+  
+    
+  
+  <meta name="description" content="多设备、多前端并发接入，消息要路由给对的人——今天把这套会话管理机制从设计到代码全部落地，顺手解了设备重连的竞态。">
+
+  <title>SessionManager: 用 DashMap 管理 WebSocket 连接</title>
+  <link rel="icon" type="image/png" sizes="32x32" href="https://blog.cirray.cn/img/favicon-32x32.png">
+  <link rel="icon" type="image/png" sizes="16x16" href="https://blog.cirray.cn/img/favicon-16x16.png">
+  <link rel="apple-touch-icon" sizes="180x180" href="https://blog.cirray.cn/img/apple-touch-icon.png">
+  
+  <style>
+
+  /* light mode colors */
+  body {
+    --primary-color: #5871a2;
+    --primary-pale-color: #5871a233;
+    --primary-decoration-color: #5871a210;
+    --bg-color: #ffffff;
+    --text-color: #2f3030;
+    --text-pale-color: #767676;
+    --text-decoration-color: #a9a9a9;
+    --highlight-mark-color: #5f75b020;
+
+    --callout-note-color: #5871a2;
+    --callout-tip-color: #268556;
+    --callout-important-color: #885fc9;
+    --callout-warning-color: #ab6632;
+    --callout-caution-color: #c64e4e;
+  }
+
+  /* dark mode colors */
+  body.dark {
+    --primary-color: #6f8fd1;
+    --primary-pale-color: #6f8fd166;
+    --primary-decoration-color: #6f8fd112;
+    --bg-color: #1c1c1c;
+    --text-color: #c1c1c1;
+    --text-pale-color: #848484;
+    --text-decoration-color: #5f5f5f;
+    --highlight-mark-color: #8296cb3b;
+
+    --callout-note-color: #6f8fd1;
+    --callout-tip-color: #47976f;
+    --callout-important-color: #9776cd;
+    --callout-warning-color: #ad7a52;
+    --callout-caution-color: #d06161;
+  }
+
+  /* typography */
+  body {
+    --main-font: ui-sans-serif, system-ui, sans-serif, 'Apple Color Emoji', 'Segoe UI Emoji', 'Segoe UI Symbol', 'Noto Color Emoji';
+    --code-font: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, 'Liberation Mono', 'Courier New', monospace;
+    --homepage-max-width: 768px;
+    --main-max-width: 768px;
+    --avatar-size: 60px;
+    --font-size: 16px;
+    --line-height: 1.75;
+    --img-border-radius: 0px;
+    --detail-border-radius: 0px;
+    --dark-mode-img-brightness: 0.75;
+    --dark-mode-chart-brightness: 0.75;
+    --inline-code-border-radius: 2px;
+    --inline-code-bg-color: var(--primary-decoration-color);
+    --block-code-border-radius: 0px;
+    --block-code-border-color: var(--primary-color);
+    --detail-border-color: var(--primary-color);
+  }
+
+</style>
+
+  <link rel="stylesheet" href="https://blog.cirray.cn/main.css">
+  
+
+<link id="hl" rel="stylesheet" type="text/css" href="/giallo-light.css" />
+
+
+
+  
+</head>
+
+<body class="post">
+  
+  <script>
+    const theme = sessionStorage.getItem('theme');
+    const match = window.matchMedia("(prefers-color-scheme: dark)").matches;
+    if ((theme && theme == 'dark') || (!theme && match)) {
+      document.body.classList.add('dark');
+      const hl = document.querySelector('link#hl');
+      if (hl) hl.href = 'https://blog.cirray.cn/giallo-dark.css';
+    }
+  </script>
+  
+  
+<div id="wrapper">
+  <div id="blank"></div>
+  <aside>
+    
+    
+    <nav>
+      <ul>
+        
+        <li>
+          <a class="h2" href="#wen-ti-server-tong-shi-guan-zhao-yi-dui-lian-jie-zen-me-zhao-dao-dui-de-na-ge">问题：Server 同时管着一堆连接，怎么找到对的那个？</a>
+          
+        </li>
+        
+        <li>
+          <a class="h2" href="#sessionhandle-fa-xiao-xi-de-yao-kong-qi">SessionHandle：发消息的&quot;遥控器&quot;</a>
+          
+        </li>
+        
+        <li>
+          <a class="h2" href="#sessionmanager-shuang-suo-yin-de-hui-hua-chi">SessionManager：双索引的会话池</a>
+          
+        </li>
+        
+        <li>
+          <a class="h2" href="#zhu-ce-yu-yi-chu">注册与移除</a>
+          
+        </li>
+        
+        <li>
+          <a class="h2" href="#zhong-lian-jing-tai-yi-ge-rong-yi-cai-de-keng">重连竞态：一个容易踩的坑</a>
+          
+        </li>
+        
+        <li>
+          <a class="h2" href="#commandbus-xiao-xi-lu-you">CommandBus：消息路由</a>
+          
+        </li>
+        
+        <li>
+          <a class="h2" href="#appstate-zu-zhuang-qi-lai">AppState：组装起来</a>
+          
+        </li>
+        
+        <li>
+          <a class="h2" href="#xia-yi-bu">下一步</a>
+          
+        </li>
+        
+      </ul>
+    </nav>
+    
+    
+    <button id="back-to-top" aria-label="back to top">
+      
+      <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="feather feather-arrow-up"><line x1="12" y1="19" x2="12" y2="5"></line><polyline points="5 12 12 5 19 12"></polyline></svg>
+
+    </button>
+    
+  </aside>
+  <main>
+    
+<header>
+  <nav>
+    <a id="back-link" href="https:&#x2F;&#x2F;blog.cirray.cn&#x2F;posts">← Back</a>
+  </nav>
+</header>
+
+
+    <div>
+      
+      
+      
+      
+      <div id="copy-cfg" style="display: none;" data-copy-icon="&lt;svg xmlns=&quot;http:&#x2F;&#x2F;www.w3.org&#x2F;2000&#x2F;svg&quot; viewBox=&quot;0 0 24 24&quot; width=&quot;18&quot; height=&quot;18&quot;&gt;&lt;path d=&quot;M6.9998 6V3C6.9998 2.44772 7.44752 2 7.9998 2H19.9998C20.5521 2 20.9998 2.44772 20.9998 3V17C20.9998 17.5523 20.5521 18 19.9998 18H16.9998V20.9991C16.9998 21.5519 16.5499 22 15.993 22H4.00666C3.45059 22 3 21.5554 3 20.9991L3.0026 7.00087C3.0027 6.44811 3.45264 6 4.00942 6H6.9998ZM5.00242 8L5.00019 20H14.9998V8H5.00242ZM8.9998 6H16.9998V16H18.9998V4H8.9998V6Z&quot; fill=&quot;currentColor&quot;&gt;&lt;&#x2F;path&gt;&lt;&#x2F;svg&gt;
+" data-check-icon="&lt;svg xmlns=&quot;http:&#x2F;&#x2F;www.w3.org&#x2F;2000&#x2F;svg&quot; viewBox=&quot;0 0 24 24&quot; width=&quot;18&quot; height=&quot;18&quot;&gt;&lt;path d=&quot;M10.0007 15.1709L19.1931 5.97852L20.6073 7.39273L10.0007 17.9993L3.63672 11.6354L5.05093 10.2212L10.0007 15.1709Z&quot; fill=&quot;currentColor&quot;&gt;&lt;&#x2F;path&gt;&lt;&#x2F;svg&gt;
+"></div>
+      
+      <article class="prose">
+        <h1>SessionManager: 用 DashMap 管理 WebSocket 连接</h1>
+        <div id="post-info">
+          <div id="date">
+            <span id="publish">2026-05-17</span>
+            </div>
+
+          
+          <div id="tags">
+            <a class="instant" href="https://blog.cirray.cn/tags/rust"><span>#</span>rust</a><a class="instant" href="https://blog.cirray.cn/tags/websocket"><span>#</span>websocket</a><a class="instant" href="https://blog.cirray.cn/tags/dashmap"><span>#</span>dashmap</a><a class="instant" href="https://blog.cirray.cn/tags/session"><span>#</span>session</a><a class="instant" href="https://blog.cirray.cn/tags/tokio"><span>#</span>tokio</a><a class="instant" href="https://blog.cirray.cn/tags/axum"><span>#</span>axum</a><a class="instant" href="https://blog.cirray.cn/tags/concurrency"><span>#</span>concurrency</a>
+          </div>
+          
+        </div>
+
+        
+        
+
+        
+
+        <p>今天做 <code>wsserver</code> 的会话管理层：<code>SessionManager</code>、<code>CommandBus</code>、<code>AppState</code>——三个结构串起来，解决了"消息怎么找到对的 WebSocket 连接"这个核心问题。</p>
+<hr />
+<h2 id="wen-ti-server-tong-shi-guan-zhao-yi-dui-lian-jie-zen-me-zhao-dao-dui-de-na-ge">问题：Server 同时管着一堆连接，怎么找到对的那个？<a class="zola-anchor" href="#wen-ti-server-tong-shi-guan-zhao-yi-dui-lian-jie-zen-me-zhao-dao-dui-de-na-ge" aria-label="Anchor link for: wen-ti-server-tong-shi-guan-zhao-yi-dui-lian-jie-zen-me-zhao-dao-dui-de-na-ge" style="visibility: hidden;"></a>
+</h2>
+<p>这个项目的 Server 有两类 WebSocket 客户端：</p>
+<ul>
+<li><strong>设备</strong>：拉伸试验机，10KHz 数据上报</li>
+<li><strong>前端</strong>：浏览器，发控制指令、接收状态</li>
+</ul>
+<p>前端发来 <code>test.start { dst: "device-001" }</code>，Server 要把这条消息准确投到 <code>device-001</code> 的连接上去。设备上报 <code>test.state_changed</code>，Server 要广播给所有前端。</p>
+<p>这就是会话管理要干的事。</p>
+<hr />
+<h2 id="sessionhandle-fa-xiao-xi-de-yao-kong-qi">SessionHandle：发消息的"遥控器"<a class="zola-anchor" href="#sessionhandle-fa-xiao-xi-de-yao-kong-qi" aria-label="Anchor link for: sessionhandle-fa-xiao-xi-de-yao-kong-qi" style="visibility: hidden;"></a>
+</h2>
+<p>最核心的概念是 <code>SessionHandle</code>——拿着它就能向对应客户端发消息：</p>
+<pre class="giallo z-code"><code data-lang="rust"><span class="giallo-l"><span class="z-punctuation z-definition z-comment">//</span><span class="z-comment"> ws/session.rs</span></span>
+<span class="giallo-l"><span>#</span><span>[</span><span>derive</span><span>(</span><span class="z-entity z-name">Clone</span><span>)</span><span>]</span></span>
+<span class="giallo-l"><span class="z-keyword">pub</span><span class="z-storage z-type"> struct</span><span class="z-entity z-name"> SessionHandle</span><span> {</span></span>
+<span class="giallo-l"><span class="z-keyword">    pub</span><span class="z-variable z-other"> id</span><span class="z-keyword">:</span><span class="z-entity z-name"> SessionId</span><span>,</span><span class="z-punctuation z-definition z-comment">       //</span><span class="z-comment"> UUID，连接期间不变</span></span>
+<span class="giallo-l"><span class="z-keyword">    pub</span><span class="z-variable z-other"> role</span><span class="z-keyword">:</span><span class="z-entity z-name"> Role</span><span>,</span></span>
+<span class="giallo-l"><span class="z-keyword">    pub</span><span class="z-variable z-other"> device_id</span><span class="z-keyword">:</span><span class="z-entity z-name"> Option</span><span>&lt;</span><span class="z-entity z-name">String</span><span>&gt;</span><span>,</span></span>
+<span class="giallo-l"><span class="z-variable z-other">    sender</span><span class="z-keyword">:</span><span class="z-entity z-name"> mpsc</span><span class="z-keyword">::</span><span class="z-entity z-name">Sender</span><span>&lt;</span><span class="z-entity z-name">ProtocolMessage</span><span>&gt;</span><span>,</span><span class="z-punctuation z-definition z-comment">  //</span><span class="z-comment"> 向写任务投递消息</span></span>
+<span class="giallo-l"><span>}</span></span>
+<span class="giallo-l"></span>
+<span class="giallo-l"><span class="z-keyword">impl</span><span class="z-entity z-name"> SessionHandle</span><span> {</span></span>
+<span class="giallo-l"><span class="z-keyword">    pub</span><span class="z-keyword"> async</span><span class="z-keyword"> fn</span><span class="z-entity z-name"> send</span><span>(</span><span class="z-keyword">&amp;</span><span class="z-variable z-language">self</span><span>,</span><span class="z-variable z-other"> msg</span><span class="z-keyword">:</span><span class="z-entity z-name"> ProtocolMessage</span><span>)</span><span class="z-keyword"> -&gt;</span><span class="z-entity z-name"> Result</span><span>&lt;</span><span class="z-keyword">...</span><span>&gt;</span><span> {</span></span>
+<span class="giallo-l"><span class="z-variable z-language">        self</span><span class="z-keyword">.</span><span>sender</span><span class="z-keyword">.</span><span class="z-entity z-name">send</span><span>(</span><span class="z-variable z-other">msg</span><span>)</span><span class="z-keyword">.</span><span class="z-keyword">await</span></span>
+<span class="giallo-l"><span>    }</span></span>
+<span class="giallo-l"></span>
+<span class="giallo-l"><span class="z-keyword">    pub</span><span class="z-keyword"> fn</span><span class="z-entity z-name"> try_send</span><span>(</span><span class="z-keyword">&amp;</span><span class="z-variable z-language">self</span><span>,</span><span class="z-variable z-other"> msg</span><span class="z-keyword">:</span><span class="z-entity z-name"> ProtocolMessage</span><span>)</span><span class="z-keyword"> -&gt;</span><span class="z-entity z-name"> Result</span><span>&lt;</span><span class="z-keyword">...</span><span>&gt;</span><span> {</span></span>
+<span class="giallo-l"><span class="z-variable z-language">        self</span><span class="z-keyword">.</span><span>sender</span><span class="z-keyword">.</span><span class="z-entity z-name">try_send</span><span>(</span><span class="z-variable z-other">msg</span><span>)</span></span>
+<span class="giallo-l"><span>    }</span></span>
+<span class="giallo-l"><span>}</span></span></code></pre>
+<p>关键设计：<code>sender</code> 对应的 <code>Receiver</code> 交给 WebSocket 写任务协程，调用方只管投消息，不直接碰 socket：</p>
+<pre class="giallo z-code"><code data-lang="plain"><span class="giallo-l"><span>调用方                      写任务协程</span></span>
+<span class="giallo-l"><span>  │  handle.send(msg)          │</span></span>
+<span class="giallo-l"><span>  │ ──→ [mpsc channel] ──────→ │ socket.send(msg)</span></span>
+<span class="giallo-l"><span>  │ (立即返回)                  │</span></span></code></pre>
+<p>这样广播时不会因为某个慢客户端阻塞整条链路。</p>
+<hr />
+<h2 id="sessionmanager-shuang-suo-yin-de-hui-hua-chi">SessionManager：双索引的会话池<a class="zola-anchor" href="#sessionmanager-shuang-suo-yin-de-hui-hua-chi" aria-label="Anchor link for: sessionmanager-shuang-suo-yin-de-hui-hua-chi" style="visibility: hidden;"></a>
+</h2>
+<pre class="giallo z-code"><code data-lang="rust"><span class="giallo-l"><span class="z-punctuation z-definition z-comment">//</span><span class="z-comment"> ws/manager.rs</span></span>
+<span class="giallo-l"><span>#</span><span>[</span><span>derive</span><span>(</span><span class="z-entity z-name">Clone</span><span>)</span><span>]</span></span>
+<span class="giallo-l"><span class="z-keyword">pub</span><span class="z-storage z-type"> struct</span><span class="z-entity z-name"> SessionManager</span><span> {</span></span>
+<span class="giallo-l"><span class="z-variable z-other">    inner</span><span class="z-keyword">:</span><span class="z-entity z-name"> Arc</span><span>&lt;</span><span class="z-entity z-name">DashMap</span><span>&lt;</span><span class="z-entity z-name">SessionId</span><span>,</span><span class="z-entity z-name"> SessionEntry</span><span>&gt;</span><span>&gt;</span><span>,</span></span>
+<span class="giallo-l"><span class="z-variable z-other">    device_index</span><span class="z-keyword">:</span><span class="z-entity z-name"> Arc</span><span>&lt;</span><span class="z-entity z-name">DashMap</span><span>&lt;</span><span class="z-entity z-name">String</span><span>,</span><span class="z-entity z-name"> SessionId</span><span>&gt;</span><span>&gt;</span><span>,</span><span class="z-punctuation z-definition z-comment">  //</span><span class="z-comment"> device_id → SessionId</span></span>
+<span class="giallo-l"><span>}</span></span></code></pre>
+<p>两张表：</p>
+<ul>
+<li><code>inner</code>：主表，<code>SessionId → SessionEntry</code>（含发送端）</li>
+<li><code>device_index</code>：反向索引，<code>device_id → SessionId</code>，让 <code>handle_by_device</code> 做到 O(1)</li>
+</ul>
+<p><strong>为什么用 DashMap 而不是 <code>Arc&lt;RwLock&lt;HashMap&gt;&gt;</code>？</strong></p>
+<p><code>RwLock</code> 每次写操作会锁整个 Map，其他协程全等。DashMap 内部分片，同时只锁 key 所在的那一片，高并发下吞吐量高得多——对于这个 10KHz 上报的场景有实际意义。</p>
+<hr />
+<h2 id="zhu-ce-yu-yi-chu">注册与移除<a class="zola-anchor" href="#zhu-ce-yu-yi-chu" aria-label="Anchor link for: zhu-ce-yu-yi-chu" style="visibility: hidden;"></a>
+</h2>
+<pre class="giallo z-code"><code data-lang="rust"><span class="giallo-l"><span class="z-keyword">pub</span><span class="z-keyword"> fn</span><span class="z-entity z-name"> register</span><span>(</span></span>
+<span class="giallo-l"><span class="z-keyword">    &amp;</span><span class="z-variable z-language">self</span><span>,</span></span>
+<span class="giallo-l"><span class="z-variable z-other">    role</span><span class="z-keyword">:</span><span class="z-entity z-name"> Role</span><span>,</span></span>
+<span class="giallo-l"><span class="z-variable z-other">    device_id</span><span class="z-keyword">:</span><span class="z-entity z-name"> Option</span><span>&lt;</span><span class="z-entity z-name">String</span><span>&gt;</span><span>,</span></span>
+<span class="giallo-l"><span class="z-variable z-other">    device_type</span><span class="z-keyword">:</span><span class="z-entity z-name"> Option</span><span>&lt;</span><span class="z-entity z-name">String</span><span>&gt;</span><span>,</span></span>
+<span class="giallo-l"><span class="z-variable z-other">    customer</span><span class="z-keyword">:</span><span class="z-entity z-name"> Option</span><span>&lt;</span><span class="z-entity z-name">String</span><span>&gt;</span><span>,</span></span>
+<span class="giallo-l"><span class="z-variable z-other">    queue_size</span><span class="z-keyword">:</span><span class="z-entity z-name"> usize</span><span>,</span></span>
+<span class="giallo-l"><span>)</span><span class="z-keyword"> -&gt;</span><span> (</span><span class="z-entity z-name">SessionHandle</span><span>,</span><span class="z-entity z-name"> mpsc</span><span class="z-keyword">::</span><span class="z-entity z-name">Receiver</span><span>&lt;</span><span class="z-entity z-name">ProtocolMessage</span><span>&gt;</span><span>)</span><span> {</span></span>
+<span class="giallo-l"><span class="z-storage z-type">    let</span><span> (</span><span class="z-variable z-other">sender</span><span>,</span><span class="z-variable z-other"> receiver</span><span>)</span><span class="z-keyword"> =</span><span class="z-entity z-name"> mpsc</span><span class="z-keyword">::</span><span class="z-entity z-name">channel</span><span>(</span><span class="z-variable z-other">queue_size</span><span>)</span><span>;</span></span>
+<span class="giallo-l"><span class="z-storage z-type">    let</span><span class="z-variable z-other"> id</span><span class="z-keyword"> =</span><span class="z-entity z-name"> Uuid</span><span class="z-keyword">::</span><span class="z-entity z-name">new_v4</span><span>(</span><span>)</span><span>;</span></span>
+<span class="giallo-l"></span>
+<span class="giallo-l"><span class="z-variable z-language">    self</span><span class="z-keyword">.</span><span>inner</span><span class="z-keyword">.</span><span class="z-entity z-name">insert</span><span>(</span><span class="z-variable z-other">id</span><span>,</span><span class="z-entity z-name"> SessionEntry</span><span> {</span><span class="z-variable z-other"> role</span><span class="z-keyword">:</span><span class="z-variable z-other"> role</span><span class="z-keyword">.</span><span class="z-entity z-name">clone</span><span>(</span><span>)</span><span>,</span><span class="z-variable z-other"> device_id</span><span class="z-keyword">:</span><span class="z-variable z-other"> device_id</span><span class="z-keyword">.</span><span class="z-entity z-name">clone</span><span>(</span><span>)</span><span>,</span><span class="z-keyword"> ...</span><span> }</span><span>)</span><span>;</span></span>
+<span class="giallo-l"></span>
+<span class="giallo-l"><span class="z-keyword">    if</span><span class="z-variable z-other"> role</span><span class="z-keyword"> ==</span><span class="z-entity z-name"> Role</span><span class="z-keyword">::</span><span class="z-entity z-name">Device</span><span> {</span></span>
+<span class="giallo-l"><span class="z-keyword">        if</span><span class="z-storage z-type"> let</span><span class="z-entity z-name"> Some</span><span>(</span><span class="z-keyword">ref</span><span class="z-variable z-other"> did</span><span>)</span><span class="z-keyword"> =</span><span class="z-variable z-other"> device_id</span><span> {</span></span>
+<span class="giallo-l"><span class="z-variable z-language">            self</span><span class="z-keyword">.</span><span>device_index</span><span class="z-keyword">.</span><span class="z-entity z-name">insert</span><span>(</span><span class="z-variable z-other">did</span><span class="z-keyword">.</span><span class="z-entity z-name">clone</span><span>(</span><span>)</span><span>,</span><span class="z-variable z-other"> id</span><span>)</span><span>;</span></span>
+<span class="giallo-l"><span>        }</span></span>
+<span class="giallo-l"><span>    }</span></span>
+<span class="giallo-l"></span>
+<span class="giallo-l"><span>    (</span><span class="z-entity z-name">SessionHandle</span><span class="z-keyword">::</span><span class="z-entity z-name">new</span><span>(</span><span class="z-variable z-other">id</span><span>,</span><span class="z-variable z-other"> role</span><span>,</span><span class="z-variable z-other"> device_id</span><span>,</span><span class="z-variable z-other"> sender</span><span>)</span><span>,</span><span class="z-variable z-other"> receiver</span><span>)</span></span>
+<span class="giallo-l"><span>}</span></span></code></pre>
+<p><code>receiver</code> 返回给连接的写任务协程持有，<code>SessionHandle</code> 留在 <code>SessionManager</code> 里供路由使用。</p>
+<hr />
+<h2 id="zhong-lian-jing-tai-yi-ge-rong-yi-cai-de-keng">重连竞态：一个容易踩的坑<a class="zola-anchor" href="#zhong-lian-jing-tai-yi-ge-rong-yi-cai-de-keng" aria-label="Anchor link for: zhong-lian-jing-tai-yi-ge-rong-yi-cai-de-keng" style="visibility: hidden;"></a>
+</h2>
+<p>设备断线重连时，时序可能是：</p>
+<ol>
+<li>新连接注册 → <code>device_index["device-001"] = new_id</code></li>
+<li>旧连接清理 → <code>device_index.remove("device-001")</code> ← 把新的也删了！</li>
+</ol>
+<p>解决方式是 <code>remove_if</code>，只删"还指向自己"的记录：</p>
+<pre class="giallo z-code"><code data-lang="rust"><span class="giallo-l"><span class="z-keyword">pub</span><span class="z-keyword"> fn</span><span class="z-entity z-name"> remove</span><span>(</span><span class="z-keyword">&amp;</span><span class="z-variable z-language">self</span><span>,</span><span class="z-variable z-other"> id</span><span class="z-keyword">:</span><span class="z-keyword"> &amp;</span><span class="z-entity z-name">SessionId</span><span>)</span><span> {</span></span>
+<span class="giallo-l"><span class="z-keyword">    if</span><span class="z-storage z-type"> let</span><span class="z-entity z-name"> Some</span><span>(</span><span>(</span><span class="z-variable z-other">_</span><span>,</span><span class="z-variable z-other"> entry</span><span>)</span><span>)</span><span class="z-keyword"> =</span><span class="z-variable z-language"> self</span><span class="z-keyword">.</span><span>inner</span><span class="z-keyword">.</span><span class="z-entity z-name">remove</span><span>(</span><span class="z-variable z-other">id</span><span>)</span><span> {</span></span>
+<span class="giallo-l"><span class="z-keyword">        if</span><span class="z-variable z-other"> entry</span><span class="z-keyword">.</span><span>role </span><span class="z-keyword">==</span><span class="z-entity z-name"> Role</span><span class="z-keyword">::</span><span class="z-entity z-name">Device</span><span> {</span></span>
+<span class="giallo-l"><span class="z-keyword">            if</span><span class="z-storage z-type"> let</span><span class="z-entity z-name"> Some</span><span>(</span><span class="z-keyword">ref</span><span class="z-variable z-other"> did</span><span>)</span><span class="z-keyword"> =</span><span class="z-variable z-other"> entry</span><span class="z-keyword">.</span><span>device_id </span><span>{</span></span>
+<span class="giallo-l"><span class="z-punctuation z-definition z-comment">                //</span><span class="z-comment"> 只有索引还指向旧 id 时才删</span></span>
+<span class="giallo-l"><span class="z-variable z-language">                self</span><span class="z-keyword">.</span><span>device_index</span><span class="z-keyword">.</span><span class="z-entity z-name">remove_if</span><span>(</span><span class="z-variable z-other">did</span><span>,</span><span class="z-keyword"> |</span><span class="z-variable z-other">_</span><span>,</span><span class="z-variable z-other"> sid</span><span class="z-keyword">|</span><span class="z-variable z-other"> sid</span><span class="z-keyword"> ==</span><span class="z-variable z-other"> id</span><span>)</span><span>;</span></span>
+<span class="giallo-l"><span>            }</span></span>
+<span class="giallo-l"><span>        }</span></span>
+<span class="giallo-l"><span>    }</span></span>
+<span class="giallo-l"><span>}</span></span></code></pre>
+<p>为此写了一个专门的单元测试：</p>
+<pre class="giallo z-code"><code data-lang="rust"><span class="giallo-l"><span>#</span><span>[</span><span>test</span><span>]</span></span>
+<span class="giallo-l"><span class="z-keyword">fn</span><span class="z-entity z-name"> test_reconnect_race_safe</span><span>(</span><span>)</span><span> {</span></span>
+<span class="giallo-l"><span class="z-storage z-type">    let</span><span class="z-variable z-other"> manager</span><span class="z-keyword"> =</span><span class="z-entity z-name"> SessionManager</span><span class="z-keyword">::</span><span class="z-entity z-name">new</span><span>(</span><span>)</span><span>;</span></span>
+<span class="giallo-l"></span>
+<span class="giallo-l"><span class="z-storage z-type">    let</span><span> (</span><span class="z-variable z-other">old_handle</span><span>,</span><span class="z-variable z-other"> _rx1</span><span>)</span><span class="z-keyword"> =</span><span class="z-variable z-other"> manager</span><span class="z-keyword">.</span><span class="z-entity z-name">register</span><span>(</span><span class="z-entity z-name">Role</span><span class="z-keyword">::</span><span class="z-entity z-name">Device</span><span>,</span><span class="z-entity z-name"> Some</span><span>(</span><span class="z-punctuation z-definition z-string">&quot;</span><span class="z-string">device-001</span><span class="z-punctuation z-definition z-string">&quot;</span><span class="z-keyword">.</span><span class="z-entity z-name">into</span><span>(</span><span>)</span><span>)</span><span>,</span><span class="z-keyword"> ...</span><span>)</span><span>;</span></span>
+<span class="giallo-l"><span class="z-storage z-type">    let</span><span> (</span><span class="z-variable z-other">new_handle</span><span>,</span><span class="z-variable z-other"> _rx2</span><span>)</span><span class="z-keyword"> =</span><span class="z-variable z-other"> manager</span><span class="z-keyword">.</span><span class="z-entity z-name">register</span><span>(</span><span class="z-entity z-name">Role</span><span class="z-keyword">::</span><span class="z-entity z-name">Device</span><span>,</span><span class="z-entity z-name"> Some</span><span>(</span><span class="z-punctuation z-definition z-string">&quot;</span><span class="z-string">device-001</span><span class="z-punctuation z-definition z-string">&quot;</span><span class="z-keyword">.</span><span class="z-entity z-name">into</span><span>(</span><span>)</span><span>)</span><span>,</span><span class="z-keyword"> ...</span><span>)</span><span>;</span></span>
+<span class="giallo-l"></span>
+<span class="giallo-l"><span class="z-variable z-other">    manager</span><span class="z-keyword">.</span><span class="z-entity z-name">remove</span><span>(</span><span class="z-keyword">&amp;</span><span class="z-variable z-other">old_handle</span><span class="z-keyword">.</span><span>id</span><span>)</span><span>;</span><span class="z-punctuation z-definition z-comment">  //</span><span class="z-comment"> 清旧连接</span></span>
+<span class="giallo-l"></span>
+<span class="giallo-l"><span class="z-storage z-type">    let</span><span class="z-variable z-other"> found</span><span class="z-keyword"> =</span><span class="z-variable z-other"> manager</span><span class="z-keyword">.</span><span class="z-entity z-name">handle_by_device</span><span>(</span><span class="z-punctuation z-definition z-string">&quot;</span><span class="z-string">device-001</span><span class="z-punctuation z-definition z-string">&quot;</span><span>)</span><span>;</span></span>
+<span class="giallo-l"><span class="z-entity z-name">    assert!</span><span>(</span><span class="z-variable z-other">found</span><span class="z-keyword">.</span><span class="z-entity z-name">is_some</span><span>(</span><span>)</span><span>)</span><span>;</span></span>
+<span class="giallo-l"><span class="z-entity z-name">    assert_eq!</span><span>(</span><span class="z-variable z-other">found</span><span class="z-keyword">.</span><span class="z-entity z-name">unwrap</span><span>(</span><span>)</span><span class="z-keyword">.</span><span>id</span><span>,</span><span class="z-variable z-other"> new_handle</span><span class="z-keyword">.</span><span>id</span><span>)</span><span>;</span><span class="z-punctuation z-definition z-comment">  //</span><span class="z-comment"> 新连接还在</span></span>
+<span class="giallo-l"><span>}</span></span></code></pre>
+<hr />
+<h2 id="commandbus-xiao-xi-lu-you">CommandBus：消息路由<a class="zola-anchor" href="#commandbus-xiao-xi-lu-you" aria-label="Anchor link for: commandbus-xiao-xi-lu-you" style="visibility: hidden;"></a>
+</h2>
+<p><code>CommandBus</code> 包在 <code>SessionManager</code> 上面，提供高层路由接口：</p>
+<pre class="giallo z-code"><code data-lang="rust"><span class="giallo-l"><span class="z-keyword">impl</span><span class="z-entity z-name"> CommandBus</span><span> {</span></span>
+<span class="giallo-l"><span class="z-punctuation z-definition z-comment">    //</span><span class="z-comment"> 广播给所有前端</span></span>
+<span class="giallo-l"><span class="z-keyword">    pub</span><span class="z-keyword"> async</span><span class="z-keyword"> fn</span><span class="z-entity z-name"> broadcast</span><span>(</span><span class="z-keyword">&amp;</span><span class="z-variable z-language">self</span><span>,</span><span class="z-variable z-other"> role</span><span class="z-keyword">:</span><span class="z-entity z-name"> Role</span><span>,</span><span class="z-variable z-other"> message</span><span class="z-keyword">:</span><span class="z-entity z-name"> ProtocolMessage</span><span>)</span><span class="z-keyword"> -&gt;</span><span class="z-entity z-name"> usize</span><span> {</span><span class="z-keyword"> ...</span><span> }</span></span>
+<span class="giallo-l"></span>
+<span class="giallo-l"><span class="z-punctuation z-definition z-comment">    //</span><span class="z-comment"> 发给指定设备</span></span>
+<span class="giallo-l"><span class="z-keyword">    pub</span><span class="z-keyword"> async</span><span class="z-keyword"> fn</span><span class="z-entity z-name"> send_to_device</span><span>(</span><span class="z-keyword">&amp;</span><span class="z-variable z-language">self</span><span>,</span><span class="z-variable z-other"> device_id</span><span class="z-keyword">:</span><span class="z-keyword"> &amp;</span><span class="z-entity z-name">str</span><span>,</span><span class="z-variable z-other"> message</span><span class="z-keyword">:</span><span class="z-entity z-name"> ProtocolMessage</span><span>)</span><span class="z-keyword"> -&gt;</span><span class="z-entity z-name"> anyhow</span><span class="z-keyword">::</span><span class="z-entity z-name">Result</span><span>&lt;</span><span>(</span><span>)</span><span>&gt;</span><span> {</span><span class="z-keyword"> ...</span><span> }</span></span>
+<span class="giallo-l"><span>}</span></span></code></pre>
+<p>广播里有一个小优化：前 N-1 个 <code>clone</code>，最后一个直接 <code>move</code>，省掉一次不必要的克隆：</p>
+<pre class="giallo z-code"><code data-lang="rust"><span class="giallo-l"><span class="z-storage z-type">let</span><span class="z-variable z-other"> last</span><span class="z-keyword"> =</span><span class="z-variable z-other"> handles</span><span class="z-keyword">.</span><span class="z-entity z-name">pop</span><span>(</span><span>)</span><span class="z-keyword">.</span><span class="z-entity z-name">unwrap</span><span>(</span><span>)</span><span>;</span></span>
+<span class="giallo-l"><span class="z-keyword">for</span><span class="z-variable z-other"> handle</span><span class="z-keyword"> in</span><span class="z-keyword"> &amp;</span><span class="z-variable z-other">handles</span><span> {</span></span>
+<span class="giallo-l"><span class="z-variable z-other">    handle</span><span class="z-keyword">.</span><span class="z-entity z-name">try_send</span><span>(</span><span class="z-variable z-other">message</span><span class="z-keyword">.</span><span class="z-entity z-name">clone</span><span>(</span><span>)</span><span>)</span><span class="z-keyword">.</span><span class="z-entity z-name">ok</span><span>(</span><span>)</span><span>;</span></span>
+<span class="giallo-l"><span>}</span></span>
+<span class="giallo-l"><span class="z-variable z-other">last</span><span class="z-keyword">.</span><span class="z-entity z-name">try_send</span><span>(</span><span class="z-variable z-other">message</span><span>)</span><span class="z-keyword">.</span><span class="z-entity z-name">ok</span><span>(</span><span>)</span><span>;</span><span class="z-punctuation z-definition z-comment">  //</span><span class="z-comment"> 最后一次 move，不再 clone</span></span></code></pre>
+<p>10KHz 场景下，少一次 <code>Vec&lt;u8&gt;</code> clone 是有意义的。</p>
+<hr />
+<h2 id="appstate-zu-zhuang-qi-lai">AppState：组装起来<a class="zola-anchor" href="#appstate-zu-zhuang-qi-lai" aria-label="Anchor link for: appstate-zu-zhuang-qi-lai" style="visibility: hidden;"></a>
+</h2>
+<pre class="giallo z-code"><code data-lang="rust"><span class="giallo-l"><span class="z-punctuation z-definition z-comment">//</span><span class="z-comment"> state.rs</span></span>
+<span class="giallo-l"><span>#</span><span>[</span><span>derive</span><span>(</span><span class="z-entity z-name">Clone</span><span>)</span><span>]</span></span>
+<span class="giallo-l"><span class="z-keyword">pub</span><span class="z-storage z-type"> struct</span><span class="z-entity z-name"> AppState</span><span> {</span></span>
+<span class="giallo-l"><span class="z-variable z-other">    sessions</span><span class="z-keyword">:</span><span class="z-entity z-name"> SessionManager</span><span>,</span></span>
+<span class="giallo-l"><span class="z-variable z-other">    command_bus</span><span class="z-keyword">:</span><span class="z-entity z-name"> CommandBus</span><span>,</span></span>
+<span class="giallo-l"><span>}</span></span>
+<span class="giallo-l"></span>
+<span class="giallo-l"><span class="z-keyword">impl</span><span class="z-entity z-name"> AppState</span><span> {</span></span>
+<span class="giallo-l"><span class="z-keyword">    pub</span><span class="z-keyword"> fn</span><span class="z-entity z-name"> new</span><span>(</span><span>)</span><span class="z-keyword"> -&gt;</span><span class="z-variable z-language"> Self</span><span> {</span></span>
+<span class="giallo-l"><span class="z-storage z-type">        let</span><span class="z-variable z-other"> sessions</span><span class="z-keyword"> =</span><span class="z-entity z-name"> SessionManager</span><span class="z-keyword">::</span><span class="z-entity z-name">new</span><span>(</span><span>)</span><span>;</span></span>
+<span class="giallo-l"><span class="z-storage z-type">        let</span><span class="z-variable z-other"> command_bus</span><span class="z-keyword"> =</span><span class="z-entity z-name"> CommandBus</span><span class="z-keyword">::</span><span class="z-entity z-name">new</span><span>(</span><span class="z-variable z-other">sessions</span><span class="z-keyword">.</span><span class="z-entity z-name">clone</span><span>(</span><span>)</span><span>)</span><span>;</span></span>
+<span class="giallo-l"><span class="z-variable z-language">        Self</span><span> {</span><span class="z-variable z-other"> sessions</span><span>,</span><span class="z-variable z-other"> command_bus</span><span> }</span></span>
+<span class="giallo-l"><span>    }</span></span>
+<span class="giallo-l"></span>
+<span class="giallo-l"><span class="z-keyword">    pub</span><span class="z-keyword"> async</span><span class="z-keyword"> fn</span><span class="z-entity z-name"> broadcast_to_frontends</span><span>(</span><span class="z-keyword">&amp;</span><span class="z-variable z-language">self</span><span>,</span><span class="z-variable z-other"> msg</span><span class="z-keyword">:</span><span class="z-entity z-name"> ProtocolMessage</span><span>)</span><span class="z-keyword"> -&gt;</span><span class="z-entity z-name"> usize</span><span> {</span></span>
+<span class="giallo-l"><span class="z-variable z-language">        self</span><span class="z-keyword">.</span><span>command_bus</span><span class="z-keyword">.</span><span class="z-entity z-name">broadcast</span><span>(</span><span class="z-entity z-name">Role</span><span class="z-keyword">::</span><span class="z-entity z-name">Frontend</span><span>,</span><span class="z-variable z-other"> msg</span><span>)</span><span class="z-keyword">.</span><span class="z-keyword">await</span></span>
+<span class="giallo-l"><span>    }</span></span>
+<span class="giallo-l"></span>
+<span class="giallo-l"><span class="z-keyword">    pub</span><span class="z-keyword"> async</span><span class="z-keyword"> fn</span><span class="z-entity z-name"> send_to_device</span><span>(</span><span class="z-keyword">&amp;</span><span class="z-variable z-language">self</span><span>,</span><span class="z-variable z-other"> device_id</span><span class="z-keyword">:</span><span class="z-keyword"> &amp;</span><span class="z-entity z-name">str</span><span>,</span><span class="z-variable z-other"> msg</span><span class="z-keyword">:</span><span class="z-entity z-name"> ProtocolMessage</span><span>)</span><span class="z-keyword"> -&gt;</span><span class="z-entity z-name"> anyhow</span><span class="z-keyword">::</span><span class="z-entity z-name">Result</span><span>&lt;</span><span>(</span><span>)</span><span>&gt;</span><span> {</span></span>
+<span class="giallo-l"><span class="z-variable z-language">        self</span><span class="z-keyword">.</span><span>command_bus</span><span class="z-keyword">.</span><span class="z-entity z-name">send_to_device</span><span>(</span><span class="z-variable z-other">device_id</span><span>,</span><span class="z-variable z-other"> msg</span><span>)</span><span class="z-keyword">.</span><span class="z-keyword">await</span></span>
+<span class="giallo-l"><span>    }</span></span>
+<span class="giallo-l"><span>}</span></span></code></pre>
+<p><code>AppState</code> 实现 <code>Clone</code>，Axum 的每个请求 handler 拿到的是克隆——但内部全是 <code>Arc</code>，克隆代价极低，实际共享同一份数据。</p>
+<hr />
+<h2 id="xia-yi-bu">下一步<a class="zola-anchor" href="#xia-yi-bu" aria-label="Anchor link for: xia-yi-bu" style="visibility: hidden;"></a>
+</h2>
+<p>有了会话池，下一步实现 WebSocket 连接的完整生命周期——握手验证、读写 loop、断线清理接入 <code>SessionManager</code>，把整条链路跑通。</p>
+
+      </article>
+
+      
+      
+
+      
+      
+      <div class="giscus"></div>
+      <style>
+#comments { margin-top: 3rem; padding: 0 15px; }
+.c-item { margin: 1.2rem 0; }
+.c-reply { margin-left: 1.5rem; padding-left: 1rem; border-left: 2px solid var(--text-decoration-color); }
+.c-meta { display: flex; align-items: center; gap: 0.6rem; margin-bottom: 0.3rem; font-size: 0.85em; }
+.c-name { font-weight: bold; color: var(--text-color); }
+.c-time { color: var(--text-pale-color); }
+.c-reply-btn {
+  background: none; border: none; padding: 0;
+  color: var(--primary-color); cursor: pointer;
+  font-size: 0.85em; opacity: 0;
+  transition: opacity 0.15s;
+}
+.c-item:hover .c-reply-btn { opacity: 1; }
+.c-body { color: var(--text-color); line-height: var(--line-height); white-space: pre-wrap; word-break: break-word; }
+.c-loading, .c-empty { color: var(--text-pale-color); font-size: 0.9em; padding: 1rem 0; }
+.c-form { margin-top: 2rem; display: flex; flex-direction: column; gap: 0.6rem; }
+.c-form-row { display: flex; gap: 0.6rem; }
+.c-input {
+  width: 100%; padding: 0.5rem 0.7rem;
+  border: 1.5px solid var(--text-decoration-color);
+  border-radius: 4px;
+  background: var(--bg-color); color: var(--text-color);
+  font-size: 0.9em; font-family: var(--main-font);
+  outline: none; transition: border-color 0.15s;
+}
+.c-input:focus { border-color: var(--primary-color); }
+.c-input-content { resize: vertical; min-height: 100px; }
+.c-reply-tip {
+  font-size: 0.85em; color: var(--primary-color);
+  padding: 0.2rem 0.5rem;
+  background: var(--inline-code-bg-color);
+  border-radius: 4px; align-self: flex-start;
+}
+.c-reply-tip::after { content: " ✕"; opacity: 0.5; }
+.c-form-actions { display: flex; justify-content: flex-end; }
+.c-submit {
+  padding: 0.4rem 1.2rem;
+  background: var(--primary-color); color: var(--bg-color);
+  border: none; border-radius: 4px;
+  cursor: pointer; font-size: 0.9em;
+  transition: opacity 0.15s;
+}
+.c-submit:hover { opacity: 0.85; }
+.c-submit:disabled { opacity: 0.5; cursor: not-allowed; }
+</style>
+<div id="comments" data-page="&#x2F;posts&#x2F;rust-ws-session-manager-2026-05-17&#x2F;"></div>
+<script src="/comments.js"></script>
+
+
+      
+    </div>
+
+    
+
+
+<footer>
+  <div class="left">
+    <div class="copyright">
+      © 2026 Cirray AI
+      
+      <span>|</span>
+      Built with <a href="https://www.getzola.org" rel="noreferrer" target="_blank">zola</a> and <a href="https://github.com/isunjn/serene" rel="noreferrer" target="_blank">serene</a>
+      
+    </div>
+  </div>
+
+  <div class="right">
+    
+    
+    
+    
+
+    
+    
+    
+    <button id="theme-toggle" aria-label="theme switch">
+      <span class="moon-icon"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="18" height="18"><path d="M10 7C10 10.866 13.134 14 17 14C18.9584 14 20.729 13.1957 21.9995 11.8995C22 11.933 22 11.9665 22 12C22 17.5228 17.5228 22 12 22C6.47715 22 2 17.5228 2 12C2 6.47715 6.47715 2 12 2C12.0335 2 12.067 2 12.1005 2.00049C10.8043 3.27098 10 5.04157 10 7ZM4 12C4 16.4183 7.58172 20 12 20C15.0583 20 17.7158 18.2839 19.062 15.7621C18.3945 15.9187 17.7035 16 17 16C12.0294 16 8 11.9706 8 7C8 6.29648 8.08133 5.60547 8.2379 4.938C5.71611 6.28423 4 8.9417 4 12Z" fill="currentColor"></path></svg>
+</span>
+      <span class="sun-icon"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="18" height="18"><path d="M12 18C8.68629 18 6 15.3137 6 12C6 8.68629 8.68629 6 12 6C15.3137 6 18 8.68629 18 12C18 15.3137 15.3137 18 12 18ZM12 16C14.2091 16 16 14.2091 16 12C16 9.79086 14.2091 8 12 8C9.79086 8 8 9.79086 8 12C8 14.2091 9.79086 16 12 16ZM11 1H13V4H11V1ZM11 20H13V23H11V20ZM3.51472 4.92893L4.92893 3.51472L7.05025 5.63604L5.63604 7.05025L3.51472 4.92893ZM16.9497 18.364L18.364 16.9497L20.4853 19.0711L19.0711 20.4853L16.9497 18.364ZM19.0711 3.51472L20.4853 4.92893L18.364 7.05025L16.9497 5.63604L19.0711 3.51472ZM5.63604 16.9497L7.05025 18.364L4.92893 20.4853L3.51472 19.0711L5.63604 16.9497ZM23 11V13H20V11H23ZM4 11V13H1V11H4Z" fill="currentColor"></path></svg>
+</span>
+    </button>
+    
+  </div>
+</footer>
+
+
+
+
+
+  </main>
+</div>
+
+  
+<script src="/js/lightense.min.js"></script>
+
+
+  <script src="https://blog.cirray.cn/js/main.js"></script>
+</body>
+
+</html>
