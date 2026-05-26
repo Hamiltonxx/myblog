@@ -26,6 +26,10 @@
         <lastmod>2026-03-22</lastmod>
     </url>
     <url>
+        <loc>https://blog.cirray.cn/posts/analytics-agent-line-by-line-2026-05-26/</loc>
+        <lastmod>2026-05-26</lastmod>
+    </url>
+    <url>
         <loc>https://blog.cirray.cn/posts/android-claude-webview-cookie-crack-2026-04-05/</loc>
         <lastmod>2026-04-05</lastmod>
     </url>
@@ -329,6 +333,9 @@
         <loc>https://blog.cirray.cn/tags/deep-learning/</loc>
     </url>
     <url>
+        <loc>https://blog.cirray.cn/tags/deepseek/</loc>
+    </url>
+    <url>
         <loc>https://blog.cirray.cn/tags/documentation/</loc>
     </url>
     <url>
@@ -491,6 +498,9 @@
         <loc>https://blog.cirray.cn/tags/sqlite/</loc>
     </url>
     <url>
+        <loc>https://blog.cirray.cn/tags/sqlx/</loc>
+    </url>
+    <url>
         <loc>https://blog.cirray.cn/tags/sse/</loc>
     </url>
     <url>
@@ -501,6 +511,9 @@
     </url>
     <url>
         <loc>https://blog.cirray.cn/tags/task-system/</loc>
+    </url>
+    <url>
+        <loc>https://blog.cirray.cn/tags/text-to-sql/</loc>
     </url>
     <url>
         <loc>https://blog.cirray.cn/tags/todo/</loc>

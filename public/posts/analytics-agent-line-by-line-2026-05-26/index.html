@@ -1,0 +1,871 @@
+<!DOCTYPE html>
+
+<html lang="zh">
+
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="color-scheme" content="light dark">
+  
+  
+    
+  
+  <meta name="description" content="手里有张数据库，管理层问「上周哪个站点卖得最好」，这篇文章带你看清楚从一句话到流式回答的每一行代码是怎么工作的。">
+
+  <title>analytics-agent: 把自然语言变成数据库查询</title>
+  <link rel="icon" type="image/png" sizes="32x32" href="https://blog.cirray.cn/img/favicon-32x32.png">
+  <link rel="icon" type="image/png" sizes="16x16" href="https://blog.cirray.cn/img/favicon-16x16.png">
+  <link rel="apple-touch-icon" sizes="180x180" href="https://blog.cirray.cn/img/apple-touch-icon.png">
+  
+  <style>
+
+  /* light mode colors */
+  body {
+    --primary-color: #5871a2;
+    --primary-pale-color: #5871a233;
+    --primary-decoration-color: #5871a210;
+    --bg-color: #ffffff;
+    --text-color: #2f3030;
+    --text-pale-color: #767676;
+    --text-decoration-color: #a9a9a9;
+    --highlight-mark-color: #5f75b020;
+
+    --callout-note-color: #5871a2;
+    --callout-tip-color: #268556;
+    --callout-important-color: #885fc9;
+    --callout-warning-color: #ab6632;
+    --callout-caution-color: #c64e4e;
+  }
+
+  /* dark mode colors */
+  body.dark {
+    --primary-color: #6f8fd1;
+    --primary-pale-color: #6f8fd166;
+    --primary-decoration-color: #6f8fd112;
+    --bg-color: #1c1c1c;
+    --text-color: #c1c1c1;
+    --text-pale-color: #848484;
+    --text-decoration-color: #5f5f5f;
+    --highlight-mark-color: #8296cb3b;
+
+    --callout-note-color: #6f8fd1;
+    --callout-tip-color: #47976f;
+    --callout-important-color: #9776cd;
+    --callout-warning-color: #ad7a52;
+    --callout-caution-color: #d06161;
+  }
+
+  /* typography */
+  body {
+    --main-font: ui-sans-serif, system-ui, sans-serif, 'Apple Color Emoji', 'Segoe UI Emoji', 'Segoe UI Symbol', 'Noto Color Emoji';
+    --code-font: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, 'Liberation Mono', 'Courier New', monospace;
+    --homepage-max-width: 768px;
+    --main-max-width: 768px;
+    --avatar-size: 60px;
+    --font-size: 16px;
+    --line-height: 1.75;
+    --img-border-radius: 0px;
+    --detail-border-radius: 0px;
+    --dark-mode-img-brightness: 0.75;
+    --dark-mode-chart-brightness: 0.75;
+    --inline-code-border-radius: 2px;
+    --inline-code-bg-color: var(--primary-decoration-color);
+    --block-code-border-radius: 0px;
+    --block-code-border-color: var(--primary-color);
+    --detail-border-color: var(--primary-color);
+  }
+
+</style>
+
+  <link rel="stylesheet" href="https://blog.cirray.cn/main.css">
+  
+
+<link id="hl" rel="stylesheet" type="text/css" href="/giallo-light.css" />
+
+
+
+  
+</head>
+
+<body class="post">
+  
+  <script>
+    const theme = sessionStorage.getItem('theme');
+    const match = window.matchMedia("(prefers-color-scheme: dark)").matches;
+    if ((theme && theme == 'dark') || (!theme && match)) {
+      document.body.classList.add('dark');
+      const hl = document.querySelector('link#hl');
+      if (hl) hl.href = 'https://blog.cirray.cn/giallo-dark.css';
+    }
+  </script>
+  
+  
+<div id="wrapper">
+  <div id="blank"></div>
+  <aside>
+    
+    
+    <nav>
+      <ul>
+        
+        <li>
+          <a class="h2" href="#zheng-ti-mu-lu-yu-shu-ju-liu">整体目录与数据流</a>
+          
+        </li>
+        
+        <li>
+          <a class="h2" href="#cargo-toml-yi-lai-qing-dan">Cargo.toml — 依赖清单</a>
+          
+        </li>
+        
+        <li>
+          <a class="h2" href="#config-rs-pei-zhi-ceng">config.rs — 配置层</a>
+          
+        </li>
+        
+        <li>
+          <a class="h2" href="#state-rs-gong-xiang-zhuang-tai">state.rs — 共享状态</a>
+          
+        </li>
+        
+        <li>
+          <a class="h2" href="#error-rs-cuo-wu-chu-li">error.rs — 错误处理</a>
+          
+        </li>
+        
+        <li>
+          <a class="h2" href="#schema-rs-shu-ju-ku-di-tu">schema.rs — 数据库「地图」</a>
+          
+        </li>
+        
+        <li>
+          <a class="h2" href="#sql-guard-rs-an-quan-hu-lan">sql_guard.rs — 安全护栏</a>
+          
+        </li>
+        
+        <li>
+          <a class="h2" href="#llm-rs-llm-ke-hu-duan">llm.rs — LLM 客户端</a>
+          
+          <ul>
+            
+            <li>
+              <a class="h3" href="#qing-qiu-jie-gou-ti">请求结构体</a>
+            </li>
+            
+            <li>
+              <a class="h3" href="#complete-pu-tong-diao-yong-yong-yu-sheng-cheng-sql">complete — 普通调用（用于生成 SQL）</a>
+            </li>
+            
+            <li>
+              <a class="h3" href="#stream-liu-shi-diao-yong-yong-yu-jie-du-jie-guo">stream — 流式调用（用于解读结果）</a>
+            </li>
+            
+          </ul>
+          
+        </li>
+        
+        <li>
+          <a class="h2" href="#chat-rs-he-xin-handler">chat.rs — 核心 Handler</a>
+          
+          <ul>
+            
+            <li>
+              <a class="h3" href="#handler-qian-ming">Handler 签名</a>
+            </li>
+            
+            <li>
+              <a class="h3" href="#gou-jian-liu">构建流</a>
+            </li>
+            
+            <li>
+              <a class="h3" href="#step-2-zhi-xing-sql">Step 2：执行 SQL</a>
+            </li>
+            
+            <li>
+              <a class="h3" href="#step-3-liu-shi-hui-da">Step 3：流式回答</a>
+            </li>
+            
+            <li>
+              <a class="h3" href="#fan-hui-sse-xiang-ying">返回 SSE 响应</a>
+            </li>
+            
+          </ul>
+          
+        </li>
+        
+        <li>
+          <a class="h2" href="#main-rs-ba-ling-jian-zu-zhuang-qi-lai">main.rs — 把零件组装起来</a>
+          
+        </li>
+        
+        <li>
+          <a class="h2" href="#qian-duan-dui-jie">前端对接</a>
+          
+        </li>
+        
+        <li>
+          <a class="h2" href="#quan-ju-shi-jiao-zhe-ge-xi-tong-zuo-liao-na-xie-quan-heng">全局视角：这个系统做了哪些权衡</a>
+          
+        </li>
+        
+        <li>
+          <a class="h2" href="#xia-yi-bu-ke-yi-zuo-shen-me">下一步可以做什么</a>
+          
+        </li>
+        
+      </ul>
+    </nav>
+    
+    
+    <button id="back-to-top" aria-label="back to top">
+      
+      <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="feather feather-arrow-up"><line x1="12" y1="19" x2="12" y2="5"></line><polyline points="5 12 12 5 19 12"></polyline></svg>
+
+    </button>
+    
+  </aside>
+  <main>
+    
+<header>
+  <nav>
+    <a id="back-link" href="https:&#x2F;&#x2F;blog.cirray.cn&#x2F;posts">← Back</a>
+  </nav>
+</header>
+
+
+    <div>
+      
+      
+      
+      
+      <div id="copy-cfg" style="display: none;" data-copy-icon="&lt;svg xmlns=&quot;http:&#x2F;&#x2F;www.w3.org&#x2F;2000&#x2F;svg&quot; viewBox=&quot;0 0 24 24&quot; width=&quot;18&quot; height=&quot;18&quot;&gt;&lt;path d=&quot;M6.9998 6V3C6.9998 2.44772 7.44752 2 7.9998 2H19.9998C20.5521 2 20.9998 2.44772 20.9998 3V17C20.9998 17.5523 20.5521 18 19.9998 18H16.9998V20.9991C16.9998 21.5519 16.5499 22 15.993 22H4.00666C3.45059 22 3 21.5554 3 20.9991L3.0026 7.00087C3.0027 6.44811 3.45264 6 4.00942 6H6.9998ZM5.00242 8L5.00019 20H14.9998V8H5.00242ZM8.9998 6H16.9998V16H18.9998V4H8.9998V6Z&quot; fill=&quot;currentColor&quot;&gt;&lt;&#x2F;path&gt;&lt;&#x2F;svg&gt;
+" data-check-icon="&lt;svg xmlns=&quot;http:&#x2F;&#x2F;www.w3.org&#x2F;2000&#x2F;svg&quot; viewBox=&quot;0 0 24 24&quot; width=&quot;18&quot; height=&quot;18&quot;&gt;&lt;path d=&quot;M10.0007 15.1709L19.1931 5.97852L20.6073 7.39273L10.0007 17.9993L3.63672 11.6354L5.05093 10.2212L10.0007 15.1709Z&quot; fill=&quot;currentColor&quot;&gt;&lt;&#x2F;path&gt;&lt;&#x2F;svg&gt;
+"></div>
+      
+      <article class="prose">
+        <h1>analytics-agent: 把自然语言变成数据库查询</h1>
+        <div id="post-info">
+          <div id="date">
+            <span id="publish">2026-05-26</span>
+            </div>
+
+          
+          <div id="tags">
+            <a class="instant" href="https://blog.cirray.cn/tags/rust"><span>#</span>rust</a><a class="instant" href="https://blog.cirray.cn/tags/axum"><span>#</span>axum</a><a class="instant" href="https://blog.cirray.cn/tags/llm"><span>#</span>llm</a><a class="instant" href="https://blog.cirray.cn/tags/sse"><span>#</span>sse</a><a class="instant" href="https://blog.cirray.cn/tags/text-to-sql"><span>#</span>text-to-sql</a><a class="instant" href="https://blog.cirray.cn/tags/deepseek"><span>#</span>deepseek</a><a class="instant" href="https://blog.cirray.cn/tags/sqlx"><span>#</span>sqlx</a>
+          </div>
+          
+        </div>
+
+        
+        
+
+        
+
+        <p>今天把氢能 agent 项目里的 <code>analytics-agent</code> 完整过了一遍，这个 crate 只做一件事：</p>
+<blockquote>
+<p>用户输入一句中文 → LLM 翻译成 SQL → 执行数据库 → LLM 流式解读结果回给用户</p>
+</blockquote>
+<p>整条链路不到 400 行 Rust。下面逐文件、逐行拆解，力求讲清楚「这行在干什么、为什么这么写、换个场景怎么用」。</p>
+<hr />
+<h2 id="zheng-ti-mu-lu-yu-shu-ju-liu">整体目录与数据流<a class="zola-anchor" href="#zheng-ti-mu-lu-yu-shu-ju-liu" aria-label="Anchor link for: zheng-ti-mu-lu-yu-shu-ju-liu" style="visibility: hidden;"></a>
+</h2>
+<pre class="giallo z-code"><code data-lang="plain"><span class="giallo-l"><span>src/</span></span>
+<span class="giallo-l"><span>├── main.rs        ← 程序入口，组装所有零件，启动 HTTP 服务</span></span>
+<span class="giallo-l"><span>├── config.rs      ← 从环境变量读配置</span></span>
+<span class="giallo-l"><span>├── state.rs       ← 把配置、DB 连接池、LLM 客户端打包成一个全局共享状态</span></span>
+<span class="giallo-l"><span>├── error.rs       ← 定义统一错误类型，自动映射 HTTP 状态码</span></span>
+<span class="giallo-l"><span>├── schema.rs      ← 自动扫描数据库表结构，生成给 LLM 看的「地图」</span></span>
+<span class="giallo-l"><span>├── sql_guard.rs   ← SQL 安全校验：只允许 SELECT，拦截一切写操作</span></span>
+<span class="giallo-l"><span>├── llm.rs         ← 封装 DeepSeek API，支持普通调用和流式 SSE</span></span>
+<span class="giallo-l"><span>└── chat.rs        ← 核心 handler：接收问题 → 三步走 → 流式推送结果</span></span></code></pre>
+<p>数据流一图胜千言：</p>
+<pre class="giallo z-code"><code data-lang="plain"><span class="giallo-l"><span>浏览器 EventSource /chat?q=上周销量</span></span>
+<span class="giallo-l"><span>        │</span></span>
+<span class="giallo-l"><span>        ▼</span></span>
+<span class="giallo-l"><span>   chat handler</span></span>
+<span class="giallo-l"><span>        │</span></span>
+<span class="giallo-l"><span>        ├─① LLM.complete() ─→ 返回 SQL 字符串</span></span>
+<span class="giallo-l"><span>        ├─② sql_guard 校验 → 拦截危险操作</span></span>
+<span class="giallo-l"><span>        ├─③ PostgreSQL 执行 → 返回 JSON 数组</span></span>
+<span class="giallo-l"><span>        └─④ LLM.stream()  ─→ 逐 token 推送中文解读</span></span>
+<span class="giallo-l"><span>                                    │</span></span>
+<span class="giallo-l"><span>                                    ▼</span></span>
+<span class="giallo-l"><span>                            SSE 事件流回浏览器（打字效果）</span></span></code></pre>
+<hr />
+<h2 id="cargo-toml-yi-lai-qing-dan">Cargo.toml — 依赖清单<a class="zola-anchor" href="#cargo-toml-yi-lai-qing-dan" aria-label="Anchor link for: cargo-toml-yi-lai-qing-dan" style="visibility: hidden;"></a>
+</h2>
+<pre class="giallo z-code"><code data-lang="toml"><span class="giallo-l"><span class="z-invalid z-illegal">axum          </span><span class="z-punctuation z-definition z-comment">#</span><span class="z-comment"> Web 框架，处理 HTTP 请求、SSE 推送</span></span>
+<span class="giallo-l"><span class="z-invalid z-illegal">tokio         </span><span class="z-punctuation z-definition z-comment">#</span><span class="z-comment"> 异步运行时，所有 async/await 的底座</span></span>
+<span class="giallo-l"><span class="z-invalid z-illegal">sqlx          </span><span class="z-punctuation z-definition z-comment">#</span><span class="z-comment"> 异步 PostgreSQL 驱动，带编译期 SQL 检查</span></span>
+<span class="giallo-l"><span class="z-invalid z-illegal">reqwest       </span><span class="z-punctuation z-definition z-comment">#</span><span class="z-comment"> HTTP 客户端，用来调用 DeepSeek API</span></span>
+<span class="giallo-l"><span class="z-invalid z-illegal">serde </span><span class="z-invalid z-illegal">/ </span><span class="z-invalid z-illegal">serde_json  </span><span class="z-punctuation z-definition z-comment">#</span><span class="z-comment"> 序列化/反序列化 JSON</span></span>
+<span class="giallo-l"><span class="z-invalid z-illegal">tracing </span><span class="z-invalid z-illegal">/ </span><span class="z-invalid z-illegal">tracing-subscriber  </span><span class="z-punctuation z-definition z-comment">#</span><span class="z-comment"> 结构化日志</span></span>
+<span class="giallo-l"><span class="z-invalid z-illegal">anyhow </span><span class="z-invalid z-illegal">/ </span><span class="z-invalid z-illegal">thiserror  </span><span class="z-punctuation z-definition z-comment">#</span><span class="z-comment"> 错误处理（两个互补）</span></span>
+<span class="giallo-l"><span class="z-invalid z-illegal">futures </span><span class="z-invalid z-illegal">/ </span><span class="z-invalid z-illegal">async-stream  </span><span class="z-punctuation z-definition z-comment">#</span><span class="z-comment"> 流式数据处理</span></span>
+<span class="giallo-l"><span class="z-invalid z-illegal">tower-http    </span><span class="z-punctuation z-definition z-comment">#</span><span class="z-comment"> axum 中间件（CORS、日志）</span></span>
+<span class="giallo-l"><span class="z-invalid z-illegal">dotenvy       </span><span class="z-punctuation z-definition z-comment">#</span><span class="z-comment"> 读 .env 文件</span></span>
+<span class="giallo-l"><span class="z-invalid z-illegal">bytes </span><span class="z-invalid z-illegal">/ </span><span class="z-invalid z-illegal">chrono  </span><span class="z-punctuation z-definition z-comment">#</span><span class="z-comment"> 字节缓冲 / 时间处理</span></span></code></pre>
+<hr />
+<h2 id="config-rs-pei-zhi-ceng">config.rs — 配置层<a class="zola-anchor" href="#config-rs-pei-zhi-ceng" aria-label="Anchor link for: config-rs-pei-zhi-ceng" style="visibility: hidden;"></a>
+</h2>
+<pre class="giallo z-code"><code data-lang="rust"><span class="giallo-l"><span>#</span><span>[</span><span>derive</span><span>(</span><span class="z-entity z-name">Clone</span><span>,</span><span class="z-entity z-name"> Debug</span><span>)</span><span>]</span></span>
+<span class="giallo-l"><span class="z-keyword">pub</span><span class="z-storage z-type"> struct</span><span class="z-entity z-name"> Config</span><span> {</span></span>
+<span class="giallo-l"><span class="z-keyword">    pub</span><span class="z-variable z-other"> deepseek_api_key</span><span class="z-keyword">:</span><span class="z-entity z-name"> String</span><span>,</span></span>
+<span class="giallo-l"><span class="z-keyword">    pub</span><span class="z-variable z-other"> deepseek_base_url</span><span class="z-keyword">:</span><span class="z-entity z-name"> String</span><span>,</span></span>
+<span class="giallo-l"><span class="z-keyword">    pub</span><span class="z-variable z-other"> deepseek_model</span><span class="z-keyword">:</span><span class="z-entity z-name"> String</span><span>,</span></span>
+<span class="giallo-l"><span class="z-keyword">    pub</span><span class="z-variable z-other"> database_url</span><span class="z-keyword">:</span><span class="z-entity z-name"> String</span><span>,</span></span>
+<span class="giallo-l"><span class="z-keyword">    pub</span><span class="z-variable z-other"> exposed_schemas</span><span class="z-keyword">:</span><span class="z-entity z-name"> Vec</span><span>&lt;</span><span class="z-entity z-name">String</span><span>&gt;</span><span>,</span></span>
+<span class="giallo-l"><span class="z-keyword">    pub</span><span class="z-variable z-other"> max_rows</span><span class="z-keyword">:</span><span class="z-entity z-name"> u32</span><span>,</span></span>
+<span class="giallo-l"><span class="z-keyword">    pub</span><span class="z-variable z-other"> bind_addr</span><span class="z-keyword">:</span><span class="z-entity z-name"> String</span><span>,</span></span>
+<span class="giallo-l"><span>}</span></span></code></pre>
+<p>这是一个普通的结构体，每个字段对应一个环境变量。<code>#[derive(Clone)]</code> 让它可以被廉价复制——后面会把它塞进 <code>Arc</code> 共享给所有请求。</p>
+<pre class="giallo z-code"><code data-lang="rust"><span class="giallo-l"><span class="z-keyword">impl</span><span class="z-entity z-name"> Config</span><span> {</span></span>
+<span class="giallo-l"><span class="z-keyword">    pub</span><span class="z-keyword"> fn</span><span class="z-entity z-name"> from_env</span><span>(</span><span>)</span><span class="z-keyword"> -&gt;</span><span class="z-entity z-name"> Result</span><span>&lt;</span><span class="z-variable z-language">Self</span><span>&gt;</span><span> {</span></span>
+<span class="giallo-l"><span class="z-storage z-type">        let</span><span class="z-variable z-other"> _</span><span class="z-keyword"> =</span><span class="z-entity z-name"> dotenvy</span><span class="z-keyword">::</span><span class="z-entity z-name">dotenv</span><span>(</span><span>)</span><span>;</span><span class="z-punctuation z-definition z-comment">  //</span><span class="z-comment"> 先尝试加载 .env，失败就忽略（生产环境直接用系统环境变量）</span></span>
+<span class="giallo-l"><span class="z-entity z-name">        Ok</span><span>(</span><span class="z-variable z-language">Self</span><span> {</span></span>
+<span class="giallo-l"><span class="z-variable z-other">            deepseek_api_key</span><span class="z-keyword">:</span><span class="z-entity z-name"> required</span><span>(</span><span class="z-punctuation z-definition z-string">&quot;</span><span class="z-string">DEEPSEEK_API_KEY</span><span class="z-punctuation z-definition z-string">&quot;</span><span>)</span><span class="z-keyword">?</span><span>,</span><span class="z-punctuation z-definition z-comment">  //</span><span class="z-comment"> 必填，缺了直接报错退出</span></span>
+<span class="giallo-l"><span class="z-variable z-other">            deepseek_base_url</span><span class="z-keyword">:</span><span class="z-entity z-name"> env</span><span class="z-keyword">::</span><span class="z-entity z-name">var</span><span>(</span><span class="z-punctuation z-definition z-string">&quot;</span><span class="z-string">DEEPSEEK_BASE_URL</span><span class="z-punctuation z-definition z-string">&quot;</span><span>)</span></span>
+<span class="giallo-l"><span class="z-keyword">                .</span><span class="z-entity z-name">unwrap_or_else</span><span>(</span><span class="z-keyword">|</span><span class="z-variable z-other">_</span><span class="z-keyword">|</span><span class="z-punctuation z-definition z-string"> &quot;</span><span class="z-string">https://api.deepseek.com</span><span class="z-punctuation z-definition z-string">&quot;</span><span class="z-keyword">.</span><span class="z-entity z-name">into</span><span>(</span><span>)</span><span>)</span><span>,</span><span class="z-punctuation z-definition z-comment">  //</span><span class="z-comment"> 有默认值</span></span>
+<span class="giallo-l"><span class="z-variable z-other">            exposed_schemas</span><span class="z-keyword">:</span><span class="z-entity z-name"> env</span><span class="z-keyword">::</span><span class="z-entity z-name">var</span><span>(</span><span class="z-punctuation z-definition z-string">&quot;</span><span class="z-string">EXPOSED_SCHEMAS</span><span class="z-punctuation z-definition z-string">&quot;</span><span>)</span></span>
+<span class="giallo-l"><span class="z-keyword">                .</span><span class="z-entity z-name">unwrap_or_else</span><span>(</span><span class="z-keyword">|</span><span class="z-variable z-other">_</span><span class="z-keyword">|</span><span class="z-punctuation z-definition z-string"> &quot;</span><span class="z-string">public</span><span class="z-punctuation z-definition z-string">&quot;</span><span class="z-keyword">.</span><span class="z-entity z-name">into</span><span>(</span><span>)</span><span>)</span></span>
+<span class="giallo-l"><span class="z-keyword">                .</span><span class="z-entity z-name">split</span><span>(</span><span class="z-string">&#39;</span><span class="z-string">,</span><span class="z-string">&#39;</span><span>)</span><span class="z-punctuation z-definition z-comment">            //</span><span class="z-comment"> &quot;public,analytics&quot; → [&quot;public&quot;, &quot;analytics&quot;]</span></span>
+<span class="giallo-l"><span class="z-keyword">                .</span><span class="z-entity z-name">map</span><span>(</span><span class="z-keyword">|</span><span class="z-variable z-other">s</span><span class="z-keyword">|</span><span class="z-variable z-other"> s</span><span class="z-keyword">.</span><span class="z-entity z-name">trim</span><span>(</span><span>)</span><span class="z-keyword">.</span><span class="z-entity z-name">to_string</span><span>(</span><span>)</span><span>)</span></span>
+<span class="giallo-l"><span class="z-keyword">                .</span><span class="z-entity z-name">filter</span><span>(</span><span class="z-keyword">|</span><span class="z-variable z-other">s</span><span class="z-keyword">|</span><span class="z-keyword"> !</span><span class="z-variable z-other">s</span><span class="z-keyword">.</span><span class="z-entity z-name">is_empty</span><span>(</span><span>)</span><span>)</span></span>
+<span class="giallo-l"><span class="z-keyword">                .</span><span class="z-entity z-name">collect</span><span>(</span><span>)</span><span>,</span></span>
+<span class="giallo-l"><span class="z-variable z-other">            max_rows</span><span class="z-keyword">:</span><span class="z-entity z-name"> env</span><span class="z-keyword">::</span><span class="z-entity z-name">var</span><span>(</span><span class="z-punctuation z-definition z-string">&quot;</span><span class="z-string">MAX_ROWS</span><span class="z-punctuation z-definition z-string">&quot;</span><span>)</span></span>
+<span class="giallo-l"><span class="z-keyword">                .</span><span class="z-entity z-name">ok</span><span>(</span><span>)</span></span>
+<span class="giallo-l"><span class="z-keyword">                .</span><span class="z-entity z-name">and_then</span><span>(</span><span class="z-keyword">|</span><span class="z-variable z-other">s</span><span class="z-keyword">|</span><span class="z-variable z-other"> s</span><span class="z-keyword">.</span><span class="z-entity z-name">parse</span><span>(</span><span>)</span><span class="z-keyword">.</span><span class="z-entity z-name">ok</span><span>(</span><span>)</span><span>)</span><span class="z-punctuation z-definition z-comment">  //</span><span class="z-comment"> 解析失败就用默认值 200，不 panic</span></span>
+<span class="giallo-l"><span class="z-keyword">                .</span><span class="z-entity z-name">unwrap_or</span><span>(</span><span class="z-constant">200</span><span>)</span><span>,</span></span>
+<span class="giallo-l"><span class="z-punctuation z-definition z-comment">            //</span><span class="z-comment"> ...</span></span>
+<span class="giallo-l"><span>        }</span><span>)</span></span>
+<span class="giallo-l"><span>    }</span></span>
+<span class="giallo-l"><span>}</span></span></code></pre>
+<p><strong>设计要点</strong>：必填项用 <code>required()</code> 函数，缺少时给出明确报错信息；可选项提供合理默认值，程序永远能启动。</p>
+<p><strong>举一反三</strong>：任何需要读取环境变量的 Rust 服务，建议都做一个 <code>Config::from_env()</code> 的集中入口，而不是到处 <code>env::var()</code>。好处是：测试时只需 mock 一个结构体，不需要设置真实环境变量。</p>
+<hr />
+<h2 id="state-rs-gong-xiang-zhuang-tai">state.rs — 共享状态<a class="zola-anchor" href="#state-rs-gong-xiang-zhuang-tai" aria-label="Anchor link for: state-rs-gong-xiang-zhuang-tai" style="visibility: hidden;"></a>
+</h2>
+<pre class="giallo z-code"><code data-lang="rust"><span class="giallo-l"><span>#</span><span>[</span><span>derive</span><span>(</span><span class="z-entity z-name">Clone</span><span>)</span><span>]</span></span>
+<span class="giallo-l"><span class="z-keyword">pub</span><span class="z-storage z-type"> struct</span><span class="z-entity z-name"> AppState</span><span> {</span></span>
+<span class="giallo-l"><span class="z-keyword">    pub</span><span class="z-variable z-other"> pool</span><span class="z-keyword">:</span><span class="z-entity z-name"> PgPool</span><span>,</span><span class="z-punctuation z-definition z-comment">           //</span><span class="z-comment"> 数据库连接池（内部已经是 Arc，Clone 是廉价的）</span></span>
+<span class="giallo-l"><span class="z-keyword">    pub</span><span class="z-variable z-other"> llm</span><span class="z-keyword">:</span><span class="z-entity z-name"> DeepSeek</span><span>,</span><span class="z-punctuation z-definition z-comment">          //</span><span class="z-comment"> LLM 客户端（内部有 reqwest::Client，同上）</span></span>
+<span class="giallo-l"><span class="z-keyword">    pub</span><span class="z-variable z-other"> config</span><span class="z-keyword">:</span><span class="z-entity z-name"> Arc</span><span>&lt;</span><span class="z-entity z-name">Config</span><span>&gt;</span><span>,</span><span class="z-punctuation z-definition z-comment">    //</span><span class="z-comment"> 配置（用 Arc 包裹，避免复制整个 Config）</span></span>
+<span class="giallo-l"><span class="z-keyword">    pub</span><span class="z-variable z-other"> schema_text</span><span class="z-keyword">:</span><span class="z-entity z-name"> Arc</span><span>&lt;</span><span class="z-entity z-name">String</span><span>&gt;</span><span>,</span><span class="z-punctuation z-definition z-comment"> //</span><span class="z-comment"> 数据库表结构文本，启动时生成一次，所有请求共享</span></span>
+<span class="giallo-l"><span>}</span></span></code></pre>
+<p>只有 13 行，却是整个服务的「神经中枢」。axum 会把这个 <code>AppState</code> 自动注入到每个请求 handler，任何 handler 都能通过 <code>State(state): State&lt;AppState&gt;</code> 拿到它。</p>
+<p><strong>为什么用 Arc？</strong></p>
+<p><code>Arc&lt;T&gt;</code> 是引用计数指针，多个线程可以同时持有同一份数据的只读引用，Clone 只增加引用计数，不复制数据。<code>Config</code> 和 <code>schema_text</code> 整个生命周期只需要一份，用 <code>Arc</code> 比 <code>Clone</code> 省内存，比 <code>&amp;'static</code> 灵活。</p>
+<p><strong>举一反三</strong>：所有在请求间共享的「只初始化一次」的资源（数据库连接池、HTTP 客户端、配置、模型权重等）都适合放进 <code>AppState</code>。</p>
+<hr />
+<h2 id="error-rs-cuo-wu-chu-li">error.rs — 错误处理<a class="zola-anchor" href="#error-rs-cuo-wu-chu-li" aria-label="Anchor link for: error-rs-cuo-wu-chu-li" style="visibility: hidden;"></a>
+</h2>
+<pre class="giallo z-code"><code data-lang="rust"><span class="giallo-l"><span>#</span><span>[</span><span>derive</span><span>(</span><span class="z-entity z-name">Error</span><span>,</span><span class="z-entity z-name"> Debug</span><span>)</span><span>]</span></span>
+<span class="giallo-l"><span class="z-keyword">pub</span><span class="z-storage z-type"> enum</span><span class="z-entity z-name"> AppError</span><span> {</span></span>
+<span class="giallo-l"><span>    #</span><span>[</span><span>error</span><span>(</span><span class="z-punctuation z-definition z-string">&quot;</span><span class="z-string">bad request: </span><span class="z-string">{</span><span class="z-string">0</span><span class="z-string">}</span><span class="z-punctuation z-definition z-string">&quot;</span><span>)</span><span>]</span></span>
+<span class="giallo-l"><span class="z-entity z-name">    BadRequest</span><span>(</span><span class="z-entity z-name">String</span><span>)</span><span>,</span></span>
+<span class="giallo-l"></span>
+<span class="giallo-l"><span>    #</span><span>[</span><span>error</span><span>(</span><span class="z-punctuation z-definition z-string">&quot;</span><span class="z-string">sql guard: </span><span class="z-string">{</span><span class="z-string">0</span><span class="z-string">}</span><span class="z-punctuation z-definition z-string">&quot;</span><span>)</span><span>]</span></span>
+<span class="giallo-l"><span class="z-entity z-name">    SqlGuard</span><span>(</span><span class="z-entity z-name">String</span><span>)</span><span>,</span></span>
+<span class="giallo-l"></span>
+<span class="giallo-l"><span>    #</span><span>[</span><span>error</span><span>(</span><span class="z-punctuation z-definition z-string">&quot;</span><span class="z-string">db: </span><span class="z-string">{</span><span class="z-string">0</span><span class="z-string">}</span><span class="z-punctuation z-definition z-string">&quot;</span><span>)</span><span>]</span></span>
+<span class="giallo-l"><span class="z-entity z-name">    Db</span><span>(</span><span>#</span><span>[</span><span>from</span><span>]</span><span class="z-entity z-name"> sqlx</span><span class="z-keyword">::</span><span class="z-entity z-name">Error</span><span>)</span><span>,</span><span class="z-punctuation z-definition z-comment">   //</span><span class="z-comment"> ← 这行让 sqlx::Error 可以用 ? 自动转成 AppError::Db</span></span>
+<span class="giallo-l"></span>
+<span class="giallo-l"><span>    #</span><span>[</span><span>error</span><span>(</span><span>transparent</span><span>)</span><span>]</span></span>
+<span class="giallo-l"><span class="z-entity z-name">    Other</span><span>(</span><span>#</span><span>[</span><span>from</span><span>]</span><span class="z-entity z-name"> anyhow</span><span class="z-keyword">::</span><span class="z-entity z-name">Error</span><span>)</span><span>,</span><span class="z-punctuation z-definition z-comment">  //</span><span class="z-comment"> ← anyhow::Error 同理</span></span>
+<span class="giallo-l"><span>}</span></span></code></pre>
+<p><code>thiserror</code> 宏帮我们自动实现了 <code>std::error::Error</code> trait，<code>#[from]</code> 让 <code>?</code> 运算符自动做类型转换。</p>
+<pre class="giallo z-code"><code data-lang="rust"><span class="giallo-l"><span class="z-keyword">impl</span><span class="z-entity z-name"> IntoResponse</span><span class="z-keyword"> for</span><span class="z-entity z-name"> AppError</span><span> {</span></span>
+<span class="giallo-l"><span class="z-keyword">    fn</span><span class="z-entity z-name"> into_response</span><span>(</span><span class="z-variable z-language">self</span><span>)</span><span class="z-keyword"> -&gt;</span><span class="z-entity z-name"> Response</span><span> {</span></span>
+<span class="giallo-l"><span class="z-storage z-type">        let</span><span class="z-variable z-other"> status</span><span class="z-keyword"> =</span><span class="z-keyword"> match</span><span class="z-keyword"> &amp;</span><span class="z-variable z-language">self</span><span> {</span></span>
+<span class="giallo-l"><span class="z-entity z-name">            AppError</span><span class="z-keyword">::</span><span class="z-entity z-name">BadRequest</span><span>(</span><span class="z-variable z-other">_</span><span>)</span><span class="z-keyword"> |</span><span class="z-entity z-name"> AppError</span><span class="z-keyword">::</span><span class="z-entity z-name">SqlGuard</span><span>(</span><span class="z-variable z-other">_</span><span>)</span><span class="z-keyword"> =&gt;</span><span class="z-entity z-name"> StatusCode</span><span class="z-keyword">::</span><span class="z-constant">BAD_REQUEST</span><span>,</span></span>
+<span class="giallo-l"><span class="z-variable z-other">            _</span><span class="z-keyword"> =&gt;</span><span class="z-entity z-name"> StatusCode</span><span class="z-keyword">::</span><span class="z-constant">INTERNAL_SERVER_ERROR</span><span>,</span></span>
+<span class="giallo-l"><span>        }</span><span>;</span></span>
+<span class="giallo-l"><span class="z-entity z-name">        tracing</span><span class="z-keyword">::</span><span class="z-entity z-name">warn!</span><span>(</span><span class="z-variable z-other">error</span><span class="z-keyword"> =</span><span class="z-keyword"> %</span><span class="z-variable z-language">self</span><span>,</span><span class="z-punctuation z-definition z-string"> &quot;</span><span class="z-string">request failed</span><span class="z-punctuation z-definition z-string">&quot;</span><span>)</span><span>;</span><span class="z-punctuation z-definition z-comment">  //</span><span class="z-comment"> 自动打日志</span></span>
+<span class="giallo-l"><span>        (</span><span class="z-variable z-other">status</span><span>,</span><span class="z-variable z-language"> self</span><span class="z-keyword">.</span><span class="z-entity z-name">to_string</span><span>(</span><span>)</span><span>)</span><span class="z-keyword">.</span><span class="z-entity z-name">into_response</span><span>(</span><span>)</span><span class="z-punctuation z-definition z-comment">  //</span><span class="z-comment"> HTTP 状态码 + 错误文本</span></span>
+<span class="giallo-l"><span>    }</span></span>
+<span class="giallo-l"><span>}</span></span></code></pre>
+<p>实现了 <code>IntoResponse</code>，axum 就能把 <code>Result&lt;_, AppError&gt;</code> 直接当 handler 返回值，错误自动变 HTTP 响应。</p>
+<p><strong>举一反三</strong>：这是 axum 项目的标准错误处理模式。<code>BadRequest</code> 对应用户输入问题，<code>SqlGuard</code> 对应安全拦截，<code>Db</code> 对应数据库错误，<code>Other</code> 兜底。业务越复杂，可以往 enum 里加更多变体，但保持每个变体语义清晰。</p>
+<hr />
+<h2 id="schema-rs-shu-ju-ku-di-tu">schema.rs — 数据库「地图」<a class="zola-anchor" href="#schema-rs-shu-ju-ku-di-tu" aria-label="Anchor link for: schema-rs-shu-ju-ku-di-tu" style="visibility: hidden;"></a>
+</h2>
+<p>这个文件只干一件事：把数据库的表结构扫描出来，格式化成 LLM 能读懂的文本。</p>
+<pre class="giallo z-code"><code data-lang="rust"><span class="giallo-l"><span class="z-keyword">pub</span><span class="z-keyword"> async</span><span class="z-keyword"> fn</span><span class="z-entity z-name"> introspect</span><span>(</span><span class="z-variable z-other">pool</span><span class="z-keyword">:</span><span class="z-keyword"> &amp;</span><span class="z-entity z-name">PgPool</span><span>,</span><span class="z-variable z-other"> schemas</span><span class="z-keyword">:</span><span class="z-keyword"> &amp;</span><span>[</span><span class="z-entity z-name">String</span><span>]</span><span>)</span><span class="z-keyword"> -&gt;</span><span class="z-entity z-name"> Result</span><span>&lt;</span><span class="z-entity z-name">String</span><span>&gt;</span><span> {</span></span>
+<span class="giallo-l"><span class="z-storage z-type">    let</span><span class="z-variable z-other"> rows</span><span class="z-keyword"> =</span><span class="z-entity z-name"> sqlx</span><span class="z-keyword">::</span><span class="z-entity z-name">query</span><span>(</span></span>
+<span class="giallo-l"><span class="z-string">        r</span><span class="z-punctuation z-definition z-string">#</span><span class="z-punctuation z-definition z-string">&quot;</span></span>
+<span class="giallo-l"><span class="z-string">        SELECT</span></span>
+<span class="giallo-l"><span class="z-string">            c.table_schema, c.table_name, c.column_name,</span></span>
+<span class="giallo-l"><span class="z-string">            c.data_type, c.is_nullable</span></span>
+<span class="giallo-l"><span class="z-string">        FROM information_schema.columns c</span></span>
+<span class="giallo-l"><span class="z-string">        JOIN information_schema.tables t</span></span>
+<span class="giallo-l"><span class="z-string">          ON t.table_schema = c.table_schema AND t.table_name = c.table_name</span></span>
+<span class="giallo-l"><span class="z-string">        WHERE c.table_schema = ANY($1)</span></span>
+<span class="giallo-l"><span class="z-string">          AND t.table_type = &#39;BASE TABLE&#39;   -- 只看真实的表，不含视图</span></span>
+<span class="giallo-l"><span class="z-string">        ORDER BY c.table_schema, c.table_name, c.ordinal_position</span></span>
+<span class="giallo-l"><span class="z-punctuation z-definition z-string">        &quot;</span><span class="z-punctuation z-definition z-string">#</span><span>,</span></span>
+<span class="giallo-l"><span>    )</span></span>
+<span class="giallo-l"><span class="z-keyword">    .</span><span class="z-entity z-name">bind</span><span>(</span><span class="z-variable z-other">schemas</span><span>)</span><span class="z-punctuation z-definition z-comment">   //</span><span class="z-comment"> 参数化查询，防 SQL 注入</span></span>
+<span class="giallo-l"><span class="z-keyword">    .</span><span class="z-entity z-name">fetch_all</span><span>(</span><span class="z-variable z-other">pool</span><span>)</span></span>
+<span class="giallo-l"><span class="z-keyword">    .</span><span class="z-keyword">await</span><span class="z-keyword">?</span><span>;</span></span></code></pre>
+<p><code>information_schema.columns</code> 是 PostgreSQL 的内置元数据视图，每个数据库都有，不需要写业务 SQL 就能知道所有表和字段。</p>
+<p>输出的文本长这样：</p>
+<pre class="giallo z-code"><code data-lang="plain"><span class="giallo-l"><span>- 表 public.stations:</span></span>
+<span class="giallo-l"><span>    - id (integer)</span></span>
+<span class="giallo-l"><span>    - name (character varying NULL)</span></span>
+<span class="giallo-l"><span>    - hydrogen_level (numeric NULL)</span></span>
+<span class="giallo-l"><span>    - created_at (timestamp with time zone)</span></span>
+<span class="giallo-l"><span>- 表 public.orders:</span></span>
+<span class="giallo-l"><span>    - id (integer)</span></span>
+<span class="giallo-l"><span>    - station_id (integer NULL)</span></span>
+<span class="giallo-l"><span>    - amount (numeric NULL)</span></span>
+<span class="giallo-l"><span>    ...</span></span></code></pre>
+<p>这段文本会被原样塞进每次请求的 system prompt，让 LLM 知道「有哪些表、有哪些字段、字段类型是什么」，写出的 SQL 才不会捏造不存在的表名。</p>
+<p><strong>为什么启动时扫描一次而不是每次请求扫？</strong></p>
+<p>表结构几乎不变，扫描有查询开销，而且结果要塞进 LLM 上下文——一次扫描 <code>Arc&lt;String&gt;</code> 共享远比每请求查询高效。如果业务需要动态感知 DDL 变更，可以加一个后台定时任务每小时重新扫一次并更新 <code>AppState.schema_text</code>。</p>
+<p><strong>举一反三</strong>：这种「启动时 warm-up 一次昂贵操作」的模式在生产系统里很常见。比如加载机器学习模型权重、初始化词典、预热缓存，都适合在 <code>main()</code> 里做，而不是在 handler 里懒加载。</p>
+<hr />
+<h2 id="sql-guard-rs-an-quan-hu-lan">sql_guard.rs — 安全护栏<a class="zola-anchor" href="#sql-guard-rs-an-quan-hu-lan" aria-label="Anchor link for: sql-guard-rs-an-quan-hu-lan" style="visibility: hidden;"></a>
+</h2>
+<p>这是整个服务里最重要的安全层。LLM 不可信，它可能被「提示注入」攻击，生成 <code>DROP TABLE</code> 之类的危险 SQL。</p>
+<pre class="giallo z-code"><code data-lang="rust"><span class="giallo-l"><span class="z-storage z-type">const</span><span class="z-constant"> FORBIDDEN</span><span class="z-keyword">:</span><span class="z-keyword"> &amp;</span><span>[</span><span class="z-keyword">&amp;</span><span class="z-entity z-name">str</span><span>]</span><span class="z-keyword"> =</span><span class="z-keyword"> &amp;</span><span>[</span></span>
+<span class="giallo-l"><span class="z-punctuation z-definition z-string">    &quot;</span><span class="z-string">INSERT</span><span class="z-punctuation z-definition z-string">&quot;</span><span>,</span><span class="z-punctuation z-definition z-string"> &quot;</span><span class="z-string">UPDATE</span><span class="z-punctuation z-definition z-string">&quot;</span><span>,</span><span class="z-punctuation z-definition z-string"> &quot;</span><span class="z-string">DELETE</span><span class="z-punctuation z-definition z-string">&quot;</span><span>,</span><span class="z-punctuation z-definition z-string"> &quot;</span><span class="z-string">DROP</span><span class="z-punctuation z-definition z-string">&quot;</span><span>,</span><span class="z-punctuation z-definition z-string"> &quot;</span><span class="z-string">ALTER</span><span class="z-punctuation z-definition z-string">&quot;</span><span>,</span><span class="z-punctuation z-definition z-string"> &quot;</span><span class="z-string">CREATE</span><span class="z-punctuation z-definition z-string">&quot;</span><span>,</span></span>
+<span class="giallo-l"><span class="z-punctuation z-definition z-string">    &quot;</span><span class="z-string">TRUNCATE</span><span class="z-punctuation z-definition z-string">&quot;</span><span>,</span><span class="z-punctuation z-definition z-string"> &quot;</span><span class="z-string">GRANT</span><span class="z-punctuation z-definition z-string">&quot;</span><span>,</span><span class="z-punctuation z-definition z-string"> &quot;</span><span class="z-string">REVOKE</span><span class="z-punctuation z-definition z-string">&quot;</span><span>,</span><span class="z-punctuation z-definition z-string"> &quot;</span><span class="z-string">COPY</span><span class="z-punctuation z-definition z-string">&quot;</span><span>,</span><span class="z-punctuation z-definition z-string"> &quot;</span><span class="z-string">ATTACH</span><span class="z-punctuation z-definition z-string">&quot;</span><span>,</span><span class="z-punctuation z-definition z-string"> &quot;</span><span class="z-string">VACUUM</span><span class="z-punctuation z-definition z-string">&quot;</span><span>,</span></span>
+<span class="giallo-l"><span class="z-punctuation z-definition z-string">    &quot;</span><span class="z-string">REINDEX</span><span class="z-punctuation z-definition z-string">&quot;</span><span>,</span><span class="z-punctuation z-definition z-string"> &quot;</span><span class="z-string">CLUSTER</span><span class="z-punctuation z-definition z-string">&quot;</span><span>,</span><span class="z-punctuation z-definition z-string"> &quot;</span><span class="z-string">LOCK</span><span class="z-punctuation z-definition z-string">&quot;</span><span>,</span><span class="z-punctuation z-definition z-string"> &quot;</span><span class="z-string">COMMENT</span><span class="z-punctuation z-definition z-string">&quot;</span><span>,</span><span class="z-punctuation z-definition z-string"> &quot;</span><span class="z-string">SET</span><span class="z-punctuation z-definition z-string">&quot;</span><span>,</span><span class="z-punctuation z-definition z-string"> &quot;</span><span class="z-string">RESET</span><span class="z-punctuation z-definition z-string">&quot;</span><span>,</span></span>
+<span class="giallo-l"><span class="z-punctuation z-definition z-string">    &quot;</span><span class="z-string">CALL</span><span class="z-punctuation z-definition z-string">&quot;</span><span>,</span><span class="z-punctuation z-definition z-string"> &quot;</span><span class="z-string">DO</span><span class="z-punctuation z-definition z-string">&quot;</span><span>,</span><span class="z-punctuation z-definition z-string"> &quot;</span><span class="z-string">EXECUTE</span><span class="z-punctuation z-definition z-string">&quot;</span><span>,</span><span class="z-punctuation z-definition z-string"> &quot;</span><span class="z-string">MERGE</span><span class="z-punctuation z-definition z-string">&quot;</span><span>,</span><span class="z-punctuation z-definition z-string"> &quot;</span><span class="z-string">REFRESH</span><span class="z-punctuation z-definition z-string">&quot;</span><span>,</span></span>
+<span class="giallo-l"><span>]</span><span>;</span></span></code></pre>
+<p>黑名单覆盖了所有 DML（数据操纵）、DDL（数据定义）和高危命令。</p>
+<pre class="giallo z-code"><code data-lang="rust"><span class="giallo-l"><span class="z-keyword">pub</span><span class="z-keyword"> fn</span><span class="z-entity z-name"> validate</span><span>(</span><span class="z-variable z-other">sql</span><span class="z-keyword">:</span><span class="z-keyword"> &amp;</span><span class="z-entity z-name">str</span><span>)</span><span class="z-keyword"> -&gt;</span><span class="z-entity z-name"> Result</span><span>&lt;</span><span class="z-entity z-name">String</span><span>,</span><span class="z-entity z-name"> AppError</span><span>&gt;</span><span> {</span></span>
+<span class="giallo-l"><span class="z-storage z-type">    let</span><span class="z-variable z-other"> trimmed</span><span class="z-keyword"> =</span><span class="z-variable z-other"> sql</span><span class="z-keyword">.</span><span class="z-entity z-name">trim</span><span>(</span><span>)</span><span class="z-keyword">.</span><span class="z-entity z-name">trim_end_matches</span><span>(</span><span class="z-string">&#39;</span><span class="z-string">;</span><span class="z-string">&#39;</span><span>)</span><span class="z-keyword">.</span><span class="z-entity z-name">trim</span><span>(</span><span>)</span><span>;</span></span>
+<span class="giallo-l"><span>    </span></span>
+<span class="giallo-l"><span class="z-punctuation z-definition z-comment">    //</span><span class="z-comment"> 检查 1：不能是空 SQL</span></span>
+<span class="giallo-l"><span class="z-keyword">    if</span><span class="z-variable z-other"> trimmed</span><span class="z-keyword">.</span><span class="z-entity z-name">is_empty</span><span>(</span><span>)</span><span> {</span></span>
+<span class="giallo-l"><span class="z-keyword">        return</span><span class="z-entity z-name"> Err</span><span>(</span><span class="z-entity z-name">AppError</span><span class="z-keyword">::</span><span class="z-entity z-name">SqlGuard</span><span>(</span><span class="z-punctuation z-definition z-string">&quot;</span><span class="z-string">empty SQL</span><span class="z-punctuation z-definition z-string">&quot;</span><span class="z-keyword">.</span><span class="z-entity z-name">into</span><span>(</span><span>)</span><span>)</span><span>)</span><span>;</span></span>
+<span class="giallo-l"><span>    }</span></span>
+<span class="giallo-l"><span>    </span></span>
+<span class="giallo-l"><span class="z-punctuation z-definition z-comment">    //</span><span class="z-comment"> 检查 2：不允许多条语句（分号分隔的攻击手法）</span></span>
+<span class="giallo-l"><span class="z-keyword">    if</span><span class="z-variable z-other"> trimmed</span><span class="z-keyword">.</span><span class="z-entity z-name">contains</span><span>(</span><span class="z-string">&#39;</span><span class="z-string">;</span><span class="z-string">&#39;</span><span>)</span><span> {</span></span>
+<span class="giallo-l"><span class="z-keyword">        return</span><span class="z-entity z-name"> Err</span><span>(</span><span class="z-entity z-name">AppError</span><span class="z-keyword">::</span><span class="z-entity z-name">SqlGuard</span><span>(</span><span class="z-punctuation z-definition z-string">&quot;</span><span class="z-string">multiple statements not allowed</span><span class="z-punctuation z-definition z-string">&quot;</span><span class="z-keyword">.</span><span class="z-entity z-name">into</span><span>(</span><span>)</span><span>)</span><span>)</span><span>;</span></span>
+<span class="giallo-l"><span>    }</span></span>
+<span class="giallo-l"></span>
+<span class="giallo-l"><span class="z-storage z-type">    let</span><span class="z-variable z-other"> upper</span><span class="z-keyword"> =</span><span class="z-variable z-other"> trimmed</span><span class="z-keyword">.</span><span class="z-entity z-name">to_uppercase</span><span>(</span><span>)</span><span>;</span></span>
+<span class="giallo-l"><span class="z-storage z-type">    let</span><span class="z-variable z-other"> first</span><span class="z-keyword"> =</span><span class="z-variable z-other"> upper</span><span class="z-keyword">.</span><span class="z-entity z-name">split_whitespace</span><span>(</span><span>)</span><span class="z-keyword">.</span><span class="z-entity z-name">next</span><span>(</span><span>)</span><span class="z-keyword">.</span><span class="z-entity z-name">unwrap_or</span><span>(</span><span class="z-punctuation z-definition z-string">&quot;</span><span class="z-punctuation z-definition z-string">&quot;</span><span>)</span><span>;</span></span>
+<span class="giallo-l"><span>    </span></span>
+<span class="giallo-l"><span class="z-punctuation z-definition z-comment">    //</span><span class="z-comment"> 检查 3：必须以 SELECT 或 WITH 开头</span></span>
+<span class="giallo-l"><span class="z-keyword">    if</span><span class="z-variable z-other"> first</span><span class="z-keyword"> !=</span><span class="z-punctuation z-definition z-string"> &quot;</span><span class="z-string">SELECT</span><span class="z-punctuation z-definition z-string">&quot;</span><span class="z-keyword"> &amp;&amp;</span><span class="z-variable z-other"> first</span><span class="z-keyword"> !=</span><span class="z-punctuation z-definition z-string"> &quot;</span><span class="z-string">WITH</span><span class="z-punctuation z-definition z-string">&quot;</span><span> {</span></span>
+<span class="giallo-l"><span class="z-keyword">        return</span><span class="z-entity z-name"> Err</span><span>(</span><span class="z-entity z-name">AppError</span><span class="z-keyword">::</span><span class="z-entity z-name">SqlGuard</span><span>(</span><span class="z-entity z-name">format!</span><span>(</span></span>
+<span class="giallo-l"><span class="z-punctuation z-definition z-string">            &quot;</span><span class="z-string">only SELECT/WITH allowed, got </span><span class="z-string">{</span><span class="z-string">first</span><span class="z-string">}</span><span class="z-punctuation z-definition z-string">&quot;</span></span>
+<span class="giallo-l"><span>        )</span><span>)</span><span>)</span><span>;</span></span>
+<span class="giallo-l"><span>    }</span></span>
+<span class="giallo-l"></span>
+<span class="giallo-l"><span class="z-punctuation z-definition z-comment">    //</span><span class="z-comment"> 检查 4：去掉字符串字面量后，扫描关键词黑名单</span></span>
+<span class="giallo-l"><span class="z-storage z-type">    let</span><span class="z-variable z-other"> stripped</span><span class="z-keyword"> =</span><span class="z-entity z-name"> strip_strings_and_quotes</span><span>(</span><span class="z-keyword">&amp;</span><span class="z-variable z-other">upper</span><span>)</span><span>;</span></span>
+<span class="giallo-l"><span class="z-storage z-type">    let</span><span class="z-variable z-other"> words</span><span class="z-keyword">:</span><span class="z-entity z-name"> Vec</span><span>&lt;</span><span class="z-keyword">&amp;</span><span class="z-entity z-name">str</span><span>&gt;</span><span class="z-keyword"> =</span><span class="z-variable z-other"> stripped</span></span>
+<span class="giallo-l"><span class="z-keyword">        .</span><span class="z-entity z-name">split</span><span>(</span><span class="z-keyword">|</span><span class="z-variable z-other">c</span><span class="z-keyword">:</span><span class="z-entity z-name"> char</span><span class="z-keyword">|</span><span class="z-keyword"> !</span><span class="z-variable z-other">c</span><span class="z-keyword">.</span><span class="z-entity z-name">is_ascii_alphabetic</span><span>(</span><span>)</span><span>)</span></span>
+<span class="giallo-l"><span class="z-keyword">        .</span><span class="z-entity z-name">filter</span><span>(</span><span class="z-keyword">|</span><span class="z-variable z-other">s</span><span class="z-keyword">|</span><span class="z-keyword"> !</span><span class="z-variable z-other">s</span><span class="z-keyword">.</span><span class="z-entity z-name">is_empty</span><span>(</span><span>)</span><span>)</span></span>
+<span class="giallo-l"><span class="z-keyword">        .</span><span class="z-entity z-name">collect</span><span>(</span><span>)</span><span>;</span></span>
+<span class="giallo-l"><span class="z-keyword">    for</span><span class="z-variable z-other"> kw</span><span class="z-keyword"> in</span><span class="z-constant"> FORBIDDEN</span><span> {</span></span>
+<span class="giallo-l"><span class="z-keyword">        if</span><span class="z-variable z-other"> words</span><span class="z-keyword">.</span><span class="z-entity z-name">contains</span><span>(</span><span class="z-variable z-other">kw</span><span>)</span><span> {</span></span>
+<span class="giallo-l"><span class="z-keyword">            return</span><span class="z-entity z-name"> Err</span><span>(</span><span class="z-entity z-name">AppError</span><span class="z-keyword">::</span><span class="z-entity z-name">SqlGuard</span><span>(</span><span class="z-entity z-name">format!</span><span>(</span><span class="z-punctuation z-definition z-string">&quot;</span><span class="z-string">forbidden keyword: </span><span class="z-string">{</span><span class="z-string">kw</span><span class="z-string">}</span><span class="z-punctuation z-definition z-string">&quot;</span><span>)</span><span>)</span><span>)</span><span>;</span></span>
+<span class="giallo-l"><span>        }</span></span>
+<span class="giallo-l"><span>    }</span></span>
+<span class="giallo-l"></span>
+<span class="giallo-l"><span class="z-entity z-name">    Ok</span><span>(</span><span class="z-variable z-other">trimmed</span><span class="z-keyword">.</span><span class="z-entity z-name">to_string</span><span>(</span><span>)</span><span>)</span></span>
+<span class="giallo-l"><span>}</span></span></code></pre>
+<p><strong>为什么要 <code>strip_strings_and_quotes</code> 再扫关键词？</strong></p>
+<p>考虑这条 SQL：</p>
+<pre class="giallo z-code"><code data-lang="sql"><span class="giallo-l"><span class="z-keyword">SELECT</span><span class="z-punctuation z-definition z-string"> &#39;</span><span class="z-string">DELETE me</span><span class="z-punctuation z-definition z-string">&#39;</span><span class="z-keyword"> AS</span><span> msg </span><span class="z-keyword">FROM</span><span> t</span></span></code></pre>
+<p>字符串字面量 <code>'DELETE me'</code> 里有 <code>DELETE</code>，如果直接大写扫描，会误拦。<code>strip_strings_and_quotes</code> 会把所有单引号和双引号内的内容替换成空格，然后再检查剩余 token，就不会误判了。</p>
+<p>但是这条应该被拒绝：</p>
+<pre class="giallo z-code"><code data-lang="sql"><span class="giallo-l"><span class="z-keyword">WITH</span><span> d </span><span class="z-keyword">AS</span><span> (</span><span class="z-keyword">DELETE</span><span class="z-keyword"> FROM</span><span> t RETURNING </span><span class="z-keyword">*</span><span>) </span><span class="z-keyword">SELECT</span><span class="z-keyword"> *</span><span class="z-keyword"> FROM</span><span> d</span></span></code></pre>
+<p>去掉引号内容后，<code>DELETE</code> 作为语句关键词还在，会被正确拦截。</p>
+<p><strong>举一反三</strong>：任何「接受外部文本然后执行」的场景都需要类似的安全层——不管是执行 shell 命令、调用外部 API 还是操作数据库。LLM 生成的内容永远不要无条件信任，必须过校验层。</p>
+<hr />
+<h2 id="llm-rs-llm-ke-hu-duan">llm.rs — LLM 客户端<a class="zola-anchor" href="#llm-rs-llm-ke-hu-duan" aria-label="Anchor link for: llm-rs-llm-ke-hu-duan" style="visibility: hidden;"></a>
+</h2>
+<p>这个模块封装了和 DeepSeek API 的通信，暴露两个公开方法：<code>complete</code>（一次性返回）和 <code>stream</code>（流式返回）。</p>
+<h3 id="qing-qiu-jie-gou-ti">请求结构体<a class="zola-anchor" href="#qing-qiu-jie-gou-ti" aria-label="Anchor link for: qing-qiu-jie-gou-ti" style="visibility: hidden;"></a>
+</h3>
+<pre class="giallo z-code"><code data-lang="rust"><span class="giallo-l"><span>#</span><span>[</span><span>derive</span><span>(</span><span class="z-entity z-name">Serialize</span><span>)</span><span>]</span></span>
+<span class="giallo-l"><span class="z-storage z-type">struct</span><span class="z-entity z-name"> ChatReq</span><span>&lt;</span><span>&#39;</span><span class="z-entity z-name">a</span><span>&gt;</span><span> {</span></span>
+<span class="giallo-l"><span class="z-variable z-other">    model</span><span class="z-keyword">:</span><span class="z-keyword"> &amp;</span><span>&#39;</span><span class="z-entity z-name">a</span><span class="z-entity z-name"> str</span><span>,</span></span>
+<span class="giallo-l"><span class="z-variable z-other">    messages</span><span class="z-keyword">:</span><span class="z-entity z-name"> Vec</span><span>&lt;</span><span class="z-entity z-name">Msg</span><span>&lt;</span><span>&#39;</span><span class="z-entity z-name">a</span><span>&gt;</span><span>&gt;</span><span>,</span></span>
+<span class="giallo-l"><span class="z-variable z-other">    stream</span><span class="z-keyword">:</span><span class="z-entity z-name"> bool</span><span>,</span></span>
+<span class="giallo-l"><span class="z-variable z-other">    temperature</span><span class="z-keyword">:</span><span class="z-entity z-name"> f32</span><span>,</span></span>
+<span class="giallo-l"><span>}</span></span></code></pre>
+<p><code>'a</code> 是生命周期参数，意思是「这个结构体里的字符串引用，必须至少和结构体本身一样长」。用 <code>&amp;str</code> 而不是 <code>String</code> 是为了避免堆内存分配，这个结构体只在序列化成 JSON 前存活极短的时间。</p>
+<h3 id="complete-pu-tong-diao-yong-yong-yu-sheng-cheng-sql">complete — 普通调用（用于生成 SQL）<a class="zola-anchor" href="#complete-pu-tong-diao-yong-yong-yu-sheng-cheng-sql" aria-label="Anchor link for: complete-pu-tong-diao-yong-yong-yu-sheng-cheng-sql" style="visibility: hidden;"></a>
+</h3>
+<pre class="giallo z-code"><code data-lang="rust"><span class="giallo-l"><span class="z-keyword">pub</span><span class="z-keyword"> async</span><span class="z-keyword"> fn</span><span class="z-entity z-name"> complete</span><span>(</span><span class="z-keyword">&amp;</span><span class="z-variable z-language">self</span><span>,</span><span class="z-variable z-other"> system</span><span class="z-keyword">:</span><span class="z-keyword"> &amp;</span><span class="z-entity z-name">str</span><span>,</span><span class="z-variable z-other"> user</span><span class="z-keyword">:</span><span class="z-keyword"> &amp;</span><span class="z-entity z-name">str</span><span>)</span><span class="z-keyword"> -&gt;</span><span class="z-entity z-name"> Result</span><span>&lt;</span><span class="z-entity z-name">String</span><span>&gt;</span><span> {</span></span>
+<span class="giallo-l"><span class="z-storage z-type">    let</span><span class="z-variable z-other"> body</span><span class="z-keyword"> =</span><span class="z-entity z-name"> ChatReq</span><span> {</span></span>
+<span class="giallo-l"><span class="z-variable z-other">        model</span><span class="z-keyword">:</span><span class="z-keyword"> &amp;</span><span class="z-variable z-language">self</span><span class="z-keyword">.</span><span>model</span><span>,</span></span>
+<span class="giallo-l"><span class="z-variable z-other">        messages</span><span class="z-keyword">:</span><span class="z-entity z-name"> vec!</span><span>[</span></span>
+<span class="giallo-l"><span class="z-entity z-name">            Msg</span><span> {</span><span class="z-variable z-other"> role</span><span class="z-keyword">:</span><span class="z-punctuation z-definition z-string"> &quot;</span><span class="z-string">system</span><span class="z-punctuation z-definition z-string">&quot;</span><span>,</span><span class="z-variable z-other"> content</span><span class="z-keyword">:</span><span class="z-variable z-other"> system</span><span> }</span><span>,</span><span class="z-punctuation z-definition z-comment">  //</span><span class="z-comment"> 给 LLM 定角色和约束</span></span>
+<span class="giallo-l"><span class="z-entity z-name">            Msg</span><span> {</span><span class="z-variable z-other"> role</span><span class="z-keyword">:</span><span class="z-punctuation z-definition z-string"> &quot;</span><span class="z-string">user</span><span class="z-punctuation z-definition z-string">&quot;</span><span>,</span><span class="z-variable z-other"> content</span><span class="z-keyword">:</span><span class="z-variable z-other"> user</span><span> }</span><span>,</span><span class="z-punctuation z-definition z-comment">      //</span><span class="z-comment"> 用户的实际问题</span></span>
+<span class="giallo-l"><span>        ]</span><span>,</span></span>
+<span class="giallo-l"><span class="z-variable z-other">        stream</span><span class="z-keyword">:</span><span class="z-constant"> false</span><span>,</span><span class="z-punctuation z-definition z-comment">       //</span><span class="z-comment"> 不流式，等完整回答</span></span>
+<span class="giallo-l"><span class="z-variable z-other">        temperature</span><span class="z-keyword">:</span><span class="z-constant"> 0</span><span class="z-constant">.</span><span class="z-constant">0</span><span>,</span><span class="z-punctuation z-definition z-comment">    //</span><span class="z-comment"> 确定性最高，SQL 生成不需要创意</span></span>
+<span class="giallo-l"><span>    }</span><span>;</span></span>
+<span class="giallo-l"><span class="z-storage z-type">    let</span><span class="z-variable z-other"> resp</span><span class="z-keyword"> =</span><span class="z-variable z-language"> self</span><span class="z-keyword">.</span><span>client</span><span class="z-keyword">.</span><span class="z-entity z-name">post</span><span>(</span><span class="z-variable z-other">url</span><span>)</span><span class="z-keyword">.</span><span class="z-entity z-name">bearer_auth</span><span>(</span><span class="z-keyword">&amp;</span><span class="z-variable z-language">self</span><span class="z-keyword">.</span><span>api_key</span><span>)</span><span class="z-keyword">.</span><span class="z-entity z-name">json</span><span>(</span><span class="z-keyword">&amp;</span><span class="z-variable z-other">body</span><span>)</span><span class="z-keyword">.</span><span class="z-entity z-name">send</span><span>(</span><span>)</span><span class="z-keyword">.</span><span class="z-keyword">await</span><span class="z-keyword">?</span><span>;</span></span>
+<span class="giallo-l"><span class="z-punctuation z-definition z-comment">    //</span><span class="z-comment"> 解析响应，取第一个 choice 的 content</span></span>
+<span class="giallo-l"><span class="z-variable z-other">    parsed</span><span class="z-keyword">.</span><span>choices</span><span class="z-keyword">.</span><span class="z-entity z-name">into_iter</span><span>(</span><span>)</span><span class="z-keyword">.</span><span class="z-entity z-name">next</span><span>(</span><span>)</span><span class="z-keyword">.</span><span class="z-entity z-name">map</span><span>(</span><span class="z-keyword">|</span><span class="z-variable z-other">c</span><span class="z-keyword">|</span><span class="z-variable z-other"> c</span><span class="z-keyword">.</span><span>message</span><span class="z-keyword">.</span><span>content</span><span>)</span></span>
+<span class="giallo-l"><span>}</span></span></code></pre>
+<p><strong>temperature: 0.0</strong> 是关键细节。生成 SQL 需要精确，越确定性越好。而后面流式解读数据时用的是 <code>temperature: 0.3</code>，允许一点「创意」让回答更自然。</p>
+<h3 id="stream-liu-shi-diao-yong-yong-yu-jie-du-jie-guo">stream — 流式调用（用于解读结果）<a class="zola-anchor" href="#stream-liu-shi-diao-yong-yong-yu-jie-du-jie-guo" aria-label="Anchor link for: stream-liu-shi-diao-yong-yong-yu-jie-du-jie-guo" style="visibility: hidden;"></a>
+</h3>
+<p>流式调用是整个服务「打字效果」的来源。DeepSeek API 用 <strong>SSE（Server-Sent Events）</strong> 协议逐步推送 token，每个事件长这样：</p>
+<pre class="giallo z-code"><code data-lang="plain"><span class="giallo-l"><span>data: {&quot;choices&quot;:[{&quot;delta&quot;:{&quot;content&quot;:&quot;上周&quot;}}]}</span></span>
+<span class="giallo-l"></span>
+<span class="giallo-l"><span>data: {&quot;choices&quot;:[{&quot;delta&quot;:{&quot;content&quot;:&quot;销量最高的&quot;}}]}</span></span>
+<span class="giallo-l"></span>
+<span class="giallo-l"><span>data: [DONE]</span></span></code></pre>
+<p><code>parse_sse</code> 函数负责解析这个格式：</p>
+<pre class="giallo z-code"><code data-lang="rust"><span class="giallo-l"><span class="z-keyword">fn</span><span class="z-entity z-name"> parse_sse</span><span>&lt;</span><span class="z-entity z-name">S</span><span>&gt;</span><span>(</span><span class="z-variable z-other">s</span><span class="z-keyword">:</span><span class="z-entity z-name"> S</span><span>)</span><span class="z-keyword"> -&gt;</span><span class="z-keyword"> impl</span><span class="z-entity z-name"> Stream</span><span>&lt;</span><span class="z-entity z-name">Item</span><span class="z-keyword"> =</span><span class="z-entity z-name"> Result</span><span>&lt;</span><span class="z-entity z-name">String</span><span>&gt;</span><span>&gt;</span><span class="z-keyword"> +</span><span class="z-entity z-name"> Send</span><span class="z-keyword"> +</span><span> &#39;</span><span class="z-entity z-name">static</span></span>
+<span class="giallo-l"><span class="z-keyword">where</span></span>
+<span class="giallo-l"><span class="z-entity z-name">    S</span><span class="z-keyword">:</span><span class="z-entity z-name"> Stream</span><span>&lt;</span><span class="z-entity z-name">Item</span><span class="z-keyword"> =</span><span class="z-variable z-other"> reqwest</span><span class="z-keyword">::</span><span class="z-entity z-name">Result</span><span>&lt;</span><span class="z-entity z-name">Bytes</span><span>&gt;</span><span>&gt;</span><span class="z-keyword"> +</span><span class="z-entity z-name"> Send</span><span class="z-keyword"> +</span><span> &#39;</span><span class="z-entity z-name">static</span><span>,</span></span>
+<span class="giallo-l"><span>{</span></span>
+<span class="giallo-l"><span class="z-entity z-name">    async_stream</span><span class="z-keyword">::</span><span class="z-entity z-name">try_stream!</span><span> {</span></span>
+<span class="giallo-l"><span class="z-storage z-type">        let</span><span class="z-storage"> mut</span><span class="z-variable z-other"> buf</span><span class="z-keyword"> =</span><span class="z-entity z-name"> String</span><span class="z-keyword">::</span><span class="z-entity z-name">new</span><span>(</span><span>)</span><span>;</span></span>
+<span class="giallo-l"><span class="z-entity z-name">        futures</span><span class="z-keyword">::</span><span class="z-entity z-name">pin_mut!</span><span>(</span><span class="z-variable z-other">s</span><span>)</span><span>;</span></span>
+<span class="giallo-l"><span class="z-keyword">        while</span><span class="z-storage z-type"> let</span><span class="z-entity z-name"> Some</span><span>(</span><span class="z-variable z-other">chunk</span><span>)</span><span class="z-keyword"> =</span><span class="z-variable z-other"> s</span><span class="z-keyword">.</span><span class="z-entity z-name">next</span><span>(</span><span>)</span><span class="z-keyword">.</span><span class="z-keyword">await</span><span> {</span></span>
+<span class="giallo-l"><span class="z-storage z-type">            let</span><span class="z-variable z-other"> chunk</span><span class="z-keyword"> =</span><span class="z-variable z-other"> chunk</span><span class="z-keyword">?</span><span>;</span></span>
+<span class="giallo-l"><span class="z-variable z-other">            buf</span><span class="z-keyword">.</span><span class="z-entity z-name">push_str</span><span>(</span><span class="z-entity z-name">std</span><span class="z-keyword">::</span><span class="z-entity z-name">str</span><span class="z-keyword">::</span><span class="z-entity z-name">from_utf8</span><span>(</span><span class="z-keyword">&amp;</span><span class="z-variable z-other">chunk</span><span>)</span><span class="z-keyword">?</span><span>)</span><span>;</span></span>
+<span class="giallo-l"><span>            </span></span>
+<span class="giallo-l"><span class="z-punctuation z-definition z-comment">            //</span><span class="z-comment"> SSE 事件以 &quot;\n\n&quot; 分隔</span></span>
+<span class="giallo-l"><span class="z-keyword">            while</span><span class="z-storage z-type"> let</span><span class="z-entity z-name"> Some</span><span>(</span><span class="z-variable z-other">idx</span><span>)</span><span class="z-keyword"> =</span><span class="z-variable z-other"> buf</span><span class="z-keyword">.</span><span class="z-entity z-name">find</span><span>(</span><span class="z-punctuation z-definition z-string">&quot;</span><span class="z-constant">\</span><span class="z-constant">n</span><span class="z-constant">\</span><span class="z-constant">n</span><span class="z-punctuation z-definition z-string">&quot;</span><span>)</span><span> {</span></span>
+<span class="giallo-l"><span class="z-storage z-type">                let</span><span class="z-variable z-other"> event</span><span class="z-keyword">:</span><span class="z-entity z-name"> String</span><span class="z-keyword"> =</span><span class="z-variable z-other"> buf</span><span class="z-keyword">.</span><span class="z-entity z-name">drain</span><span>(</span><span class="z-keyword">..</span><span class="z-variable z-other">idx</span><span class="z-keyword"> +</span><span class="z-constant"> 2</span><span>)</span><span class="z-keyword">.</span><span class="z-entity z-name">collect</span><span>(</span><span>)</span><span>;</span></span>
+<span class="giallo-l"><span class="z-keyword">                for</span><span class="z-variable z-other"> line</span><span class="z-keyword"> in</span><span class="z-variable z-other"> event</span><span class="z-keyword">.</span><span class="z-entity z-name">lines</span><span>(</span><span>)</span><span> {</span></span>
+<span class="giallo-l"><span class="z-storage z-type">                    let</span><span class="z-variable z-other"> line</span><span class="z-keyword"> =</span><span class="z-variable z-other"> line</span><span class="z-keyword">.</span><span class="z-entity z-name">trim</span><span>(</span><span>)</span><span>;</span></span>
+<span class="giallo-l"><span class="z-storage z-type">                    let</span><span class="z-entity z-name"> Some</span><span>(</span><span class="z-variable z-other">data</span><span>)</span><span class="z-keyword"> =</span><span class="z-variable z-other"> line</span><span class="z-keyword">.</span><span class="z-entity z-name">strip_prefix</span><span>(</span><span class="z-punctuation z-definition z-string">&quot;</span><span class="z-string">data:</span><span class="z-punctuation z-definition z-string">&quot;</span><span>)</span><span class="z-keyword"> else</span><span> {</span><span class="z-keyword"> continue</span><span> }</span><span>;</span></span>
+<span class="giallo-l"><span class="z-storage z-type">                    let</span><span class="z-variable z-other"> data</span><span class="z-keyword"> =</span><span class="z-variable z-other"> data</span><span class="z-keyword">.</span><span class="z-entity z-name">trim</span><span>(</span><span>)</span><span>;</span></span>
+<span class="giallo-l"><span class="z-keyword">                    if</span><span class="z-variable z-other"> data</span><span class="z-keyword"> ==</span><span class="z-punctuation z-definition z-string"> &quot;</span><span class="z-string">[DONE]</span><span class="z-punctuation z-definition z-string">&quot;</span><span> {</span><span class="z-keyword"> return</span><span>;</span><span> }</span><span class="z-punctuation z-definition z-comment">  //</span><span class="z-comment"> 流结束标志</span></span>
+<span class="giallo-l"><span>                    </span></span>
+<span class="giallo-l"><span class="z-punctuation z-definition z-comment">                    //</span><span class="z-comment"> 用 JSON pointer 取深层字段 /choices/0/delta/content</span></span>
+<span class="giallo-l"><span class="z-keyword">                    if</span><span class="z-storage z-type"> let</span><span class="z-entity z-name"> Some</span><span>(</span><span class="z-variable z-other">delta</span><span>)</span><span class="z-keyword"> =</span><span class="z-variable z-other"> v</span><span class="z-keyword">.</span><span class="z-entity z-name">pointer</span><span>(</span><span class="z-punctuation z-definition z-string">&quot;</span><span class="z-string">/choices/0/delta/content</span><span class="z-punctuation z-definition z-string">&quot;</span><span>)</span><span class="z-keyword">.</span><span class="z-entity z-name">and_then</span><span>(</span><span class="z-keyword">|</span><span class="z-variable z-other">x</span><span class="z-keyword">|</span><span class="z-variable z-other"> x</span><span class="z-keyword">.</span><span class="z-entity z-name">as_str</span><span>(</span><span>)</span><span>)</span><span> {</span></span>
+<span class="giallo-l"><span class="z-keyword">                        if</span><span class="z-keyword"> !</span><span class="z-variable z-other">delta</span><span class="z-keyword">.</span><span class="z-entity z-name">is_empty</span><span>(</span><span>)</span><span> {</span></span>
+<span class="giallo-l"><span class="z-keyword">                            yield</span><span class="z-variable z-other"> delta</span><span class="z-keyword">.</span><span class="z-entity z-name">to_string</span><span>(</span><span>)</span><span>;</span><span class="z-punctuation z-definition z-comment">  //</span><span class="z-comment"> 产出一个 token</span></span>
+<span class="giallo-l"><span>                        }</span></span>
+<span class="giallo-l"><span>                    }</span></span>
+<span class="giallo-l"><span>                }</span></span>
+<span class="giallo-l"><span>            }</span></span>
+<span class="giallo-l"><span>        }</span></span>
+<span class="giallo-l"><span>    }</span></span>
+<span class="giallo-l"><span>}</span></span></code></pre>
+<p><strong><code>async_stream::try_stream!</code> 是什么？</strong></p>
+<p>这是个宏，让你用同步风格写异步生成器（Rust 目前还没有原生 <code>yield</code> 语法的稳定支持）。<code>yield</code> 表示「产出一个值给消费者」，<code>return</code> 表示「结束这个流」。消费者每次 <code>stream.next().await</code> 才会推进执行到下一个 <code>yield</code>。</p>
+<p><strong>举一反三</strong>：任何需要「边生产边消费」的场景都可以用这个模式——读大文件逐行处理、实时推送传感器数据、分批从 API 拉数据。关键是生产者和消费者解耦，消费者不需要等所有数据就绪。</p>
+<hr />
+<h2 id="chat-rs-he-xin-handler">chat.rs — 核心 Handler<a class="zola-anchor" href="#chat-rs-he-xin-handler" aria-label="Anchor link for: chat-rs-he-xin-handler" style="visibility: hidden;"></a>
+</h2>
+<p>这是所有逻辑汇聚的地方。整个文件可以用三个步骤概括：</p>
+<pre class="giallo z-code"><code data-lang="plain"><span class="giallo-l"><span>用户问题 → [Step 1] NL→SQL → [Step 2] 执行SQL → [Step 3] 流式解读</span></span></code></pre><h3 id="handler-qian-ming">Handler 签名<a class="zola-anchor" href="#handler-qian-ming" aria-label="Anchor link for: handler-qian-ming" style="visibility: hidden;"></a>
+</h3>
+<pre class="giallo z-code"><code data-lang="rust"><span class="giallo-l"><span class="z-keyword">pub</span><span class="z-keyword"> async</span><span class="z-keyword"> fn</span><span class="z-entity z-name"> chat</span><span>(</span></span>
+<span class="giallo-l"><span class="z-entity z-name">    State</span><span>(</span><span class="z-variable z-other">state</span><span>)</span><span class="z-keyword">:</span><span class="z-entity z-name"> State</span><span>&lt;</span><span class="z-entity z-name">AppState</span><span>&gt;</span><span>,</span><span class="z-punctuation z-definition z-comment">    //</span><span class="z-comment"> axum 自动注入全局状态</span></span>
+<span class="giallo-l"><span class="z-entity z-name">    Query</span><span>(</span><span class="z-variable z-other">qry</span><span>)</span><span class="z-keyword">:</span><span class="z-entity z-name"> Query</span><span>&lt;</span><span class="z-entity z-name">ChatQuery</span><span>&gt;</span><span>,</span><span class="z-punctuation z-definition z-comment">     //</span><span class="z-comment"> 从 URL 查询参数解析 ?q=...</span></span>
+<span class="giallo-l"><span>)</span><span class="z-keyword"> -&gt;</span><span class="z-entity z-name"> Result</span><span>&lt;</span><span class="z-entity z-name">Response</span><span>,</span><span class="z-entity z-name"> AppError</span><span>&gt;</span><span> {</span></span></code></pre>
+<p><code>ChatQuery</code> 就是：</p>
+<pre class="giallo z-code"><code data-lang="rust"><span class="giallo-l"><span>#</span><span>[</span><span>derive</span><span>(</span><span class="z-entity z-name">Deserialize</span><span>)</span><span>]</span></span>
+<span class="giallo-l"><span class="z-keyword">pub</span><span class="z-storage z-type"> struct</span><span class="z-entity z-name"> ChatQuery</span><span> {</span></span>
+<span class="giallo-l"><span class="z-keyword">    pub</span><span class="z-variable z-other"> q</span><span class="z-keyword">:</span><span class="z-entity z-name"> String</span><span>,</span></span>
+<span class="giallo-l"><span>}</span></span></code></pre>
+<p>axum 的 <code>Query</code> extractor 会自动把 <code>?q=上周各站销量</code> 解析成这个结构体，如果参数缺失会自动返回 400。</p>
+<h3 id="gou-jian-liu">构建流<a class="zola-anchor" href="#gou-jian-liu" aria-label="Anchor link for: gou-jian-liu" style="visibility: hidden;"></a>
+</h3>
+<pre class="giallo z-code"><code data-lang="rust"><span class="giallo-l"><span class="z-storage z-type">let</span><span class="z-variable z-other"> stream</span><span class="z-keyword"> =</span><span class="z-entity z-name"> async_stream</span><span class="z-keyword">::</span><span class="z-entity z-name">stream!</span><span> {</span></span>
+<span class="giallo-l"><span class="z-punctuation z-definition z-comment">    //</span><span class="z-comment"> ---- Step 1: NL → SQL ----</span></span>
+<span class="giallo-l"><span class="z-storage z-type">    let</span><span class="z-variable z-other"> system</span><span class="z-keyword"> =</span><span class="z-entity z-name"> build_sql_system</span><span>(</span><span class="z-keyword">&amp;</span><span class="z-variable z-other">state</span><span class="z-keyword">.</span><span>schema_text</span><span>,</span><span class="z-variable z-other"> state</span><span class="z-keyword">.</span><span>config</span><span class="z-keyword">.</span><span>max_rows</span><span>)</span><span>;</span></span>
+<span class="giallo-l"><span class="z-storage z-type">    let</span><span class="z-variable z-other"> raw_sql</span><span class="z-keyword"> =</span><span class="z-keyword"> match</span><span class="z-variable z-other"> state</span><span class="z-keyword">.</span><span>llm</span><span class="z-keyword">.</span><span class="z-entity z-name">complete</span><span>(</span><span class="z-keyword">&amp;</span><span class="z-variable z-other">system</span><span>,</span><span class="z-keyword"> &amp;</span><span class="z-variable z-other">question</span><span>)</span><span class="z-keyword">.</span><span class="z-keyword">await</span><span> {</span></span>
+<span class="giallo-l"><span class="z-entity z-name">        Ok</span><span>(</span><span class="z-variable z-other">s</span><span>)</span><span class="z-keyword"> =&gt;</span><span class="z-variable z-other"> s</span><span>,</span></span>
+<span class="giallo-l"><span class="z-entity z-name">        Err</span><span>(</span><span class="z-variable z-other">e</span><span>)</span><span class="z-keyword"> =&gt;</span><span> {</span></span>
+<span class="giallo-l"><span class="z-keyword">            yield</span><span class="z-entity z-name"> evt</span><span>(</span><span class="z-punctuation z-definition z-string">&quot;</span><span class="z-string">error</span><span class="z-punctuation z-definition z-string">&quot;</span><span>,</span><span class="z-keyword"> &amp;</span><span class="z-entity z-name">format!</span><span>(</span><span class="z-punctuation z-definition z-string">&quot;</span><span class="z-string">LLM 生成 SQL 失败: </span><span class="z-string">{</span><span class="z-string">e</span><span class="z-string">}</span><span class="z-punctuation z-definition z-string">&quot;</span><span>)</span><span>)</span><span>;</span></span>
+<span class="giallo-l"><span class="z-keyword">            return</span><span>;</span><span class="z-punctuation z-definition z-comment">  //</span><span class="z-comment"> 出错就终止流</span></span>
+<span class="giallo-l"><span>        }</span></span>
+<span class="giallo-l"><span>    }</span><span>;</span></span></code></pre>
+<p><code>build_sql_system</code> 把表结构 schema 文本拼进 system prompt，让 LLM 知道有哪些表可用，并明确约束：只允许 SELECT、不要分号、不要 markdown 代码围栏、必须加 LIMIT。</p>
+<pre class="giallo z-code"><code data-lang="rust"><span class="giallo-l"><span class="z-storage z-type">    let</span><span class="z-variable z-other"> candidate</span><span class="z-keyword"> =</span><span class="z-entity z-name"> strip_fences</span><span>(</span><span class="z-keyword">&amp;</span><span class="z-variable z-other">raw_sql</span><span>)</span><span>;</span><span class="z-punctuation z-definition z-comment">  //</span><span class="z-comment"> 去掉 LLM 可能包的 ```sql ... ``` 围栏</span></span>
+<span class="giallo-l"><span class="z-storage z-type">    let</span><span class="z-variable z-other"> sql</span><span class="z-keyword"> =</span><span class="z-keyword"> match</span><span class="z-entity z-name"> sql_guard</span><span class="z-keyword">::</span><span class="z-entity z-name">validate</span><span>(</span><span class="z-keyword">&amp;</span><span class="z-variable z-other">candidate</span><span>)</span><span> {</span></span>
+<span class="giallo-l"><span class="z-entity z-name">        Ok</span><span>(</span><span class="z-variable z-other">s</span><span>)</span><span class="z-keyword"> =&gt;</span><span class="z-variable z-other"> s</span><span>,</span></span>
+<span class="giallo-l"><span class="z-entity z-name">        Err</span><span>(</span><span class="z-variable z-other">e</span><span>)</span><span class="z-keyword"> =&gt;</span><span> {</span></span>
+<span class="giallo-l"><span class="z-keyword">            yield</span><span class="z-entity z-name"> evt</span><span>(</span><span class="z-punctuation z-definition z-string">&quot;</span><span class="z-string">error</span><span class="z-punctuation z-definition z-string">&quot;</span><span>,</span><span class="z-keyword"> &amp;</span><span class="z-entity z-name">format!</span><span>(</span><span class="z-punctuation z-definition z-string">&quot;</span><span class="z-string">SQL 校验未通过: </span><span class="z-string">{</span><span class="z-string">e</span><span class="z-string">}</span><span class="z-constant">\</span><span class="z-constant">n</span><span class="z-string">LLM 输出: </span><span class="z-string">{</span><span class="z-string">raw_sql</span><span class="z-string">}</span><span class="z-punctuation z-definition z-string">&quot;</span><span>)</span><span>)</span><span>;</span></span>
+<span class="giallo-l"><span class="z-keyword">            return</span><span>;</span></span>
+<span class="giallo-l"><span>        }</span></span>
+<span class="giallo-l"><span>    }</span><span>;</span></span>
+<span class="giallo-l"><span class="z-keyword">    yield</span><span class="z-entity z-name"> evt</span><span>(</span><span class="z-punctuation z-definition z-string">&quot;</span><span class="z-string">sql</span><span class="z-punctuation z-definition z-string">&quot;</span><span>,</span><span class="z-keyword"> &amp;</span><span class="z-variable z-other">sql</span><span>)</span><span>;</span><span class="z-punctuation z-definition z-comment">  //</span><span class="z-comment"> 推送一个 &quot;sql&quot; 事件，前端可以展示 SQL</span></span></code></pre>
+<p><strong><code>yield evt("sql", &amp;sql)</code> 的含义</strong>：这是 SSE 中的一个命名事件，前端可以：</p>
+<pre class="giallo z-code"><code data-lang="javascript"><span class="giallo-l"><span class="z-variable z-other">source</span><span>.</span><span class="z-entity z-name">addEventListener</span><span>(</span><span class="z-punctuation z-definition z-string">&#39;</span><span class="z-string">sql</span><span class="z-punctuation z-definition z-string">&#39;</span><span>,</span><span class="z-variable"> e</span><span class="z-storage z-type"> =&gt;</span><span> {</span></span>
+<span class="giallo-l"><span class="z-entity z-name">    showSqlBlock</span><span>(</span><span class="z-variable z-other">e</span><span>.</span><span class="z-variable z-other">data</span><span>)</span><span>;</span><span class="z-punctuation z-definition z-comment">  //</span><span class="z-comment"> 把 SQL 展示给用户看</span></span>
+<span class="giallo-l"><span>}</span><span>)</span><span>;</span></span></code></pre><h3 id="step-2-zhi-xing-sql">Step 2：执行 SQL<a class="zola-anchor" href="#step-2-zhi-xing-sql" aria-label="Anchor link for: step-2-zhi-xing-sql" style="visibility: hidden;"></a>
+</h3>
+<pre class="giallo z-code"><code data-lang="rust"><span class="giallo-l"><span class="z-storage z-type">    let</span><span class="z-variable z-other"> wrapped</span><span class="z-keyword"> =</span><span class="z-entity z-name"> format!</span><span>(</span></span>
+<span class="giallo-l"><span class="z-punctuation z-definition z-string">        &quot;</span><span class="z-string">SELECT COALESCE(jsonb_agg(t), &#39;[]&#39;::jsonb) \</span></span>
+<span class="giallo-l"><span class="z-string">         FROM (SELECT * FROM (</span><span class="z-string">{</span><span class="z-string">sql</span><span class="z-string">}</span><span class="z-string">) sub LIMIT </span><span class="z-string">{</span><span class="z-string">limit</span><span class="z-string">}</span><span class="z-string">) t</span><span class="z-punctuation z-definition z-string">&quot;</span><span>,</span></span>
+<span class="giallo-l"><span class="z-variable z-other">        sql</span><span class="z-keyword"> =</span><span class="z-variable z-other"> sql</span><span>,</span></span>
+<span class="giallo-l"><span class="z-variable z-other">        limit</span><span class="z-keyword"> =</span><span class="z-variable z-other"> state</span><span class="z-keyword">.</span><span>config</span><span class="z-keyword">.</span><span>max_rows</span><span>,</span></span>
+<span class="giallo-l"><span>    )</span><span>;</span></span></code></pre>
+<p>这个技巧值得细说。原始 SQL 可能是：</p>
+<pre class="giallo z-code"><code data-lang="sql"><span class="giallo-l"><span class="z-keyword">SELECT</span><span> station_name, </span><span class="z-support">SUM</span><span>(</span><span>amount) </span><span class="z-keyword">FROM</span><span> orders </span><span class="z-keyword">GROUP BY</span><span> station_name</span></span></code></pre>
+<p>包装后变成：</p>
+<pre class="giallo z-code"><code data-lang="sql"><span class="giallo-l"><span class="z-keyword">SELECT</span><span class="z-support"> COALESCE</span><span>(</span><span>jsonb_agg(t), </span><span class="z-punctuation z-definition z-string">&#39;</span><span class="z-string">[]</span><span class="z-punctuation z-definition z-string">&#39;</span><span>::jsonb)</span></span>
+<span class="giallo-l"><span class="z-keyword">FROM</span><span> (</span><span class="z-keyword">SELECT</span><span class="z-keyword"> *</span><span class="z-keyword"> FROM</span><span> (</span><span class="z-keyword">SELECT</span><span> station_name, </span><span class="z-support">SUM</span><span>(</span><span>amount) </span><span class="z-keyword">FROM</span><span> orders </span><span class="z-keyword">GROUP BY</span><span> station_name) sub </span><span class="z-keyword">LIMIT</span><span class="z-constant"> 200</span><span>) t</span></span></code></pre>
+<p>这样做的好处：</p>
+<ol>
+<li><strong>无论原始 SQL 返回多少列，统一变成一个 JSON 数组</strong>，<code>sqlx::query_as::&lt;_, (serde_json::Value,)&gt;</code> 能直接接收</li>
+<li><strong>`COALESCE(..., '[]'::jsonb)</strong> 保证查无结果时返回空数组而不是 NULL</li>
+<li><strong>外层加 LIMIT</strong> 防止 LLM 忘加或故意不加导致返回百万行</li>
+</ol>
+<pre class="giallo z-code"><code data-lang="rust"><span class="giallo-l"><span class="z-storage z-type">    let</span><span class="z-variable z-other"> exec</span><span class="z-keyword">:</span><span class="z-entity z-name"> Result</span><span>&lt;</span><span>(</span><span class="z-variable z-other">serde_json</span><span class="z-keyword">::</span><span class="z-entity z-name">Value</span><span>,</span><span>)</span><span>,</span><span class="z-variable z-other"> sqlx</span><span class="z-keyword">::</span><span class="z-entity z-name">Error</span><span>&gt;</span><span class="z-keyword"> =</span></span>
+<span class="giallo-l"><span class="z-entity z-name">        sqlx</span><span class="z-keyword">::</span><span class="z-entity z-name">query_as</span><span>(</span><span class="z-keyword">&amp;</span><span class="z-variable z-other">wrapped</span><span>)</span><span class="z-keyword">.</span><span class="z-entity z-name">fetch_one</span><span>(</span><span class="z-keyword">&amp;</span><span class="z-variable z-other">state</span><span class="z-keyword">.</span><span>pool</span><span>)</span><span class="z-keyword">.</span><span class="z-keyword">await</span><span>;</span></span>
+<span class="giallo-l"><span class="z-storage z-type">    let</span><span class="z-variable z-other"> rows</span><span class="z-keyword"> =</span><span class="z-keyword"> match</span><span class="z-variable z-other"> exec</span><span> {</span></span>
+<span class="giallo-l"><span class="z-entity z-name">        Ok</span><span>(</span><span>(</span><span class="z-variable z-other">v</span><span>,</span><span>)</span><span>)</span><span class="z-keyword"> =&gt;</span><span class="z-variable z-other"> v</span><span>,</span></span>
+<span class="giallo-l"><span class="z-entity z-name">        Err</span><span>(</span><span class="z-variable z-other">e</span><span>)</span><span class="z-keyword"> =&gt;</span><span> {</span></span>
+<span class="giallo-l"><span class="z-keyword">            yield</span><span class="z-entity z-name"> evt</span><span>(</span><span class="z-punctuation z-definition z-string">&quot;</span><span class="z-string">error</span><span class="z-punctuation z-definition z-string">&quot;</span><span>,</span><span class="z-keyword"> &amp;</span><span class="z-entity z-name">format!</span><span>(</span><span class="z-punctuation z-definition z-string">&quot;</span><span class="z-string">SQL 执行失败: </span><span class="z-string">{</span><span class="z-string">e</span><span class="z-string">}</span><span class="z-punctuation z-definition z-string">&quot;</span><span>)</span><span>)</span><span>;</span></span>
+<span class="giallo-l"><span class="z-keyword">            return</span><span>;</span></span>
+<span class="giallo-l"><span>        }</span></span>
+<span class="giallo-l"><span>    }</span><span>;</span></span>
+<span class="giallo-l"><span class="z-storage z-type">    let</span><span class="z-variable z-other"> rows_str</span><span class="z-keyword"> =</span><span class="z-entity z-name"> serde_json</span><span class="z-keyword">::</span><span class="z-entity z-name">to_string</span><span>(</span><span class="z-keyword">&amp;</span><span class="z-variable z-other">rows</span><span>)</span><span class="z-keyword">.</span><span class="z-entity z-name">unwrap_or_else</span><span>(</span><span class="z-keyword">|</span><span class="z-variable z-other">_</span><span class="z-keyword">|</span><span class="z-punctuation z-definition z-string"> &quot;</span><span class="z-string">[]</span><span class="z-punctuation z-definition z-string">&quot;</span><span class="z-keyword">.</span><span class="z-entity z-name">into</span><span>(</span><span>)</span><span>)</span><span>;</span></span>
+<span class="giallo-l"><span class="z-keyword">    yield</span><span class="z-entity z-name"> evt</span><span>(</span><span class="z-punctuation z-definition z-string">&quot;</span><span class="z-string">rows</span><span class="z-punctuation z-definition z-string">&quot;</span><span>,</span><span class="z-keyword"> &amp;</span><span class="z-variable z-other">rows_str</span><span>)</span><span>;</span><span class="z-punctuation z-definition z-comment">  //</span><span class="z-comment"> 推送原始数据，前端可以渲染表格</span></span></code></pre><h3 id="step-3-liu-shi-hui-da">Step 3：流式回答<a class="zola-anchor" href="#step-3-liu-shi-hui-da" aria-label="Anchor link for: step-3-liu-shi-hui-da" style="visibility: hidden;"></a>
+</h3>
+<pre class="giallo z-code"><code data-lang="rust"><span class="giallo-l"><span class="z-storage z-type">    let</span><span class="z-variable z-other"> answer_system</span><span class="z-keyword"> =</span><span class="z-punctuation z-definition z-string"> &quot;</span><span class="z-string">你是氢能业务数据分析助手。基于给定的 SQL 与查询结果(JSON)，\</span></span>
+<span class="giallo-l"><span class="z-string">                         用简洁中文回答用户。直接引用关键数字；必要时给出对比或趋势观察；\</span></span>
+<span class="giallo-l"><span class="z-string">                         不要重复 SQL。</span><span class="z-punctuation z-definition z-string">&quot;</span><span>;</span></span>
+<span class="giallo-l"><span class="z-storage z-type">    let</span><span class="z-variable z-other"> answer_user</span><span class="z-keyword"> =</span><span class="z-entity z-name"> format!</span><span>(</span></span>
+<span class="giallo-l"><span class="z-punctuation z-definition z-string">        &quot;</span><span class="z-string">问题：</span><span class="z-string">{</span><span class="z-string">q</span><span class="z-string">}</span><span class="z-constant">\</span><span class="z-constant">n</span><span class="z-constant">\</span><span class="z-constant">n</span><span class="z-string">执行的 SQL：</span><span class="z-constant">\</span><span class="z-constant">n</span><span class="z-string">{</span><span class="z-string">sql</span><span class="z-string">}</span><span class="z-constant">\</span><span class="z-constant">n</span><span class="z-constant">\</span><span class="z-constant">n</span><span class="z-string">查询结果(JSON)：</span><span class="z-constant">\</span><span class="z-constant">n</span><span class="z-string">{</span><span class="z-string">rows_str</span><span class="z-string">}</span><span class="z-constant">\</span><span class="z-constant">n</span><span class="z-constant">\</span><span class="z-constant">n</span><span class="z-string">请回答：</span><span class="z-punctuation z-definition z-string">&quot;</span><span>,</span></span>
+<span class="giallo-l"><span class="z-variable z-other">        q</span><span class="z-keyword"> =</span><span class="z-variable z-other"> question</span></span>
+<span class="giallo-l"><span>    )</span><span>;</span></span>
+<span class="giallo-l"><span class="z-storage z-type">    let</span><span class="z-storage"> mut</span><span class="z-variable z-other"> tokens</span><span class="z-keyword"> =</span><span class="z-variable z-other"> state</span><span class="z-keyword">.</span><span>llm</span><span class="z-keyword">.</span><span class="z-entity z-name">stream</span><span>(</span><span class="z-variable z-other">answer_system</span><span>,</span><span class="z-keyword"> &amp;</span><span class="z-variable z-other">answer_user</span><span>)</span><span class="z-keyword">.</span><span class="z-keyword">await</span><span class="z-keyword">?</span><span>;</span></span>
+<span class="giallo-l"><span class="z-keyword">    while</span><span class="z-storage z-type"> let</span><span class="z-entity z-name"> Some</span><span>(</span><span class="z-variable z-other">tk</span><span>)</span><span class="z-keyword"> =</span><span class="z-variable z-other"> tokens</span><span class="z-keyword">.</span><span class="z-entity z-name">next</span><span>(</span><span>)</span><span class="z-keyword">.</span><span class="z-keyword">await</span><span> {</span></span>
+<span class="giallo-l"><span class="z-keyword">        match</span><span class="z-variable z-other"> tk</span><span> {</span></span>
+<span class="giallo-l"><span class="z-entity z-name">            Ok</span><span>(</span><span class="z-variable z-other">text</span><span>)</span><span class="z-keyword"> if</span><span class="z-keyword"> !</span><span class="z-variable z-other">text</span><span class="z-keyword">.</span><span class="z-entity z-name">is_empty</span><span>(</span><span>)</span><span class="z-keyword"> =&gt;</span><span class="z-keyword"> yield</span><span class="z-entity z-name"> evt_data</span><span>(</span><span class="z-keyword">&amp;</span><span class="z-variable z-other">text</span><span>)</span><span>,</span><span class="z-punctuation z-definition z-comment">  //</span><span class="z-comment"> 每个 token 立即推送</span></span>
+<span class="giallo-l"><span class="z-entity z-name">            Err</span><span>(</span><span class="z-variable z-other">e</span><span>)</span><span class="z-keyword"> =&gt;</span><span> {</span><span class="z-keyword"> yield</span><span class="z-entity z-name"> evt</span><span>(</span><span class="z-punctuation z-definition z-string">&quot;</span><span class="z-string">error</span><span class="z-punctuation z-definition z-string">&quot;</span><span>,</span><span class="z-keyword"> &amp;</span><span class="z-entity z-name">format!</span><span>(</span><span class="z-punctuation z-definition z-string">&quot;</span><span class="z-string">流中断: </span><span class="z-string">{</span><span class="z-string">e</span><span class="z-string">}</span><span class="z-punctuation z-definition z-string">&quot;</span><span>)</span><span>)</span><span>;</span><span class="z-keyword"> return</span><span>;</span><span> }</span></span>
+<span class="giallo-l"><span class="z-variable z-other">            _</span><span class="z-keyword"> =&gt;</span><span> {</span><span>}</span></span>
+<span class="giallo-l"><span>        }</span></span>
+<span class="giallo-l"><span>    }</span></span>
+<span class="giallo-l"><span class="z-keyword">    yield</span><span class="z-entity z-name"> evt_data</span><span>(</span><span class="z-punctuation z-definition z-string">&quot;</span><span class="z-string">[DONE]</span><span class="z-punctuation z-definition z-string">&quot;</span><span>)</span><span>;</span><span class="z-punctuation z-definition z-comment">  //</span><span class="z-comment"> 前端用这个信号停止 loading 动画</span></span></code></pre>
+<p>这里把 <strong>SQL 本身也传给了解读 LLM</strong>，这样 LLM 能理解数据来源（比如知道是按周 GROUP BY 的），回答会更准确，也不会编造数据。</p>
+<h3 id="fan-hui-sse-xiang-ying">返回 SSE 响应<a class="zola-anchor" href="#fan-hui-sse-xiang-ying" aria-label="Anchor link for: fan-hui-sse-xiang-ying" style="visibility: hidden;"></a>
+</h3>
+<pre class="giallo z-code"><code data-lang="rust"><span class="giallo-l"><span class="z-storage z-type">    let</span><span class="z-variable z-other"> sse</span><span class="z-keyword"> =</span><span class="z-entity z-name"> Sse</span><span class="z-keyword">::</span><span class="z-entity z-name">new</span><span>(</span><span class="z-entity z-name">Box</span><span class="z-keyword">::</span><span class="z-entity z-name">pin</span><span>(</span><span class="z-variable z-other">stream</span><span>)</span><span>)</span></span>
+<span class="giallo-l"><span class="z-keyword">        .</span><span class="z-entity z-name">keep_alive</span><span>(</span><span class="z-entity z-name">KeepAlive</span><span class="z-keyword">::</span><span class="z-entity z-name">new</span><span>(</span><span>)</span><span class="z-keyword">.</span><span class="z-entity z-name">interval</span><span>(</span><span class="z-entity z-name">Duration</span><span class="z-keyword">::</span><span class="z-entity z-name">from_secs</span><span>(</span><span class="z-constant">15</span><span>)</span><span>)</span><span>)</span><span>;</span></span>
+<span class="giallo-l"><span class="z-entity z-name">    Ok</span><span>(</span><span class="z-variable z-other">sse</span><span class="z-keyword">.</span><span class="z-entity z-name">into_response</span><span>(</span><span>)</span><span>)</span></span></code></pre>
+<p><code>Box::pin</code> 把流放到堆上并固定内存地址（异步流内部有自引用，不 pin 就移不了）。<code>KeepAlive</code> 每 15 秒发一个空注释行 <code>: keepalive</code>，防止浏览器认为连接断了而重连。</p>
+<hr />
+<h2 id="main-rs-ba-ling-jian-zu-zhuang-qi-lai">main.rs — 把零件组装起来<a class="zola-anchor" href="#main-rs-ba-ling-jian-zu-zhuang-qi-lai" aria-label="Anchor link for: main-rs-ba-ling-jian-zu-zhuang-qi-lai" style="visibility: hidden;"></a>
+</h2>
+<pre class="giallo z-code"><code data-lang="rust"><span class="giallo-l"><span>#</span><span>[</span><span>tokio</span><span class="z-keyword">::</span><span>main</span><span>]</span></span>
+<span class="giallo-l"><span class="z-keyword">async</span><span class="z-keyword"> fn</span><span class="z-entity z-name"> main</span><span>(</span><span>)</span><span class="z-keyword"> -&gt;</span><span class="z-entity z-name"> Result</span><span>&lt;</span><span>(</span><span>)</span><span>&gt;</span><span> {</span></span>
+<span class="giallo-l"><span class="z-punctuation z-definition z-comment">    //</span><span class="z-comment"> 1. 初始化日志</span></span>
+<span class="giallo-l"><span class="z-entity z-name">    tracing_subscriber</span><span class="z-keyword">::</span><span class="z-entity z-name">fmt</span><span>(</span><span>)</span></span>
+<span class="giallo-l"><span class="z-keyword">        .</span><span class="z-entity z-name">with_env_filter</span><span>(</span><span class="z-entity z-name">EnvFilter</span><span class="z-keyword">::</span><span class="z-entity z-name">try_from_default_env</span><span>(</span><span>)</span></span>
+<span class="giallo-l"><span class="z-keyword">            .</span><span class="z-entity z-name">unwrap_or_else</span><span>(</span><span class="z-keyword">|</span><span class="z-variable z-other">_</span><span class="z-keyword">|</span><span class="z-entity z-name"> EnvFilter</span><span class="z-keyword">::</span><span class="z-entity z-name">new</span><span>(</span><span class="z-punctuation z-definition z-string">&quot;</span><span class="z-string">info</span><span class="z-punctuation z-definition z-string">&quot;</span><span>)</span><span>)</span><span>)</span></span>
+<span class="giallo-l"><span class="z-keyword">        .</span><span class="z-entity z-name">init</span><span>(</span><span>)</span><span>;</span></span>
+<span class="giallo-l"></span>
+<span class="giallo-l"><span class="z-punctuation z-definition z-comment">    //</span><span class="z-comment"> 2. 读配置</span></span>
+<span class="giallo-l"><span class="z-storage z-type">    let</span><span class="z-variable z-other"> cfg</span><span class="z-keyword"> =</span><span class="z-entity z-name"> Config</span><span class="z-keyword">::</span><span class="z-entity z-name">from_env</span><span>(</span><span>)</span><span class="z-keyword">?</span><span>;</span></span>
+<span class="giallo-l"></span>
+<span class="giallo-l"><span class="z-punctuation z-definition z-comment">    //</span><span class="z-comment"> 3. 建数据库连接池</span></span>
+<span class="giallo-l"><span class="z-storage z-type">    let</span><span class="z-variable z-other"> pool</span><span class="z-keyword"> =</span><span class="z-entity z-name"> PgPoolOptions</span><span class="z-keyword">::</span><span class="z-entity z-name">new</span><span>(</span><span>)</span></span>
+<span class="giallo-l"><span class="z-keyword">        .</span><span class="z-entity z-name">max_connections</span><span>(</span><span class="z-constant">8</span><span>)</span></span>
+<span class="giallo-l"><span class="z-keyword">        .</span><span class="z-entity z-name">acquire_timeout</span><span>(</span><span class="z-entity z-name">Duration</span><span class="z-keyword">::</span><span class="z-entity z-name">from_secs</span><span>(</span><span class="z-constant">10</span><span>)</span><span>)</span></span>
+<span class="giallo-l"><span class="z-keyword">        .</span><span class="z-entity z-name">after_connect</span><span>(</span><span class="z-keyword">|</span><span class="z-variable z-other">conn</span><span>,</span><span class="z-variable z-other"> _meta</span><span class="z-keyword">|</span><span> {</span></span>
+<span class="giallo-l"><span class="z-entity z-name">            Box</span><span class="z-keyword">::</span><span class="z-entity z-name">pin</span><span>(</span><span class="z-keyword">async</span><span class="z-keyword"> move</span><span> {</span></span>
+<span class="giallo-l"><span class="z-punctuation z-definition z-comment">                //</span><span class="z-comment"> 每个连接建立后，设置语句超时 30s，防止 LLM 生成的慢查询拖垮服务</span></span>
+<span class="giallo-l"><span class="z-entity z-name">                sqlx</span><span class="z-keyword">::</span><span class="z-entity z-name">query</span><span>(</span><span class="z-punctuation z-definition z-string">&quot;</span><span class="z-string">SET statement_timeout = &#39;30s&#39;</span><span class="z-punctuation z-definition z-string">&quot;</span><span>)</span><span class="z-keyword">.</span><span class="z-entity z-name">execute</span><span>(</span><span class="z-keyword">&amp;</span><span class="z-storage">mut</span><span class="z-keyword"> *</span><span class="z-variable z-other">conn</span><span>)</span><span class="z-keyword">.</span><span class="z-keyword">await</span><span class="z-keyword">?</span><span>;</span></span>
+<span class="giallo-l"><span class="z-entity z-name">                Ok</span><span>(</span><span>(</span><span>)</span><span>)</span></span>
+<span class="giallo-l"><span>            }</span><span>)</span></span>
+<span class="giallo-l"><span>        }</span><span>)</span></span>
+<span class="giallo-l"><span class="z-keyword">        .</span><span class="z-entity z-name">connect</span><span>(</span><span class="z-keyword">&amp;</span><span class="z-variable z-other">cfg</span><span class="z-keyword">.</span><span>database_url</span><span>)</span></span>
+<span class="giallo-l"><span class="z-keyword">        .</span><span class="z-keyword">await</span><span class="z-keyword">?</span><span>;</span></span>
+<span class="giallo-l"></span>
+<span class="giallo-l"><span class="z-punctuation z-definition z-comment">    //</span><span class="z-comment"> 4. 扫描 schema（启动时只做一次）</span></span>
+<span class="giallo-l"><span class="z-storage z-type">    let</span><span class="z-variable z-other"> schema_text</span><span class="z-keyword"> =</span><span class="z-entity z-name"> schema</span><span class="z-keyword">::</span><span class="z-entity z-name">introspect</span><span>(</span><span class="z-keyword">&amp;</span><span class="z-variable z-other">pool</span><span>,</span><span class="z-keyword"> &amp;</span><span class="z-variable z-other">cfg</span><span class="z-keyword">.</span><span>exposed_schemas</span><span>)</span><span class="z-keyword">.</span><span class="z-keyword">await</span><span class="z-keyword">?</span><span>;</span></span>
+<span class="giallo-l"></span>
+<span class="giallo-l"><span class="z-punctuation z-definition z-comment">    //</span><span class="z-comment"> 5. 创建 LLM 客户端</span></span>
+<span class="giallo-l"><span class="z-storage z-type">    let</span><span class="z-variable z-other"> llm</span><span class="z-keyword"> =</span><span class="z-entity z-name"> DeepSeek</span><span class="z-keyword">::</span><span class="z-entity z-name">new</span><span>(</span><span class="z-variable z-other">cfg</span><span class="z-keyword">.</span><span>deepseek_base_url</span><span class="z-keyword">.</span><span class="z-entity z-name">clone</span><span>(</span><span>)</span><span>,</span><span class="z-variable z-other"> cfg</span><span class="z-keyword">.</span><span>deepseek_api_key</span><span class="z-keyword">.</span><span class="z-entity z-name">clone</span><span>(</span><span>)</span><span>,</span><span class="z-variable z-other"> cfg</span><span class="z-keyword">.</span><span>deepseek_model</span><span class="z-keyword">.</span><span class="z-entity z-name">clone</span><span>(</span><span>)</span><span>)</span><span>;</span></span>
+<span class="giallo-l"></span>
+<span class="giallo-l"><span class="z-punctuation z-definition z-comment">    //</span><span class="z-comment"> 6. 组装全局状态</span></span>
+<span class="giallo-l"><span class="z-storage z-type">    let</span><span class="z-variable z-other"> state</span><span class="z-keyword"> =</span><span class="z-entity z-name"> AppState</span><span> {</span><span class="z-variable z-other"> pool</span><span>,</span><span class="z-variable z-other"> llm</span><span>,</span><span class="z-variable z-other"> config</span><span class="z-keyword">:</span><span class="z-entity z-name"> Arc</span><span class="z-keyword">::</span><span class="z-entity z-name">new</span><span>(</span><span class="z-variable z-other">cfg</span><span class="z-keyword">.</span><span class="z-entity z-name">clone</span><span>(</span><span>)</span><span>)</span><span>,</span><span class="z-variable z-other"> schema_text</span><span class="z-keyword">:</span><span class="z-entity z-name"> Arc</span><span class="z-keyword">::</span><span class="z-entity z-name">new</span><span>(</span><span class="z-variable z-other">schema_text</span><span>)</span><span> }</span><span>;</span></span>
+<span class="giallo-l"></span>
+<span class="giallo-l"><span class="z-punctuation z-definition z-comment">    //</span><span class="z-comment"> 7. 配置 CORS（允许前端跨域）</span></span>
+<span class="giallo-l"><span class="z-storage z-type">    let</span><span class="z-variable z-other"> cors</span><span class="z-keyword"> =</span><span class="z-entity z-name"> CorsLayer</span><span class="z-keyword">::</span><span class="z-entity z-name">new</span><span>(</span><span>)</span></span>
+<span class="giallo-l"><span class="z-keyword">        .</span><span class="z-entity z-name">allow_methods</span><span>(</span><span>[</span><span class="z-entity z-name">Method</span><span class="z-keyword">::</span><span class="z-constant">GET</span><span>,</span><span class="z-entity z-name"> Method</span><span class="z-keyword">::</span><span class="z-constant">POST</span><span>,</span><span class="z-entity z-name"> Method</span><span class="z-keyword">::</span><span class="z-constant">OPTIONS</span><span>]</span><span>)</span></span>
+<span class="giallo-l"><span class="z-keyword">        .</span><span class="z-entity z-name">allow_headers</span><span>(</span><span class="z-entity z-name">Any</span><span>)</span></span>
+<span class="giallo-l"><span class="z-keyword">        .</span><span class="z-entity z-name">allow_origin</span><span>(</span><span class="z-entity z-name">Any</span><span>)</span><span>;</span></span>
+<span class="giallo-l"></span>
+<span class="giallo-l"><span class="z-punctuation z-definition z-comment">    //</span><span class="z-comment"> 8. 定义路由</span></span>
+<span class="giallo-l"><span class="z-storage z-type">    let</span><span class="z-variable z-other"> app</span><span class="z-keyword"> =</span><span class="z-entity z-name"> Router</span><span class="z-keyword">::</span><span class="z-entity z-name">new</span><span>(</span><span>)</span></span>
+<span class="giallo-l"><span class="z-keyword">        .</span><span class="z-entity z-name">route</span><span>(</span><span class="z-punctuation z-definition z-string">&quot;</span><span class="z-string">/chat</span><span class="z-punctuation z-definition z-string">&quot;</span><span>,</span><span class="z-entity z-name"> get</span><span>(</span><span class="z-variable z-other">chat</span><span>)</span><span>)</span></span>
+<span class="giallo-l"><span class="z-keyword">        .</span><span class="z-entity z-name">route</span><span>(</span><span class="z-punctuation z-definition z-string">&quot;</span><span class="z-string">/health</span><span class="z-punctuation z-definition z-string">&quot;</span><span>,</span><span class="z-entity z-name"> get</span><span>(</span><span class="z-keyword">|</span><span class="z-keyword">|</span><span class="z-keyword"> async</span><span> {</span><span class="z-punctuation z-definition z-string"> &quot;</span><span class="z-string">ok</span><span class="z-punctuation z-definition z-string">&quot;</span><span> }</span><span>)</span><span>)</span></span>
+<span class="giallo-l"><span class="z-keyword">        .</span><span class="z-entity z-name">with_state</span><span>(</span><span class="z-variable z-other">state</span><span>)</span></span>
+<span class="giallo-l"><span class="z-keyword">        .</span><span class="z-entity z-name">layer</span><span>(</span><span class="z-entity z-name">TraceLayer</span><span class="z-keyword">::</span><span class="z-entity z-name">new_for_http</span><span>(</span><span>)</span><span>)</span><span class="z-punctuation z-definition z-comment">  //</span><span class="z-comment"> 自动打印每个请求的日志</span></span>
+<span class="giallo-l"><span class="z-keyword">        .</span><span class="z-entity z-name">layer</span><span>(</span><span class="z-variable z-other">cors</span><span>)</span><span>;</span></span>
+<span class="giallo-l"></span>
+<span class="giallo-l"><span class="z-punctuation z-definition z-comment">    //</span><span class="z-comment"> 9. 启动监听</span></span>
+<span class="giallo-l"><span class="z-storage z-type">    let</span><span class="z-variable z-other"> listener</span><span class="z-keyword"> =</span><span class="z-entity z-name"> tokio</span><span class="z-keyword">::</span><span class="z-entity z-name">net</span><span class="z-keyword">::</span><span class="z-entity z-name">TcpListener</span><span class="z-keyword">::</span><span class="z-entity z-name">bind</span><span>(</span><span class="z-keyword">&amp;</span><span class="z-variable z-other">cfg</span><span class="z-keyword">.</span><span>bind_addr</span><span>)</span><span class="z-keyword">.</span><span class="z-keyword">await</span><span class="z-keyword">?</span><span>;</span></span>
+<span class="giallo-l"><span class="z-entity z-name">    axum</span><span class="z-keyword">::</span><span class="z-entity z-name">serve</span><span>(</span><span class="z-variable z-other">listener</span><span>,</span><span class="z-variable z-other"> app</span><span>)</span><span class="z-keyword">.</span><span class="z-keyword">await</span><span class="z-keyword">?</span><span>;</span></span>
+<span class="giallo-l"><span class="z-entity z-name">    Ok</span><span>(</span><span>(</span><span>)</span><span>)</span></span>
+<span class="giallo-l"><span>}</span></span></code></pre>
+<p>注意 <code>.after_connect</code> 这个细节——它在每个连接创建后立刻设置 <code>statement_timeout</code>。这是防御性编程：LLM 可能生成全表扫描 SQL，没有超时的话一条慢查询能占用连接池 8 个连接中的一个，积累几个后整个服务就饿死了。</p>
+<hr />
+<h2 id="qian-duan-dui-jie">前端对接<a class="zola-anchor" href="#qian-duan-dui-jie" aria-label="Anchor link for: qian-duan-dui-jie" style="visibility: hidden;"></a>
+</h2>
+<p>浏览器侧只需要十几行 JS：</p>
+<pre class="giallo z-code"><code data-lang="javascript"><span class="giallo-l"><span class="z-storage z-type">const</span><span class="z-variable z-other z-constant"> source</span><span class="z-keyword"> =</span><span class="z-keyword"> new</span><span class="z-entity z-name"> EventSource</span><span>(</span><span class="z-punctuation z-definition z-string">`</span><span class="z-string">/chat?q=</span><span class="z-string">${</span><span class="z-entity z-name">encodeURIComponent</span><span class="z-string">(</span><span class="z-variable z-other">question</span><span class="z-string">)</span><span class="z-string">}</span><span class="z-punctuation z-definition z-string">`</span><span>)</span><span>;</span></span>
+<span class="giallo-l"></span>
+<span class="giallo-l"><span class="z-punctuation z-definition z-comment">//</span><span class="z-comment"> 拿到 LLM 生成的 SQL（可展示给用户）</span></span>
+<span class="giallo-l"><span class="z-variable z-other">source</span><span>.</span><span class="z-entity z-name">addEventListener</span><span>(</span><span class="z-punctuation z-definition z-string">&#39;</span><span class="z-string">sql</span><span class="z-punctuation z-definition z-string">&#39;</span><span>,</span><span class="z-variable"> e</span><span class="z-storage z-type"> =&gt;</span><span> {</span></span>
+<span class="giallo-l"><span class="z-variable z-other">    document</span><span>.</span><span class="z-entity z-name">getElementById</span><span>(</span><span class="z-punctuation z-definition z-string">&#39;</span><span class="z-string">sql-block</span><span class="z-punctuation z-definition z-string">&#39;</span><span>)</span><span>.</span><span class="z-variable z-other">textContent</span><span class="z-keyword"> =</span><span class="z-variable z-other"> e</span><span>.</span><span class="z-variable z-other">data</span><span>;</span></span>
+<span class="giallo-l"><span>}</span><span>)</span><span>;</span></span>
+<span class="giallo-l"></span>
+<span class="giallo-l"><span class="z-punctuation z-definition z-comment">//</span><span class="z-comment"> 拿到原始数据（可渲染为表格）</span></span>
+<span class="giallo-l"><span class="z-variable z-other">source</span><span>.</span><span class="z-entity z-name">addEventListener</span><span>(</span><span class="z-punctuation z-definition z-string">&#39;</span><span class="z-string">rows</span><span class="z-punctuation z-definition z-string">&#39;</span><span>,</span><span class="z-variable"> e</span><span class="z-storage z-type"> =&gt;</span><span> {</span></span>
+<span class="giallo-l"><span class="z-storage z-type">    const</span><span class="z-variable z-other z-constant"> rows</span><span class="z-keyword"> =</span><span class="z-variable z-other z-constant"> JSON</span><span>.</span><span class="z-entity z-name">parse</span><span>(</span><span class="z-variable z-other">e</span><span>.</span><span class="z-variable z-other">data</span><span>)</span><span>;</span></span>
+<span class="giallo-l"><span class="z-entity z-name">    renderTable</span><span>(</span><span class="z-variable z-other">rows</span><span>)</span><span>;</span></span>
+<span class="giallo-l"><span>}</span><span>)</span><span>;</span></span>
+<span class="giallo-l"></span>
+<span class="giallo-l"><span class="z-punctuation z-definition z-comment">//</span><span class="z-comment"> 流式打字效果</span></span>
+<span class="giallo-l"><span class="z-variable z-other">source</span><span>.</span><span class="z-entity z-name">onmessage</span><span class="z-keyword"> =</span><span class="z-variable"> e</span><span class="z-storage z-type"> =&gt;</span><span> {</span></span>
+<span class="giallo-l"><span class="z-keyword">    if</span><span> (</span><span class="z-variable z-other">e</span><span>.</span><span class="z-variable z-other">data</span><span class="z-keyword"> ===</span><span class="z-punctuation z-definition z-string"> &#39;</span><span class="z-string">[DONE]</span><span class="z-punctuation z-definition z-string">&#39;</span><span>)</span><span> {</span></span>
+<span class="giallo-l"><span class="z-variable z-other">        source</span><span>.</span><span class="z-entity z-name">close</span><span>(</span><span>)</span><span>;</span></span>
+<span class="giallo-l"><span class="z-keyword">        return</span><span>;</span></span>
+<span class="giallo-l"><span>    }</span></span>
+<span class="giallo-l"><span class="z-variable z-other">    document</span><span>.</span><span class="z-entity z-name">getElementById</span><span>(</span><span class="z-punctuation z-definition z-string">&#39;</span><span class="z-string">answer</span><span class="z-punctuation z-definition z-string">&#39;</span><span>)</span><span>.</span><span class="z-variable z-other">textContent</span><span class="z-keyword"> +=</span><span class="z-variable z-other"> e</span><span>.</span><span class="z-variable z-other">data</span><span>;</span></span>
+<span class="giallo-l"><span>}</span><span>;</span></span>
+<span class="giallo-l"></span>
+<span class="giallo-l"><span class="z-punctuation z-definition z-comment">//</span><span class="z-comment"> 错误处理</span></span>
+<span class="giallo-l"><span class="z-variable z-other">source</span><span>.</span><span class="z-entity z-name">addEventListener</span><span>(</span><span class="z-punctuation z-definition z-string">&#39;</span><span class="z-string">error</span><span class="z-punctuation z-definition z-string">&#39;</span><span>,</span><span class="z-variable"> e</span><span class="z-storage z-type"> =&gt;</span><span> {</span></span>
+<span class="giallo-l"><span class="z-variable z-other">    console</span><span>.</span><span class="z-entity z-name">error</span><span>(</span><span class="z-punctuation z-definition z-string">&#39;</span><span class="z-string">Agent error:</span><span class="z-punctuation z-definition z-string">&#39;</span><span>,</span><span class="z-variable z-other"> e</span><span>.</span><span class="z-variable z-other">data</span><span>)</span><span>;</span></span>
+<span class="giallo-l"><span class="z-variable z-other">    source</span><span>.</span><span class="z-entity z-name">close</span><span>(</span><span>)</span><span>;</span></span>
+<span class="giallo-l"><span>}</span><span>)</span><span>;</span></span></code></pre>
+<p>这里用了 SSE 的「命名事件」机制——<code>sql</code> 和 <code>rows</code> 是用 <code>event: sql</code> 字段标注的具名事件，<code>onmessage</code> 只接收没有 event 名的默认消息（也就是流式 token）。这样同一条 SSE 连接就能承载多种数据类型，不需要额外的 WebSocket。</p>
+<hr />
+<h2 id="quan-ju-shi-jiao-zhe-ge-xi-tong-zuo-liao-na-xie-quan-heng">全局视角：这个系统做了哪些权衡<a class="zola-anchor" href="#quan-ju-shi-jiao-zhe-ge-xi-tong-zuo-liao-na-xie-quan-heng" aria-label="Anchor link for: quan-ju-shi-jiao-zhe-ge-xi-tong-zuo-liao-na-xie-quan-heng" style="visibility: hidden;"></a>
+</h2>
+<table><thead><tr><th>设计决策</th><th>选择</th><th>理由</th></tr></thead><tbody>
+<tr><td>NL→SQL 用非流式，解读用流式</td><td>是</td><td>SQL 要完整拿到再校验，解读要快速给用户反馈</td></tr>
+<tr><td>temperature</td><td>0.0 生成 SQL，0.3 解读</td><td>精确性 vs 流畅性的分场景调整</td></tr>
+<tr><td>schema 启动时扫描</td><td>是</td><td>省去每次请求的查询开销，schema 基本不变</td></tr>
+<tr><td>SQL 安全双保险</td><td>prompt 约束 + 代码校验</td><td>LLM 不可完全信任，代码层是最后防线</td></tr>
+<tr><td>结果包装为 jsonb_agg</td><td>是</td><td>统一输出格式，同时防大数据量</td></tr>
+<tr><td>statement_timeout</td><td>30s</td><td>防慢查询拖垮连接池</td></tr>
+</tbody></table>
+<hr />
+<h2 id="xia-yi-bu-ke-yi-zuo-shen-me">下一步可以做什么<a class="zola-anchor" href="#xia-yi-bu-ke-yi-zuo-shen-me" aria-label="Anchor link for: xia-yi-bu-ke-yi-zuo-shen-me" style="visibility: hidden;"></a>
+</h2>
+<ul>
+<li><strong>多轮对话</strong>：把历史问答存入 Redis，让用户能说「再按省份细分一下」</li>
+<li><strong>Schema 动态更新</strong>：后台定时任务监听 DDL 事件，自动刷新 <code>schema_text</code></li>
+<li><strong>SQL 审计日志</strong>：把每次生成的 SQL 和执行结果写入 audit 表，方便排查幻觉</li>
+<li><strong>流式 token 计数</strong>：统计每次请求消耗的 token，用于成本分析</li>
+</ul>
+<hr />
+<p>整条链路读下来，代码量不多，但每个细节都有充分理由。最大的收获是：<strong>LLM 是不可信的外部输入，必须在语言模型和数据库之间插一个校验层</strong>——这和 Web 开发里永远不要相信用户输入是同一个道理。</p>
+
+      </article>
+
+      
+      
+
+      
+      
+      <div class="giscus"></div>
+      <style>
+#comments { margin-top: 3rem; padding: 0 15px; }
+.c-item { margin: 1.2rem 0; }
+.c-reply { margin-left: 1.5rem; padding-left: 1rem; border-left: 2px solid var(--text-decoration-color); }
+.c-meta { display: flex; align-items: center; gap: 0.6rem; margin-bottom: 0.3rem; font-size: 0.85em; }
+.c-name { font-weight: bold; color: var(--text-color); }
+.c-time { color: var(--text-pale-color); }
+.c-reply-btn {
+  background: none; border: none; padding: 0;
+  color: var(--primary-color); cursor: pointer;
+  font-size: 0.85em; opacity: 0;
+  transition: opacity 0.15s;
+}
+.c-item:hover .c-reply-btn { opacity: 1; }
+.c-body { color: var(--text-color); line-height: var(--line-height); white-space: pre-wrap; word-break: break-word; }
+.c-loading, .c-empty { color: var(--text-pale-color); font-size: 0.9em; padding: 1rem 0; }
+.c-form { margin-top: 2rem; display: flex; flex-direction: column; gap: 0.6rem; }
+.c-form-row { display: flex; gap: 0.6rem; }
+.c-input {
+  width: 100%; padding: 0.5rem 0.7rem;
+  border: 1.5px solid var(--text-decoration-color);
+  border-radius: 4px;
+  background: var(--bg-color); color: var(--text-color);
+  font-size: 0.9em; font-family: var(--main-font);
+  outline: none; transition: border-color 0.15s;
+}
+.c-input:focus { border-color: var(--primary-color); }
+.c-input-content { resize: vertical; min-height: 100px; }
+.c-reply-tip {
+  font-size: 0.85em; color: var(--primary-color);
+  padding: 0.2rem 0.5rem;
+  background: var(--inline-code-bg-color);
+  border-radius: 4px; align-self: flex-start;
+}
+.c-reply-tip::after { content: " ✕"; opacity: 0.5; }
+.c-form-actions { display: flex; justify-content: flex-end; }
+.c-submit {
+  padding: 0.4rem 1.2rem;
+  background: var(--primary-color); color: var(--bg-color);
+  border: none; border-radius: 4px;
+  cursor: pointer; font-size: 0.9em;
+  transition: opacity 0.15s;
+}
+.c-submit:hover { opacity: 0.85; }
+.c-submit:disabled { opacity: 0.5; cursor: not-allowed; }
+</style>
+<div id="comments" data-page="&#x2F;posts&#x2F;analytics-agent-line-by-line-2026-05-26&#x2F;"></div>
+<script src="/comments.js"></script>
+
+
+      
+    </div>
+
+    
+
+
+<footer>
+  <div class="left">
+    <div class="copyright">
+      © 2026 Cirray AI
+      
+      <span>|</span>
+      Built with <a href="https://www.getzola.org" rel="noreferrer" target="_blank">zola</a> and <a href="https://github.com/isunjn/serene" rel="noreferrer" target="_blank">serene</a>
+      
+    </div>
+  </div>
+
+  <div class="right">
+    
+    
+    
+    
+
+    
+    
+    
+    <button id="theme-toggle" aria-label="theme switch">
+      <span class="moon-icon"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="18" height="18"><path d="M10 7C10 10.866 13.134 14 17 14C18.9584 14 20.729 13.1957 21.9995 11.8995C22 11.933 22 11.9665 22 12C22 17.5228 17.5228 22 12 22C6.47715 22 2 17.5228 2 12C2 6.47715 6.47715 2 12 2C12.0335 2 12.067 2 12.1005 2.00049C10.8043 3.27098 10 5.04157 10 7ZM4 12C4 16.4183 7.58172 20 12 20C15.0583 20 17.7158 18.2839 19.062 15.7621C18.3945 15.9187 17.7035 16 17 16C12.0294 16 8 11.9706 8 7C8 6.29648 8.08133 5.60547 8.2379 4.938C5.71611 6.28423 4 8.9417 4 12Z" fill="currentColor"></path></svg>
+</span>
+      <span class="sun-icon"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="18" height="18"><path d="M12 18C8.68629 18 6 15.3137 6 12C6 8.68629 8.68629 6 12 6C15.3137 6 18 8.68629 18 12C18 15.3137 15.3137 18 12 18ZM12 16C14.2091 16 16 14.2091 16 12C16 9.79086 14.2091 8 12 8C9.79086 8 8 9.79086 8 12C8 14.2091 9.79086 16 12 16ZM11 1H13V4H11V1ZM11 20H13V23H11V20ZM3.51472 4.92893L4.92893 3.51472L7.05025 5.63604L5.63604 7.05025L3.51472 4.92893ZM16.9497 18.364L18.364 16.9497L20.4853 19.0711L19.0711 20.4853L16.9497 18.364ZM19.0711 3.51472L20.4853 4.92893L18.364 7.05025L16.9497 5.63604L19.0711 3.51472ZM5.63604 16.9497L7.05025 18.364L4.92893 20.4853L3.51472 19.0711L5.63604 16.9497ZM23 11V13H20V11H23ZM4 11V13H1V11H4Z" fill="currentColor"></path></svg>
+</span>
+    </button>
+    
+  </div>
+</footer>
+
+
+
+
+
+  </main>
+</div>
+
+  
+<script src="/js/lightense.min.js"></script>
+
+
+  <script src="https://blog.cirray.cn/js/main.js"></script>
+</body>
+
+</html>
