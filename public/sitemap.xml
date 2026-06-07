@@ -122,6 +122,10 @@
         <lastmod>2026-04-10</lastmod>
     </url>
     <url>
+        <loc>https://blog.cirray.cn/posts/qiu-bu-de-2026-06-07/</loc>
+        <lastmod>2026-06-07</lastmod>
+    </url>
+    <url>
         <loc>https://blog.cirray.cn/posts/rag-mcp-server-rust/</loc>
         <lastmod>2026-03-24</lastmod>
     </url>
@@ -291,6 +295,9 @@
         <loc>https://blog.cirray.cn/tags/chat/</loc>
     </url>
     <url>
+        <loc>https://blog.cirray.cn/tags/cheng-chang/</loc>
+    </url>
+    <url>
         <loc>https://blog.cirray.cn/tags/china-unicom/</loc>
     </url>
     <url>
@@ -349,6 +356,9 @@
     </url>
     <url>
         <loc>https://blog.cirray.cn/tags/fastembed/</loc>
+    </url>
+    <url>
+        <loc>https://blog.cirray.cn/tags/fo-xue/</loc>
     </url>
     <url>
         <loc>https://blog.cirray.cn/tags/frontend/</loc>
@@ -474,6 +484,9 @@
         <loc>https://blog.cirray.cn/tags/remote-agent/</loc>
     </url>
     <url>
+        <loc>https://blog.cirray.cn/tags/ren-sheng/</loc>
+    </url>
+    <url>
         <loc>https://blog.cirray.cn/tags/rust/</loc>
     </url>
     <url>
@@ -481,6 +494,9 @@
     </url>
     <url>
         <loc>https://blog.cirray.cn/tags/session/</loc>
+    </url>
+    <url>
+        <loc>https://blog.cirray.cn/tags/shi-ci/</loc>
     </url>
     <url>
         <loc>https://blog.cirray.cn/tags/shizuku/</loc>
@@ -508,6 +524,9 @@
     </url>
     <url>
         <loc>https://blog.cirray.cn/tags/state-machine/</loc>
+    </url>
+    <url>
+        <loc>https://blog.cirray.cn/tags/sui-bi/</loc>
     </url>
     <url>
         <loc>https://blog.cirray.cn/tags/task-system/</loc>
