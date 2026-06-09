@@ -239,17 +239,19 @@
 <p>名字有点误导——<strong>function calling 和"调函数"其实没什么关系</strong>。</p>
 <p>更准确的描述是：你给模型一份"你有什么能力"的菜单，模型看完用户的问题，告诉你"这题需要用第 3 道菜"——具体怎么做那道菜、做完之后把菜端上来，都是你自己的事，模型不管。</p>
 <p>所以整个流程是这样的：</p>
-<pre class="giallo z-code"><code data-lang="plain"><span class="giallo-l"><span>你                          DeepSeek</span></span>
-<span class="giallo-l"><span> │                               │</span></span>
-<span class="giallo-l"><span> │── 问题 + 工具菜单 ──────────&gt; │</span></span>
-<span class="giallo-l"><span> │                               │  &quot;这个问题要查数据&quot;</span></span>
-<span class="giallo-l"><span> │ &lt;──── tool_calls ───────────  │</span></span>
-<span class="giallo-l"><span> │                               │</span></span>
-<span class="giallo-l"><span> │  （你自己去查数据库）         │</span></span>
-<span class="giallo-l"><span> │                               │</span></span>
-<span class="giallo-l"><span> │── 查询结果回填 ─────────────&gt; │</span></span>
-<span class="giallo-l"><span> │                               │  &quot;目前系统有 10 个站点&quot;</span></span>
-<span class="giallo-l"><span> │ &lt;──── 最终回答 ─────────────  │</span></span></code></pre>
+<pre class="giallo z-code"><code data-lang="plain"><span class="giallo-l"><span>你 ──→ 问题 + 工具菜单 ─────────────────→ DeepSeek</span></span>
+<span class="giallo-l"><span>                                               │</span></span>
+<span class="giallo-l"><span>                                    判断：要查数据！</span></span>
+<span class="giallo-l"><span>                                               │</span></span>
+<span class="giallo-l"><span>你 ←── tool_calls ←────────────────────────────┘</span></span>
+<span class="giallo-l"></span>
+<span class="giallo-l"><span>     （你自己去查数据库）</span></span>
+<span class="giallo-l"></span>
+<span class="giallo-l"><span>你 ──→ 工具执行结果 ─────────────────────→ DeepSeek</span></span>
+<span class="giallo-l"><span>                                               │</span></span>
+<span class="giallo-l"><span>                                      生成自然语言回答</span></span>
+<span class="giallo-l"><span>                                               │</span></span>
+<span class="giallo-l"><span>你 ←── 最终回答 ←──────────────────────────────┘</span></span></code></pre>
 <p>如果模型觉得直接回答就够了，就不会有 <code>tool_calls</code>，直接给你 <code>content</code>。</p>
 <hr />
 <h2 id="xie-yi-chang-shen-me-yang-xian-kan-json">协议长什么样——先看 JSON<a class="zola-anchor" href="#xie-yi-chang-shen-me-yang-xian-kan-json" aria-label="Anchor link for: xie-yi-chang-shen-me-yang-xian-kan-json" style="visibility: hidden;"></a>
@@ -620,33 +622,33 @@
 <hr />
 <h2 id="ba-zhe-liang-ci-qing-qiu-hua-cheng-shi-xu-tu">把这两次请求画成时序图<a class="zola-anchor" href="#ba-zhe-liang-ci-qing-qiu-hua-cheng-shi-xu-tu" aria-label="Anchor link for: ba-zhe-liang-ci-qing-qiu-hua-cheng-shi-xu-tu" style="visibility: hidden;"></a>
 </h2>
-<pre class="giallo z-code"><code data-lang="plain"><span class="giallo-l"><span>前端 chatbot          /chat (POST)         DeepSeek API           PostgreSQL</span></span>
-<span class="giallo-l"><span>     │                     │                    │                      │</span></span>
-<span class="giallo-l"><span>     │─ {messages:[...]} -&gt;│                    │                      │</span></span>
-<span class="giallo-l"><span>     │                     │── 第一次请求 ───&gt;  │                      │</span></span>
-<span class="giallo-l"><span>     │                     │   非流式，带 tools │                      │</span></span>
-<span class="giallo-l"><span>     │                     │                    │  判断：要查数据！    │</span></span>
-<span class="giallo-l"><span>     │                     │&lt;── tool_calls ───  │                      │</span></span>
-<span class="giallo-l"><span>     │                     │                    │                      │</span></span>
-<span class="giallo-l"><span>     │                     │───── NL→SQL ────&gt;  │                      │</span></span>
-<span class="giallo-l"><span>     │                     │&lt;─── SQL ────────── │                      │</span></span>
-<span class="giallo-l"><span>     │                     │─────────────────────────── 执行 SQL ────&gt; │</span></span>
-<span class="giallo-l"><span>     │                     │&lt;─────────────────────────── 查询结果 ──── │</span></span>
-<span class="giallo-l"><span>     │                     │                    │                      │</span></span>
-<span class="giallo-l"><span>     │                     │── 第二次请求 ───&gt;  │                      │</span></span>
-<span class="giallo-l"><span>     │                     │   流式，含工具结果 │                      │</span></span>
-<span class="giallo-l"><span>     │&lt;── token token token│&lt;── stream ───────  │                      │</span></span>
-<span class="giallo-l"><span>     │    [DONE]           │                    │                      │</span></span></code></pre>
+<p><strong>命中工具的路径：</strong></p>
+<pre class="giallo z-code"><code data-lang="plain"><span class="giallo-l"><span>前端 ──→ {messages} ──────────────────────────────→ /chat (POST)</span></span>
+<span class="giallo-l"></span>
+<span class="giallo-l"><span>/chat ──→ 第一次请求（非流式，带 tools）──────────→ DeepSeek</span></span>
+<span class="giallo-l"><span>                                                         │</span></span>
+<span class="giallo-l"><span>                                            判断：要查数据！</span></span>
+<span class="giallo-l"><span>                                                         │</span></span>
+<span class="giallo-l"><span>/chat ←── tool_calls ←───────────────────────────────────┘</span></span>
+<span class="giallo-l"></span>
+<span class="giallo-l"><span>/chat ──→ NL → SQL ──────────────────────────────→ DeepSeek</span></span>
+<span class="giallo-l"><span>/chat ←── 生成的 SQL ←───────────────────────────────────┘</span></span>
+<span class="giallo-l"></span>
+<span class="giallo-l"><span>/chat ──→ 执行 SQL ───────────────────────────────→ PostgreSQL</span></span>
+<span class="giallo-l"><span>/chat ←── 查询结果 ←─────────────────────────────────────┘</span></span>
+<span class="giallo-l"></span>
+<span class="giallo-l"><span>/chat ──→ 第二次请求（流式，含工具结果）──────────→ DeepSeek</span></span>
+<span class="giallo-l"><span>前端  ←── token token ... [DONE] ←───────────────────────┘</span></span></code></pre>
 <p>总共两次 LLM 请求 + 一次数据库查询。</p>
-<p>对比"未命中"的路径（纯闲聊）：</p>
-<pre class="giallo z-code"><code data-lang="plain"><span class="giallo-l"><span>前端 chatbot          /chat (POST)         DeepSeek API</span></span>
-<span class="giallo-l"><span>     │                     │                    │</span></span>
-<span class="giallo-l"><span>     │── {messages:[...]} -&gt;│                    │</span></span>
-<span class="giallo-l"><span>     │                     │── 第一次请求 ───&gt;  │</span></span>
-<span class="giallo-l"><span>     │                     │&lt;── content:&quot;你好…&quot; │  (没有 tool_calls，直接有内容)</span></span>
-<span class="giallo-l"><span>     │                     │                    │</span></span>
-<span class="giallo-l"><span>     │                     │── 第二次请求 ───&gt;  │</span></span>
-<span class="giallo-l"><span>     │&lt;── token token token │&lt;── stream ─────── │</span></span></code></pre>
+<p><strong>未命中的路径（纯闲聊）：</strong></p>
+<pre class="giallo z-code"><code data-lang="plain"><span class="giallo-l"><span>前端 ──→ {messages} ──────────────────────────────→ /chat (POST)</span></span>
+<span class="giallo-l"></span>
+<span class="giallo-l"><span>/chat ──→ 第一次请求（非流式，带 tools）──────────→ DeepSeek</span></span>
+<span class="giallo-l"><span>                                                         │</span></span>
+<span class="giallo-l"><span>                                    直接返回 content，无 tool_calls</span></span>
+<span class="giallo-l"><span>                                                         │</span></span>
+<span class="giallo-l"><span>/chat ──→ 第二次请求（流式）──────────────────────→ DeepSeek</span></span>
+<span class="giallo-l"><span>前端  ←── token token ... [DONE] ←───────────────────────┘</span></span></code></pre>
 <p>还是两次 LLM 请求，只是省掉了数据库那一趟。</p>
 <hr />
 <h2 id="ji-ge-rong-yi-cai-de-keng">几个容易踩的坑<a class="zola-anchor" href="#ji-ge-rong-yi-cai-de-keng" aria-label="Anchor link for: ji-ge-rong-yi-cai-de-keng" style="visibility: hidden;"></a>
