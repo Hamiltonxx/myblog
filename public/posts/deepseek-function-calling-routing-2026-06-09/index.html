@@ -623,29 +623,29 @@
 <p><strong>命中工具的路径：</strong></p>
 <pre class="giallo z-code"><code data-lang="plain"><span class="giallo-l"><span>前端 ──→ {messages} ──────────────────────────────→ /chat (POST)</span></span>
 <span class="giallo-l"></span>
-<span class="giallo-l"><span>/chat ──→ 第一次请求（非流式，带 tools）──────────→ DeepSeek</span></span>
+<span class="giallo-l"><span>/chat ──→ 第一次请求（非流式，带 tools）──────────────→ DeepSeek</span></span>
 <span class="giallo-l"><span>                                                         │</span></span>
 <span class="giallo-l"><span>                                            判断：要查数据！</span></span>
 <span class="giallo-l"><span>                                                         │</span></span>
 <span class="giallo-l"><span>/chat ←── tool_calls ←───────────────────────────────────┘</span></span>
 <span class="giallo-l"></span>
 <span class="giallo-l"><span>/chat ──→ NL → SQL ──────────────────────────────→ DeepSeek</span></span>
-<span class="giallo-l"><span>/chat ←── 生成的 SQL ←───────────────────────────────────┘</span></span>
+<span class="giallo-l"><span>/chat ←── 生成的 SQL ←────────────────────────────────────┘</span></span>
 <span class="giallo-l"></span>
 <span class="giallo-l"><span>/chat ──→ 执行 SQL ───────────────────────────────→ PostgreSQL</span></span>
 <span class="giallo-l"><span>/chat ←── 查询结果 ←─────────────────────────────────────┘</span></span>
 <span class="giallo-l"></span>
-<span class="giallo-l"><span>/chat ──→ 第二次请求（流式，含工具结果）──────────→ DeepSeek</span></span>
+<span class="giallo-l"><span>/chat ──→ 第二次请求（流式，含工具结果）───────────────→ DeepSeek</span></span>
 <span class="giallo-l"><span>前端  ←── token token ... [DONE] ←───────────────────────┘</span></span></code></pre>
 <p>总共两次 LLM 请求 + 一次数据库查询。</p>
 <p><strong>未命中的路径（纯闲聊）：</strong></p>
 <pre class="giallo z-code"><code data-lang="plain"><span class="giallo-l"><span>前端 ──→ {messages} ──────────────────────────────→ /chat (POST)</span></span>
 <span class="giallo-l"></span>
-<span class="giallo-l"><span>/chat ──→ 第一次请求（非流式，带 tools）──────────→ DeepSeek</span></span>
+<span class="giallo-l"><span>/chat ──→ 第一次请求（非流式，带 tools）──────────────→ DeepSeek</span></span>
 <span class="giallo-l"><span>                                                         │</span></span>
 <span class="giallo-l"><span>                                    直接返回 content，无 tool_calls</span></span>
 <span class="giallo-l"><span>                                                         │</span></span>
-<span class="giallo-l"><span>/chat ──→ 第二次请求（流式）──────────────────────→ DeepSeek</span></span>
+<span class="giallo-l"><span>/chat ──→ 第二次请求（流式）─────────────────────────→ DeepSeek</span></span>
 <span class="giallo-l"><span>前端  ←── token token ... [DONE] ←───────────────────────┘</span></span></code></pre>
 <p>还是两次 LLM 请求，只是省掉了数据库那一趟。</p>
 <hr />
