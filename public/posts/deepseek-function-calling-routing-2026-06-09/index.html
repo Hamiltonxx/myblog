@@ -239,19 +239,17 @@
 <p>名字有点误导——<strong>function calling 和"调函数"其实没什么关系</strong>。</p>
 <p>更准确的描述是：你给模型一份"你有什么能力"的菜单，模型看完用户的问题，告诉你"这题需要用第 3 道菜"——具体怎么做那道菜、做完之后把菜端上来，都是你自己的事，模型不管。</p>
 <p>所以整个流程是这样的：</p>
-<pre class="giallo z-code"><code data-lang="plain"><span class="giallo-l"><span>你 ──→ 问题 + 工具菜单 ─────────────────→ DeepSeek</span></span>
-<span class="giallo-l"><span>                                               │</span></span>
-<span class="giallo-l"><span>                                    判断：要查数据！</span></span>
-<span class="giallo-l"><span>                                               │</span></span>
-<span class="giallo-l"><span>你 ←── tool_calls ←────────────────────────────┘</span></span>
-<span class="giallo-l"></span>
-<span class="giallo-l"><span>     （你自己去查数据库）</span></span>
-<span class="giallo-l"></span>
-<span class="giallo-l"><span>你 ──→ 工具执行结果 ─────────────────────→ DeepSeek</span></span>
-<span class="giallo-l"><span>                                               │</span></span>
-<span class="giallo-l"><span>                                      生成自然语言回答</span></span>
-<span class="giallo-l"><span>                                               │</span></span>
-<span class="giallo-l"><span>你 ←── 最终回答 ←──────────────────────────────┘</span></span></code></pre>
+<pre class="giallo z-code"><code data-lang="plain"><span class="giallo-l"><span>你                          DeepSeek</span></span>
+<span class="giallo-l"><span> │                               │</span></span>
+<span class="giallo-l"><span> │── 问题 + 工具菜单 ────────────&gt; │</span></span>
+<span class="giallo-l"><span> │                               │  &quot;这个问题要查数据&quot;</span></span>
+<span class="giallo-l"><span> │ &lt;──── tool_calls ───────────  │</span></span>
+<span class="giallo-l"><span> │                               │</span></span>
+<span class="giallo-l"><span> │  （你自己去查数据库）            │</span></span>
+<span class="giallo-l"><span> │                               │</span></span>
+<span class="giallo-l"><span> │── 查询结果回填 ───────────────&gt; │</span></span>
+<span class="giallo-l"><span> │                               │  &quot;目前系统有 10 个站点&quot;</span></span>
+<span class="giallo-l"><span> │ &lt;──── 最终回答 ──────────────  │</span></span></code></pre>
 <p>如果模型觉得直接回答就够了，就不会有 <code>tool_calls</code>，直接给你 <code>content</code>。</p>
 <hr />
 <h2 id="xie-yi-chang-shen-me-yang-xian-kan-json">协议长什么样——先看 JSON<a class="zola-anchor" href="#xie-yi-chang-shen-me-yang-xian-kan-json" aria-label="Anchor link for: xie-yi-chang-shen-me-yang-xian-kan-json" style="visibility: hidden;"></a>
