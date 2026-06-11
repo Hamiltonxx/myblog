@@ -122,6 +122,10 @@
         <lastmod>2026-03-31</lastmod>
     </url>
     <url>
+        <loc>https://blog.cirray.cn/posts/postgres-rls-llm-sql-guardrail-2026-06-11/</loc>
+        <lastmod>2026-06-11</lastmod>
+    </url>
+    <url>
         <loc>https://blog.cirray.cn/posts/pwa-instead-of-app-store-2026-04-10/</loc>
         <lastmod>2026-04-10</lastmod>
     </url>
@@ -407,6 +411,9 @@
         <loc>https://blog.cirray.cn/tags/jiao-cheng/</loc>
     </url>
     <url>
+        <loc>https://blog.cirray.cn/tags/jwt/</loc>
+    </url>
+    <url>
         <loc>https://blog.cirray.cn/tags/kai-fa-gong-ju/</loc>
     </url>
     <url>
@@ -467,6 +474,9 @@
         <loc>https://blog.cirray.cn/tags/positional-encoding/</loc>
     </url>
     <url>
+        <loc>https://blog.cirray.cn/tags/postgresql/</loc>
+    </url>
+    <url>
         <loc>https://blog.cirray.cn/tags/pptx/</loc>
     </url>
     <url>
@@ -497,7 +507,13 @@
         <loc>https://blog.cirray.cn/tags/ren-sheng/</loc>
     </url>
     <url>
+        <loc>https://blog.cirray.cn/tags/rls/</loc>
+    </url>
+    <url>
         <loc>https://blog.cirray.cn/tags/rust/</loc>
+    </url>
+    <url>
+        <loc>https://blog.cirray.cn/tags/security/</loc>
     </url>
     <url>
         <loc>https://blog.cirray.cn/tags/serde/</loc>
