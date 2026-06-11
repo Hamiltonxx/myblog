@@ -94,6 +94,10 @@
         <lastmod>2026-03-28</lastmod>
     </url>
     <url>
+        <loc>https://blog.cirray.cn/posts/hydrogen-dispatch-agent-2026-06-11/</loc>
+        <lastmod>2026-06-11</lastmod>
+    </url>
+    <url>
         <loc>https://blog.cirray.cn/posts/learn-agent-rust-day1-day2/</loc>
         <lastmod>2026-03-25</lastmod>
     </url>
@@ -349,6 +353,9 @@
     </url>
     <url>
         <loc>https://blog.cirray.cn/tags/deepseek/</loc>
+    </url>
+    <url>
+        <loc>https://blog.cirray.cn/tags/dispatch/</loc>
     </url>
     <url>
         <loc>https://blog.cirray.cn/tags/documentation/</loc>
