@@ -94,6 +94,10 @@
         <lastmod>2026-03-28</lastmod>
     </url>
     <url>
+        <loc>https://blog.cirray.cn/posts/hydrogen-agent-series4-multiagent-2026-06-18/</loc>
+        <lastmod>2026-06-18</lastmod>
+    </url>
+    <url>
         <loc>https://blog.cirray.cn/posts/hydrogen-dispatch-agent-2026-06-11/</loc>
         <lastmod>2026-06-11</lastmod>
     </url>
@@ -479,6 +483,9 @@
     </url>
     <url>
         <loc>https://blog.cirray.cn/tags/positional-encoding/</loc>
+    </url>
+    <url>
+        <loc>https://blog.cirray.cn/tags/postgres/</loc>
     </url>
     <url>
         <loc>https://blog.cirray.cn/tags/postgresql/</loc>
