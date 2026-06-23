@@ -1,0 +1,530 @@
+<!DOCTYPE html>
+
+<html lang="zh">
+
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="color-scheme" content="light dark">
+  
+  
+    
+  
+  <meta name="description" content="把一堆 contains() 硬匹配替换成 LLM 自主决策调工具，代码更少，识别更准，还能轻松扩展新能力。">
+
+  <title>氢能站Agent系列5 -- 客户端(小程序)Agent Tool Call</title>
+  <link rel="icon" type="image/png" sizes="32x32" href="https://blog.cirray.cn/img/favicon-32x32.png">
+  <link rel="icon" type="image/png" sizes="16x16" href="https://blog.cirray.cn/img/favicon-16x16.png">
+  <link rel="apple-touch-icon" sizes="180x180" href="https://blog.cirray.cn/img/apple-touch-icon.png">
+  
+  <style>
+
+  /* light mode colors */
+  body {
+    --primary-color: #5871a2;
+    --primary-pale-color: #5871a233;
+    --primary-decoration-color: #5871a210;
+    --bg-color: #ffffff;
+    --text-color: #2f3030;
+    --text-pale-color: #767676;
+    --text-decoration-color: #a9a9a9;
+    --highlight-mark-color: #5f75b020;
+
+    --callout-note-color: #5871a2;
+    --callout-tip-color: #268556;
+    --callout-important-color: #885fc9;
+    --callout-warning-color: #ab6632;
+    --callout-caution-color: #c64e4e;
+  }
+
+  /* dark mode colors */
+  body.dark {
+    --primary-color: #6f8fd1;
+    --primary-pale-color: #6f8fd166;
+    --primary-decoration-color: #6f8fd112;
+    --bg-color: #1c1c1c;
+    --text-color: #c1c1c1;
+    --text-pale-color: #848484;
+    --text-decoration-color: #5f5f5f;
+    --highlight-mark-color: #8296cb3b;
+
+    --callout-note-color: #6f8fd1;
+    --callout-tip-color: #47976f;
+    --callout-important-color: #9776cd;
+    --callout-warning-color: #ad7a52;
+    --callout-caution-color: #d06161;
+  }
+
+  /* typography */
+  body {
+    --main-font: ui-sans-serif, system-ui, sans-serif, 'Apple Color Emoji', 'Segoe UI Emoji', 'Segoe UI Symbol', 'Noto Color Emoji';
+    --code-font: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, 'Liberation Mono', 'Courier New', monospace;
+    --homepage-max-width: 768px;
+    --main-max-width: 768px;
+    --avatar-size: 60px;
+    --font-size: 16px;
+    --line-height: 1.75;
+    --img-border-radius: 0px;
+    --detail-border-radius: 0px;
+    --dark-mode-img-brightness: 0.75;
+    --dark-mode-chart-brightness: 0.75;
+    --inline-code-border-radius: 2px;
+    --inline-code-bg-color: var(--primary-decoration-color);
+    --block-code-border-radius: 0px;
+    --block-code-border-color: var(--primary-color);
+    --detail-border-color: var(--primary-color);
+  }
+
+</style>
+
+  <link rel="stylesheet" href="https://blog.cirray.cn/main.css">
+  
+
+<link id="hl" rel="stylesheet" type="text/css" href="/giallo-light.css" />
+
+
+
+  
+</head>
+
+<body class="post">
+  
+  <script>
+    const theme = sessionStorage.getItem('theme');
+    const match = window.matchMedia("(prefers-color-scheme: dark)").matches;
+    if ((theme && theme == 'dark') || (!theme && match)) {
+      document.body.classList.add('dark');
+      const hl = document.querySelector('link#hl');
+      if (hl) hl.href = 'https://blog.cirray.cn/giallo-dark.css';
+    }
+  </script>
+  
+  
+<div id="wrapper">
+  <div id="blank"></div>
+  <aside>
+    
+    
+    <nav>
+      <ul>
+        
+        <li>
+          <a class="h2" href="#tool-call-de-si-lu">Tool Call 的思路</a>
+          
+        </li>
+        
+        <li>
+          <a class="h2" href="#he-xin-lei-xing-she-ji">核心类型设计</a>
+          
+        </li>
+        
+        <li>
+          <a class="h2" href="#llm-ke-hu-duan-liang-ge-xin-fang-fa">LLM 客户端：两个新方法</a>
+          
+        </li>
+        
+        <li>
+          <a class="h2" href="#chat-handler-liang-duan-shi-liu-cheng">Chat Handler：两段式流程</a>
+          
+        </li>
+        
+        <li>
+          <a class="h2" href="#gong-ju-shi-xian-ba-shu-ju-cha-chu-lai-jiao-gei-llm-zu-zhi-yu-yan">工具实现：把数据查出来交给 LLM 组织语言</a>
+          
+        </li>
+        
+        <li>
+          <a class="h2" href="#shi-ji-xiao-guo">实际效果</a>
+          
+        </li>
+        
+        <li>
+          <a class="h2" href="#xia-yi-bu">下一步</a>
+          
+        </li>
+        
+      </ul>
+    </nav>
+    
+    
+    <button id="back-to-top" aria-label="back to top">
+      
+      <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="feather feather-arrow-up"><line x1="12" y1="19" x2="12" y2="5"></line><polyline points="5 12 12 5 19 12"></polyline></svg>
+
+    </button>
+    
+  </aside>
+  <main>
+    
+<header>
+  <nav>
+    <a id="back-link" href="https:&#x2F;&#x2F;blog.cirray.cn&#x2F;posts">← Back</a>
+  </nav>
+</header>
+
+
+    <div>
+      
+      
+      
+      
+      <div id="copy-cfg" style="display: none;" data-copy-icon="&lt;svg xmlns=&quot;http:&#x2F;&#x2F;www.w3.org&#x2F;2000&#x2F;svg&quot; viewBox=&quot;0 0 24 24&quot; width=&quot;18&quot; height=&quot;18&quot;&gt;&lt;path d=&quot;M6.9998 6V3C6.9998 2.44772 7.44752 2 7.9998 2H19.9998C20.5521 2 20.9998 2.44772 20.9998 3V17C20.9998 17.5523 20.5521 18 19.9998 18H16.9998V20.9991C16.9998 21.5519 16.5499 22 15.993 22H4.00666C3.45059 22 3 21.5554 3 20.9991L3.0026 7.00087C3.0027 6.44811 3.45264 6 4.00942 6H6.9998ZM5.00242 8L5.00019 20H14.9998V8H5.00242ZM8.9998 6H16.9998V16H18.9998V4H8.9998V6Z&quot; fill=&quot;currentColor&quot;&gt;&lt;&#x2F;path&gt;&lt;&#x2F;svg&gt;
+" data-check-icon="&lt;svg xmlns=&quot;http:&#x2F;&#x2F;www.w3.org&#x2F;2000&#x2F;svg&quot; viewBox=&quot;0 0 24 24&quot; width=&quot;18&quot; height=&quot;18&quot;&gt;&lt;path d=&quot;M10.0007 15.1709L19.1931 5.97852L20.6073 7.39273L10.0007 17.9993L3.63672 11.6354L5.05093 10.2212L10.0007 15.1709Z&quot; fill=&quot;currentColor&quot;&gt;&lt;&#x2F;path&gt;&lt;&#x2F;svg&gt;
+"></div>
+      
+      <article class="prose">
+        <h1>氢能站Agent系列5 -- 客户端(小程序)Agent Tool Call</h1>
+        <div id="post-info">
+          <div id="date">
+            <span id="publish">2026-06-23</span>
+            </div>
+
+          
+          <div id="tags">
+            <a class="instant" href="https://blog.cirray.cn/tags/rust"><span>#</span>rust</a><a class="instant" href="https://blog.cirray.cn/tags/llm"><span>#</span>llm</a><a class="instant" href="https://blog.cirray.cn/tags/tool-call"><span>#</span>tool-call</a><a class="instant" href="https://blog.cirray.cn/tags/axum"><span>#</span>axum</a><a class="instant" href="https://blog.cirray.cn/tags/deepseek"><span>#</span>deepseek</a><a class="instant" href="https://blog.cirray.cn/tags/agent"><span>#</span>agent</a>
+          </div>
+          
+        </div>
+
+        
+        
+
+        
+
+        <p>小程序 AI 助手（mp-agent）从"关键词匹配"升级成了真正的 Tool Call 驱动。</p>
+<p>以前用户问"哪里能加氢？"触发不了，现在可以正确识别并查数据库。</p>
+<hr />
+<h2 id="tool-call-de-si-lu">Tool Call 的思路<a class="zola-anchor" href="#tool-call-de-si-lu" aria-label="Anchor link for: tool-call-de-si-lu" style="visibility: hidden;"></a>
+</h2>
+<p>LLM 本身支持"工具调用"能力：你告诉它有哪些工具可用、每个工具干什么，它自己判断要不要调、调哪个、传什么参数。</p>
+<p>整个流程变成两阶段：</p>
+<pre class="giallo z-code"><code data-lang="plain"><span class="giallo-l"><span>用户问题</span></span>
+<span class="giallo-l"><span>   ↓</span></span>
+<span class="giallo-l"><span>[第一次 LLM 调用] 非流式，携带工具定义</span></span>
+<span class="giallo-l"><span>   ↓ finish_reason = &quot;tool_calls&quot;</span></span>
+<span class="giallo-l"><span>执行工具（查数据库）</span></span>
+<span class="giallo-l"><span>   ↓</span></span>
+<span class="giallo-l"><span>[第二次 LLM 调用] 流式，携带工具结果</span></span>
+<span class="giallo-l"><span>   ↓</span></span>
+<span class="giallo-l"><span>流式回答推给用户</span></span></code></pre>
+<p>如果第一次 LLM 判断不需要工具（比如问"氢燃料电池原理"），直接把文字答案返回，跳过数据库，也是流式输出。</p>
+<hr />
+<h2 id="he-xin-lei-xing-she-ji">核心类型设计<a class="zola-anchor" href="#he-xin-lei-xing-she-ji" aria-label="Anchor link for: he-xin-lei-xing-she-ji" style="visibility: hidden;"></a>
+</h2>
+<p>先把消息结构统一成一个 <code>OwnedMsg</code>，能表达所有角色：</p>
+<pre class="giallo z-code"><code data-lang="rust"><span class="giallo-l"><span>#</span><span>[</span><span>derive</span><span>(</span><span class="z-entity z-name">Serialize</span><span>,</span><span class="z-entity z-name"> Clone</span><span>)</span><span>]</span></span>
+<span class="giallo-l"><span class="z-keyword">pub</span><span class="z-storage z-type"> struct</span><span class="z-entity z-name"> OwnedMsg</span><span> {</span></span>
+<span class="giallo-l"><span class="z-keyword">    pub</span><span class="z-variable z-other"> role</span><span class="z-keyword">:</span><span class="z-entity z-name"> String</span><span>,</span></span>
+<span class="giallo-l"><span>    #</span><span>[</span><span>serde</span><span>(</span><span>skip_serializing_if </span><span class="z-keyword">=</span><span class="z-punctuation z-definition z-string"> &quot;</span><span class="z-string">Option::is_none</span><span class="z-punctuation z-definition z-string">&quot;</span><span>)</span><span>]</span></span>
+<span class="giallo-l"><span class="z-keyword">    pub</span><span class="z-variable z-other"> content</span><span class="z-keyword">:</span><span class="z-entity z-name"> Option</span><span>&lt;</span><span class="z-entity z-name">String</span><span>&gt;</span><span>,</span></span>
+<span class="giallo-l"><span>    #</span><span>[</span><span>serde</span><span>(</span><span>skip_serializing_if </span><span class="z-keyword">=</span><span class="z-punctuation z-definition z-string"> &quot;</span><span class="z-string">Option::is_none</span><span class="z-punctuation z-definition z-string">&quot;</span><span>)</span><span>]</span></span>
+<span class="giallo-l"><span class="z-keyword">    pub</span><span class="z-variable z-other"> tool_calls</span><span class="z-keyword">:</span><span class="z-entity z-name"> Option</span><span>&lt;</span><span class="z-entity z-name">Vec</span><span>&lt;</span><span class="z-entity z-name">ToolCall</span><span>&gt;</span><span>&gt;</span><span>,</span><span class="z-punctuation z-definition z-comment">   //</span><span class="z-comment"> assistant 返回工具调用时用</span></span>
+<span class="giallo-l"><span>    #</span><span>[</span><span>serde</span><span>(</span><span>skip_serializing_if </span><span class="z-keyword">=</span><span class="z-punctuation z-definition z-string"> &quot;</span><span class="z-string">Option::is_none</span><span class="z-punctuation z-definition z-string">&quot;</span><span>)</span><span>]</span></span>
+<span class="giallo-l"><span class="z-keyword">    pub</span><span class="z-variable z-other"> tool_call_id</span><span class="z-keyword">:</span><span class="z-entity z-name"> Option</span><span>&lt;</span><span class="z-entity z-name">String</span><span>&gt;</span><span>,</span><span class="z-punctuation z-definition z-comment">        //</span><span class="z-comment"> tool 角色回传结果时用</span></span>
+<span class="giallo-l"><span>}</span></span>
+<span class="giallo-l"></span>
+<span class="giallo-l"><span class="z-keyword">impl</span><span class="z-entity z-name"> OwnedMsg</span><span> {</span></span>
+<span class="giallo-l"><span class="z-keyword">    pub</span><span class="z-keyword"> fn</span><span class="z-entity z-name"> system</span><span>(</span><span class="z-variable z-other">content</span><span class="z-keyword">:</span><span class="z-keyword"> impl</span><span class="z-entity z-name"> Into</span><span>&lt;</span><span class="z-entity z-name">String</span><span>&gt;</span><span>)</span><span class="z-keyword"> -&gt;</span><span class="z-variable z-language"> Self</span><span> {</span><span class="z-keyword"> ...</span><span> }</span></span>
+<span class="giallo-l"><span class="z-keyword">    pub</span><span class="z-keyword"> fn</span><span class="z-entity z-name"> user</span><span>(</span><span class="z-variable z-other">content</span><span class="z-keyword">:</span><span class="z-keyword"> impl</span><span class="z-entity z-name"> Into</span><span>&lt;</span><span class="z-entity z-name">String</span><span>&gt;</span><span>)</span><span class="z-keyword"> -&gt;</span><span class="z-variable z-language"> Self</span><span> {</span><span class="z-keyword"> ...</span><span> }</span></span>
+<span class="giallo-l"><span class="z-keyword">    pub</span><span class="z-keyword"> fn</span><span class="z-entity z-name"> assistant_tool_calls</span><span>(</span><span class="z-variable z-other">tool_calls</span><span class="z-keyword">:</span><span class="z-entity z-name"> Vec</span><span>&lt;</span><span class="z-entity z-name">ToolCall</span><span>&gt;</span><span>)</span><span class="z-keyword"> -&gt;</span><span class="z-variable z-language"> Self</span><span> {</span><span class="z-keyword"> ...</span><span> }</span></span>
+<span class="giallo-l"><span class="z-keyword">    pub</span><span class="z-keyword"> fn</span><span class="z-entity z-name"> tool</span><span>(</span><span class="z-variable z-other">id</span><span class="z-keyword">:</span><span class="z-keyword"> impl</span><span class="z-entity z-name"> Into</span><span>&lt;</span><span class="z-entity z-name">String</span><span>&gt;</span><span>,</span><span class="z-variable z-other"> content</span><span class="z-keyword">:</span><span class="z-keyword"> impl</span><span class="z-entity z-name"> Into</span><span>&lt;</span><span class="z-entity z-name">String</span><span>&gt;</span><span>)</span><span class="z-keyword"> -&gt;</span><span class="z-variable z-language"> Self</span><span> {</span><span class="z-keyword"> ...</span><span> }</span></span>
+<span class="giallo-l"><span>}</span></span></code></pre>
+<p>工具定义也很简单，就是名字 + 描述 + JSON Schema 参数：</p>
+<pre class="giallo z-code"><code data-lang="rust"><span class="giallo-l"><span class="z-keyword">fn</span><span class="z-entity z-name"> tool_defs</span><span>(</span><span>)</span><span class="z-keyword"> -&gt;</span><span class="z-entity z-name"> Vec</span><span>&lt;</span><span class="z-entity z-name">ToolDef</span><span>&gt;</span><span> {</span></span>
+<span class="giallo-l"><span class="z-entity z-name">    vec!</span><span>[</span></span>
+<span class="giallo-l"><span class="z-entity z-name">        ToolDef</span><span> {</span></span>
+<span class="giallo-l"><span class="z-variable z-other">            kind</span><span class="z-keyword">:</span><span class="z-punctuation z-definition z-string"> &quot;</span><span class="z-string">function</span><span class="z-punctuation z-definition z-string">&quot;</span><span>,</span></span>
+<span class="giallo-l"><span class="z-variable z-other">            function</span><span class="z-keyword">:</span><span class="z-entity z-name"> FunctionDef</span><span> {</span></span>
+<span class="giallo-l"><span class="z-variable z-other">                name</span><span class="z-keyword">:</span><span class="z-punctuation z-definition z-string"> &quot;</span><span class="z-string">find_nearby_stations</span><span class="z-punctuation z-definition z-string">&quot;</span><span>,</span></span>
+<span class="giallo-l"><span class="z-variable z-other">                description</span><span class="z-keyword">:</span><span class="z-punctuation z-definition z-string"> &quot;</span><span class="z-string">查询用户附近的加氢站，返回距离、价格、压力等级、空闲枪数</span><span class="z-punctuation z-definition z-string">&quot;</span><span>,</span></span>
+<span class="giallo-l"><span class="z-variable z-other">                parameters</span><span class="z-keyword">:</span><span class="z-entity z-name"> serde_json</span><span class="z-keyword">::</span><span class="z-entity z-name">json!</span><span>(</span><span>{</span></span>
+<span class="giallo-l"><span class="z-punctuation z-definition z-string">                    &quot;</span><span class="z-string">type</span><span class="z-punctuation z-definition z-string">&quot;</span><span class="z-keyword">:</span><span class="z-punctuation z-definition z-string"> &quot;</span><span class="z-string">object</span><span class="z-punctuation z-definition z-string">&quot;</span><span>,</span></span>
+<span class="giallo-l"><span class="z-punctuation z-definition z-string">                    &quot;</span><span class="z-string">properties</span><span class="z-punctuation z-definition z-string">&quot;</span><span class="z-keyword">:</span><span> {</span><span>}</span><span>,</span></span>
+<span class="giallo-l"><span class="z-punctuation z-definition z-string">                    &quot;</span><span class="z-string">required</span><span class="z-punctuation z-definition z-string">&quot;</span><span class="z-keyword">:</span><span> [</span><span>]</span></span>
+<span class="giallo-l"><span>                }</span><span>)</span><span>,</span></span>
+<span class="giallo-l"><span>            }</span><span>,</span></span>
+<span class="giallo-l"><span>        }</span><span>,</span></span>
+<span class="giallo-l"><span class="z-entity z-name">        ToolDef</span><span> {</span></span>
+<span class="giallo-l"><span class="z-variable z-other">            kind</span><span class="z-keyword">:</span><span class="z-punctuation z-definition z-string"> &quot;</span><span class="z-string">function</span><span class="z-punctuation z-definition z-string">&quot;</span><span>,</span></span>
+<span class="giallo-l"><span class="z-variable z-other">            function</span><span class="z-keyword">:</span><span class="z-entity z-name"> FunctionDef</span><span> {</span></span>
+<span class="giallo-l"><span class="z-variable z-other">                name</span><span class="z-keyword">:</span><span class="z-punctuation z-definition z-string"> &quot;</span><span class="z-string">get_consumption_report</span><span class="z-punctuation z-definition z-string">&quot;</span><span>,</span></span>
+<span class="giallo-l"><span class="z-variable z-other">                description</span><span class="z-keyword">:</span><span class="z-punctuation z-definition z-string"> &quot;</span><span class="z-string">查询当前登录用户的加氢消费记录汇总</span><span class="z-punctuation z-definition z-string">&quot;</span><span>,</span></span>
+<span class="giallo-l"><span class="z-variable z-other">                parameters</span><span class="z-keyword">:</span><span class="z-entity z-name"> serde_json</span><span class="z-keyword">::</span><span class="z-entity z-name">json!</span><span>(</span><span>{</span></span>
+<span class="giallo-l"><span class="z-punctuation z-definition z-string">                    &quot;</span><span class="z-string">type</span><span class="z-punctuation z-definition z-string">&quot;</span><span class="z-keyword">:</span><span class="z-punctuation z-definition z-string"> &quot;</span><span class="z-string">object</span><span class="z-punctuation z-definition z-string">&quot;</span><span>,</span></span>
+<span class="giallo-l"><span class="z-punctuation z-definition z-string">                    &quot;</span><span class="z-string">properties</span><span class="z-punctuation z-definition z-string">&quot;</span><span class="z-keyword">:</span><span> {</span></span>
+<span class="giallo-l"><span class="z-punctuation z-definition z-string">                        &quot;</span><span class="z-string">period</span><span class="z-punctuation z-definition z-string">&quot;</span><span class="z-keyword">:</span><span> {</span></span>
+<span class="giallo-l"><span class="z-punctuation z-definition z-string">                            &quot;</span><span class="z-string">type</span><span class="z-punctuation z-definition z-string">&quot;</span><span class="z-keyword">:</span><span class="z-punctuation z-definition z-string"> &quot;</span><span class="z-string">string</span><span class="z-punctuation z-definition z-string">&quot;</span><span>,</span></span>
+<span class="giallo-l"><span class="z-punctuation z-definition z-string">                            &quot;</span><span class="z-string">enum</span><span class="z-punctuation z-definition z-string">&quot;</span><span class="z-keyword">:</span><span> [</span><span class="z-punctuation z-definition z-string">&quot;</span><span class="z-string">this_month</span><span class="z-punctuation z-definition z-string">&quot;</span><span>,</span><span class="z-punctuation z-definition z-string"> &quot;</span><span class="z-string">last_month</span><span class="z-punctuation z-definition z-string">&quot;</span><span>,</span><span class="z-punctuation z-definition z-string"> &quot;</span><span class="z-string">last_7_days</span><span class="z-punctuation z-definition z-string">&quot;</span><span>]</span><span>,</span></span>
+<span class="giallo-l"><span class="z-punctuation z-definition z-string">                            &quot;</span><span class="z-string">description</span><span class="z-punctuation z-definition z-string">&quot;</span><span class="z-keyword">:</span><span class="z-punctuation z-definition z-string"> &quot;</span><span class="z-string">查询周期</span><span class="z-punctuation z-definition z-string">&quot;</span></span>
+<span class="giallo-l"><span>                        }</span></span>
+<span class="giallo-l"><span>                    }</span><span>,</span></span>
+<span class="giallo-l"><span class="z-punctuation z-definition z-string">                    &quot;</span><span class="z-string">required</span><span class="z-punctuation z-definition z-string">&quot;</span><span class="z-keyword">:</span><span> [</span><span class="z-punctuation z-definition z-string">&quot;</span><span class="z-string">period</span><span class="z-punctuation z-definition z-string">&quot;</span><span>]</span></span>
+<span class="giallo-l"><span>                }</span><span>)</span><span>,</span></span>
+<span class="giallo-l"><span>            }</span><span>,</span></span>
+<span class="giallo-l"><span>        }</span><span>,</span></span>
+<span class="giallo-l"><span>    ]</span></span>
+<span class="giallo-l"><span>}</span></span></code></pre>
+<p>注意 <code>find_nearby_stations</code> 的参数是空的——经纬度从 HTTP 请求里拿，不经过 LLM，这样更安全；<code>get_consumption_report</code> 的 uid 也是服务端注入，LLM 只负责判断查哪个时间段。</p>
+<hr />
+<h2 id="llm-ke-hu-duan-liang-ge-xin-fang-fa">LLM 客户端：两个新方法<a class="zola-anchor" href="#llm-ke-hu-duan-liang-ge-xin-fang-fa" aria-label="Anchor link for: llm-ke-hu-duan-liang-ge-xin-fang-fa" style="visibility: hidden;"></a>
+</h2>
+<p><code>llm.rs</code> 里新增两个方法，替代原来的 <code>stream_messages</code>：</p>
+<p><strong><code>chat_with_tools</code></strong> — 非流式，检测工具意图：</p>
+<pre class="giallo z-code"><code data-lang="rust"><span class="giallo-l"><span class="z-keyword">pub</span><span class="z-keyword"> async</span><span class="z-keyword"> fn</span><span class="z-entity z-name"> chat_with_tools</span><span>(</span></span>
+<span class="giallo-l"><span class="z-keyword">    &amp;</span><span class="z-variable z-language">self</span><span>,</span></span>
+<span class="giallo-l"><span class="z-variable z-other">    messages</span><span class="z-keyword">:</span><span class="z-keyword"> &amp;</span><span>[</span><span class="z-entity z-name">OwnedMsg</span><span>]</span><span>,</span></span>
+<span class="giallo-l"><span class="z-variable z-other">    tools</span><span class="z-keyword">:</span><span class="z-keyword"> &amp;</span><span>[</span><span class="z-entity z-name">ToolDef</span><span>]</span><span>,</span></span>
+<span class="giallo-l"><span>)</span><span class="z-keyword"> -&gt;</span><span class="z-entity z-name"> Result</span><span>&lt;</span><span class="z-entity z-name">ToolCallOutcome</span><span>&gt;</span><span> {</span></span>
+<span class="giallo-l"><span class="z-punctuation z-definition z-comment">    //</span><span class="z-comment"> 发请求，temperature=0.0 让判断更确定</span></span>
+<span class="giallo-l"><span class="z-storage z-type">    let</span><span class="z-variable z-other"> resp</span><span class="z-keyword">:</span><span class="z-entity z-name"> ToolChatResp</span><span class="z-keyword"> =</span><span class="z-variable z-language"> self</span><span class="z-keyword">.</span><span>client</span></span>
+<span class="giallo-l"><span class="z-keyword">        .</span><span class="z-entity z-name">post</span><span>(</span><span class="z-variable z-language">self</span><span class="z-keyword">.</span><span class="z-entity z-name">url</span><span>(</span><span>)</span><span>)</span></span>
+<span class="giallo-l"><span class="z-keyword">        .</span><span class="z-entity z-name">bearer_auth</span><span>(</span><span class="z-keyword">&amp;</span><span class="z-variable z-language">self</span><span class="z-keyword">.</span><span>api_key</span><span>)</span></span>
+<span class="giallo-l"><span class="z-keyword">        .</span><span class="z-entity z-name">json</span><span>(</span><span class="z-keyword">&amp;</span><span class="z-entity z-name">ToolChatReq</span><span> {</span><span class="z-variable z-other"> model</span><span class="z-keyword">:</span><span class="z-keyword"> &amp;</span><span class="z-variable z-language">self</span><span class="z-keyword">.</span><span>model</span><span>,</span><span class="z-variable z-other"> messages</span><span>,</span><span class="z-variable z-other"> tools</span><span>,</span></span>
+<span class="giallo-l"><span class="z-variable z-other">                             tool_choice</span><span class="z-keyword">:</span><span class="z-punctuation z-definition z-string"> &quot;</span><span class="z-string">auto</span><span class="z-punctuation z-definition z-string">&quot;</span><span>,</span><span class="z-variable z-other"> stream</span><span class="z-keyword">:</span><span class="z-constant"> false</span><span>,</span><span class="z-variable z-other"> temperature</span><span class="z-keyword">:</span><span class="z-constant"> 0</span><span class="z-constant">.</span><span class="z-constant">0</span><span> }</span><span>)</span></span>
+<span class="giallo-l"><span class="z-keyword">        .</span><span class="z-entity z-name">send</span><span>(</span><span>)</span><span class="z-keyword">.</span><span class="z-keyword">await</span><span class="z-keyword">?</span></span>
+<span class="giallo-l"><span class="z-keyword">        .</span><span class="z-entity z-name">json</span><span>(</span><span>)</span><span class="z-keyword">.</span><span class="z-keyword">await</span><span class="z-keyword">?</span><span>;</span></span>
+<span class="giallo-l"></span>
+<span class="giallo-l"><span class="z-storage z-type">    let</span><span class="z-variable z-other"> choice</span><span class="z-keyword"> =</span><span class="z-variable z-other"> resp</span><span class="z-keyword">.</span><span>choices</span><span class="z-keyword">.</span><span class="z-entity z-name">into_iter</span><span>(</span><span>)</span><span class="z-keyword">.</span><span class="z-entity z-name">next</span><span>(</span><span>)</span><span class="z-keyword">?</span><span>;</span></span>
+<span class="giallo-l"></span>
+<span class="giallo-l"><span class="z-keyword">    if</span><span class="z-variable z-other"> choice</span><span class="z-keyword">.</span><span>finish_reason </span><span class="z-keyword">==</span><span class="z-punctuation z-definition z-string"> &quot;</span><span class="z-string">tool_calls</span><span class="z-punctuation z-definition z-string">&quot;</span><span class="z-keyword"> &amp;&amp;</span><span class="z-keyword"> !</span><span class="z-variable z-other">choice</span><span class="z-keyword">.</span><span>message</span><span class="z-keyword">.</span><span>tool_calls</span><span class="z-keyword">.</span><span class="z-entity z-name">is_empty</span><span>(</span><span>)</span><span> {</span></span>
+<span class="giallo-l"><span class="z-storage z-type">        let</span><span class="z-variable z-other"> calls</span><span class="z-keyword"> =</span><span class="z-variable z-other"> choice</span><span class="z-keyword">.</span><span>message</span><span class="z-keyword">.</span><span>tool_calls</span><span>;</span></span>
+<span class="giallo-l"><span class="z-entity z-name">        Ok</span><span>(</span><span class="z-entity z-name">ToolCallOutcome</span><span class="z-keyword">::</span><span class="z-entity z-name">ToolCalls</span><span> {</span></span>
+<span class="giallo-l"><span class="z-variable z-other">            assistant_msg</span><span class="z-keyword">:</span><span class="z-entity z-name"> OwnedMsg</span><span class="z-keyword">::</span><span class="z-entity z-name">assistant_tool_calls</span><span>(</span><span class="z-variable z-other">calls</span><span class="z-keyword">.</span><span class="z-entity z-name">clone</span><span>(</span><span>)</span><span>)</span><span>,</span></span>
+<span class="giallo-l"><span class="z-variable z-other">            calls</span><span>,</span></span>
+<span class="giallo-l"><span>        }</span><span>)</span></span>
+<span class="giallo-l"><span>    }</span><span class="z-keyword"> else</span><span> {</span></span>
+<span class="giallo-l"><span class="z-entity z-name">        Ok</span><span>(</span><span class="z-entity z-name">ToolCallOutcome</span><span class="z-keyword">::</span><span class="z-entity z-name">Text</span><span>(</span><span class="z-variable z-other">choice</span><span class="z-keyword">.</span><span>message</span><span class="z-keyword">.</span><span>content</span><span class="z-keyword">.</span><span class="z-entity z-name">unwrap_or_default</span><span>(</span><span>)</span><span>)</span><span>)</span></span>
+<span class="giallo-l"><span>    }</span></span>
+<span class="giallo-l"><span>}</span></span></code></pre>
+<p><strong><code>stream_with_history</code></strong> — 流式，带完整上下文（含工具结果）生成最终回答：</p>
+<pre class="giallo z-code"><code data-lang="rust"><span class="giallo-l"><span class="z-keyword">pub</span><span class="z-keyword"> async</span><span class="z-keyword"> fn</span><span class="z-entity z-name"> stream_with_history</span><span>(</span></span>
+<span class="giallo-l"><span class="z-keyword">    &amp;</span><span class="z-variable z-language">self</span><span>,</span></span>
+<span class="giallo-l"><span class="z-variable z-other">    messages</span><span class="z-keyword">:</span><span class="z-keyword"> &amp;</span><span>[</span><span class="z-entity z-name">OwnedMsg</span><span>]</span><span>,</span></span>
+<span class="giallo-l"><span>)</span><span class="z-keyword"> -&gt;</span><span class="z-entity z-name"> Result</span><span>&lt;</span><span class="z-entity z-name">BoxStream</span><span>&lt;</span><span>&#39;</span><span class="z-entity z-name">static</span><span>,</span><span class="z-entity z-name"> Result</span><span>&lt;</span><span class="z-entity z-name">String</span><span>&gt;</span><span>&gt;</span><span>&gt;</span><span> {</span></span>
+<span class="giallo-l"><span class="z-storage z-type">    let</span><span class="z-variable z-other"> resp</span><span class="z-keyword"> =</span><span class="z-variable z-language"> self</span><span class="z-keyword">.</span><span>client</span></span>
+<span class="giallo-l"><span class="z-keyword">        .</span><span class="z-entity z-name">post</span><span>(</span><span class="z-variable z-language">self</span><span class="z-keyword">.</span><span class="z-entity z-name">url</span><span>(</span><span>)</span><span>)</span></span>
+<span class="giallo-l"><span class="z-keyword">        .</span><span class="z-entity z-name">bearer_auth</span><span>(</span><span class="z-keyword">&amp;</span><span class="z-variable z-language">self</span><span class="z-keyword">.</span><span>api_key</span><span>)</span></span>
+<span class="giallo-l"><span class="z-keyword">        .</span><span class="z-entity z-name">json</span><span>(</span><span class="z-keyword">&amp;</span><span class="z-entity z-name">StreamReq</span><span> {</span><span class="z-variable z-other"> model</span><span class="z-keyword">:</span><span class="z-keyword"> &amp;</span><span class="z-variable z-language">self</span><span class="z-keyword">.</span><span>model</span><span>,</span><span class="z-variable z-other"> messages</span><span>,</span><span class="z-variable z-other"> stream</span><span class="z-keyword">:</span><span class="z-constant"> true</span><span>,</span><span class="z-variable z-other"> temperature</span><span class="z-keyword">:</span><span class="z-constant"> 0</span><span class="z-constant">.</span><span class="z-constant">3</span><span> }</span><span>)</span></span>
+<span class="giallo-l"><span class="z-keyword">        .</span><span class="z-entity z-name">send</span><span>(</span><span>)</span><span class="z-keyword">.</span><span class="z-keyword">await</span><span class="z-keyword">?</span><span>;</span></span>
+<span class="giallo-l"><span class="z-entity z-name">    Ok</span><span>(</span><span class="z-entity z-name">Box</span><span class="z-keyword">::</span><span class="z-entity z-name">pin</span><span>(</span><span class="z-entity z-name">parse_sse</span><span>(</span><span class="z-variable z-other">resp</span><span class="z-keyword">.</span><span class="z-entity z-name">bytes_stream</span><span>(</span><span>)</span><span>)</span><span>)</span><span>)</span></span>
+<span class="giallo-l"><span>}</span></span></code></pre>
+<hr />
+<h2 id="chat-handler-liang-duan-shi-liu-cheng">Chat Handler：两段式流程<a class="zola-anchor" href="#chat-handler-liang-duan-shi-liu-cheng" aria-label="Anchor link for: chat-handler-liang-duan-shi-liu-cheng" style="visibility: hidden;"></a>
+</h2>
+<pre class="giallo z-code"><code data-lang="rust"><span class="giallo-l"><span class="z-keyword">pub</span><span class="z-keyword"> async</span><span class="z-keyword"> fn</span><span class="z-entity z-name"> chat</span><span>(</span><span class="z-entity z-name">State</span><span>(</span><span class="z-variable z-other">state</span><span>)</span><span class="z-keyword">:</span><span class="z-entity z-name"> State</span><span>&lt;</span><span class="z-entity z-name">AppState</span><span>&gt;</span><span>,</span><span class="z-entity z-name"> Json</span><span>(</span><span class="z-variable z-other">body</span><span>)</span><span class="z-keyword">:</span><span class="z-entity z-name"> Json</span><span>&lt;</span><span class="z-entity z-name">ChatBody</span><span>&gt;</span><span>)</span></span>
+<span class="giallo-l"><span class="z-keyword">    -&gt;</span><span class="z-entity z-name"> Result</span><span>&lt;</span><span class="z-entity z-name">Response</span><span>,</span><span class="z-entity z-name"> AppError</span><span>&gt;</span></span>
+<span class="giallo-l"><span>{</span></span>
+<span class="giallo-l"><span class="z-punctuation z-definition z-comment">    //</span><span class="z-comment"> 组装消息历史</span></span>
+<span class="giallo-l"><span class="z-storage z-type">    let</span><span class="z-storage"> mut</span><span class="z-variable z-other"> msgs</span><span class="z-keyword"> =</span><span class="z-entity z-name"> vec!</span><span>[</span><span class="z-entity z-name">OwnedMsg</span><span class="z-keyword">::</span><span class="z-entity z-name">system</span><span>(</span><span class="z-constant">SYSTEM</span><span>)</span><span>]</span><span>;</span></span>
+<span class="giallo-l"><span class="z-keyword">    for</span><span class="z-variable z-other"> h</span><span class="z-keyword"> in</span><span class="z-keyword"> &amp;</span><span class="z-variable z-other">body</span><span class="z-keyword">.</span><span>history </span><span>{</span><span class="z-comment"> /*</span><span class="z-comment"> 追加历史 </span><span class="z-comment">*/</span><span> }</span></span>
+<span class="giallo-l"><span class="z-variable z-other">    msgs</span><span class="z-keyword">.</span><span class="z-entity z-name">push</span><span>(</span><span class="z-entity z-name">OwnedMsg</span><span class="z-keyword">::</span><span class="z-entity z-name">user</span><span>(</span><span class="z-keyword">&amp;</span><span class="z-variable z-other">question</span><span>)</span><span>)</span><span>;</span></span>
+<span class="giallo-l"></span>
+<span class="giallo-l"><span class="z-punctuation z-definition z-comment">    //</span><span class="z-comment"> 第一阶段：让 LLM 决策</span></span>
+<span class="giallo-l"><span class="z-storage z-type">    let</span><span class="z-variable z-other"> outcome</span><span class="z-keyword"> =</span><span class="z-variable z-other"> state</span><span class="z-keyword">.</span><span>llm</span><span class="z-keyword">.</span><span class="z-entity z-name">chat_with_tools</span><span>(</span><span class="z-keyword">&amp;</span><span class="z-variable z-other">msgs</span><span>,</span><span class="z-keyword"> &amp;</span><span class="z-entity z-name">tool_defs</span><span>(</span><span>)</span><span>)</span><span class="z-keyword">.</span><span class="z-keyword">await</span><span class="z-keyword">?</span><span>;</span></span>
+<span class="giallo-l"></span>
+<span class="giallo-l"><span class="z-keyword">    match</span><span class="z-variable z-other"> outcome</span><span> {</span></span>
+<span class="giallo-l"><span class="z-punctuation z-definition z-comment">        //</span><span class="z-comment"> 不需要工具，直接返回</span></span>
+<span class="giallo-l"><span class="z-entity z-name">        ToolCallOutcome</span><span class="z-keyword">::</span><span class="z-entity z-name">Text</span><span>(</span><span class="z-variable z-other">text</span><span>)</span><span class="z-keyword"> =&gt;</span><span> {</span></span>
+<span class="giallo-l"><span class="z-storage z-type">            let</span><span class="z-variable z-other"> stream</span><span class="z-keyword"> =</span><span class="z-entity z-name"> async_stream</span><span class="z-keyword">::</span><span class="z-entity z-name">stream!</span><span> {</span></span>
+<span class="giallo-l"><span class="z-keyword">                yield</span><span class="z-entity z-name"> sse</span><span>(</span><span class="z-keyword">&amp;</span><span class="z-variable z-other">text</span><span class="z-keyword">.</span><span class="z-entity z-name">replace</span><span>(</span><span class="z-string">&#39;</span><span class="z-constant">\</span><span class="z-constant">n</span><span class="z-string">&#39;</span><span>,</span><span class="z-punctuation z-definition z-string"> &quot;</span><span class="z-string">&lt;br&gt;</span><span class="z-punctuation z-definition z-string">&quot;</span><span>)</span><span>)</span><span>;</span></span>
+<span class="giallo-l"><span class="z-keyword">                yield</span><span class="z-entity z-name"> sse</span><span>(</span><span class="z-punctuation z-definition z-string">&quot;</span><span class="z-string">[DONE]</span><span class="z-punctuation z-definition z-string">&quot;</span><span>)</span><span>;</span></span>
+<span class="giallo-l"><span>            }</span><span>;</span></span>
+<span class="giallo-l"><span class="z-entity z-name">            Ok</span><span>(</span><span class="z-entity z-name">make_sse</span><span>(</span><span class="z-variable z-other">stream</span><span>)</span><span>)</span></span>
+<span class="giallo-l"><span>        }</span></span>
+<span class="giallo-l"></span>
+<span class="giallo-l"><span class="z-punctuation z-definition z-comment">        //</span><span class="z-comment"> 需要工具：执行 → 注入结果 → 流式生成答案</span></span>
+<span class="giallo-l"><span class="z-entity z-name">        ToolCallOutcome</span><span class="z-keyword">::</span><span class="z-entity z-name">ToolCalls</span><span> {</span><span class="z-variable z-other"> assistant_msg</span><span>,</span><span class="z-variable z-other"> calls</span><span> }</span><span class="z-keyword"> =&gt;</span><span> {</span></span>
+<span class="giallo-l"><span class="z-variable z-other">            msgs</span><span class="z-keyword">.</span><span class="z-entity z-name">push</span><span>(</span><span class="z-variable z-other">assistant_msg</span><span>)</span><span>;</span></span>
+<span class="giallo-l"><span class="z-keyword">            for</span><span class="z-variable z-other"> call</span><span class="z-keyword"> in</span><span class="z-keyword"> &amp;</span><span class="z-variable z-other">calls</span><span> {</span></span>
+<span class="giallo-l"><span class="z-storage z-type">                let</span><span class="z-variable z-other"> result</span><span class="z-keyword"> =</span><span class="z-entity z-name"> dispatch_tool</span><span>(</span><span class="z-keyword">&amp;</span><span class="z-variable z-other">state</span><span>,</span><span class="z-keyword"> &amp;</span><span class="z-variable z-other">call</span><span class="z-keyword">.</span><span>function</span><span class="z-keyword">.</span><span>name</span><span>,</span></span>
+<span class="giallo-l"><span class="z-keyword">                                          &amp;</span><span class="z-variable z-other">call</span><span class="z-keyword">.</span><span>function</span><span class="z-keyword">.</span><span>arguments</span><span>,</span></span>
+<span class="giallo-l"><span class="z-variable z-other">                                          body</span><span class="z-keyword">.</span><span>lat</span><span>,</span><span class="z-variable z-other"> body</span><span class="z-keyword">.</span><span>lng</span><span>,</span><span class="z-keyword"> &amp;</span><span class="z-variable z-other">uid</span><span>)</span><span class="z-keyword">.</span><span class="z-keyword">await</span><span>;</span></span>
+<span class="giallo-l"><span class="z-variable z-other">                msgs</span><span class="z-keyword">.</span><span class="z-entity z-name">push</span><span>(</span><span class="z-entity z-name">OwnedMsg</span><span class="z-keyword">::</span><span class="z-entity z-name">tool</span><span>(</span><span class="z-variable z-other">call</span><span class="z-keyword">.</span><span>id</span><span class="z-keyword">.</span><span class="z-entity z-name">clone</span><span>(</span><span>)</span><span>,</span><span class="z-variable z-other"> result</span><span>)</span><span>)</span><span>;</span></span>
+<span class="giallo-l"><span>            }</span></span>
+<span class="giallo-l"></span>
+<span class="giallo-l"><span class="z-storage z-type">            let</span><span class="z-storage"> mut</span><span class="z-variable z-other"> tokens</span><span class="z-keyword"> =</span><span class="z-variable z-other"> state</span><span class="z-keyword">.</span><span>llm</span><span class="z-keyword">.</span><span class="z-entity z-name">stream_with_history</span><span>(</span><span class="z-keyword">&amp;</span><span class="z-variable z-other">msgs</span><span>)</span><span class="z-keyword">.</span><span class="z-keyword">await</span><span class="z-keyword">?</span><span>;</span></span>
+<span class="giallo-l"><span class="z-storage z-type">            let</span><span class="z-variable z-other"> stream</span><span class="z-keyword"> =</span><span class="z-entity z-name"> async_stream</span><span class="z-keyword">::</span><span class="z-entity z-name">stream!</span><span> {</span></span>
+<span class="giallo-l"><span class="z-keyword">                while</span><span class="z-storage z-type"> let</span><span class="z-entity z-name"> Some</span><span>(</span><span class="z-entity z-name">Ok</span><span>(</span><span class="z-variable z-other">t</span><span>)</span><span>)</span><span class="z-keyword"> =</span><span class="z-variable z-other"> tokens</span><span class="z-keyword">.</span><span class="z-entity z-name">next</span><span>(</span><span>)</span><span class="z-keyword">.</span><span class="z-keyword">await</span><span> {</span></span>
+<span class="giallo-l"><span class="z-keyword">                    if</span><span class="z-keyword"> !</span><span class="z-variable z-other">t</span><span class="z-keyword">.</span><span class="z-entity z-name">is_empty</span><span>(</span><span>)</span><span> {</span><span class="z-keyword"> yield</span><span class="z-entity z-name"> sse</span><span>(</span><span class="z-keyword">&amp;</span><span class="z-variable z-other">t</span><span class="z-keyword">.</span><span class="z-entity z-name">replace</span><span>(</span><span class="z-string">&#39;</span><span class="z-constant">\</span><span class="z-constant">n</span><span class="z-string">&#39;</span><span>,</span><span class="z-punctuation z-definition z-string"> &quot;</span><span class="z-string">&lt;br&gt;</span><span class="z-punctuation z-definition z-string">&quot;</span><span>)</span><span>)</span><span>;</span><span> }</span></span>
+<span class="giallo-l"><span>                }</span></span>
+<span class="giallo-l"><span class="z-keyword">                yield</span><span class="z-entity z-name"> sse</span><span>(</span><span class="z-punctuation z-definition z-string">&quot;</span><span class="z-string">[DONE]</span><span class="z-punctuation z-definition z-string">&quot;</span><span>)</span><span>;</span></span>
+<span class="giallo-l"><span>            }</span><span>;</span></span>
+<span class="giallo-l"><span class="z-entity z-name">            Ok</span><span>(</span><span class="z-entity z-name">make_sse</span><span>(</span><span class="z-variable z-other">stream</span><span>)</span><span>)</span></span>
+<span class="giallo-l"><span>        }</span></span>
+<span class="giallo-l"><span>    }</span></span>
+<span class="giallo-l"><span>}</span></span></code></pre>
+<p>关键点：两次 LLM 调用都在进入 SSE stream 之前完成，所以第一次调用失败可以直接返回 HTTP 错误，而不是把错误混进流里。</p>
+<hr />
+<h2 id="gong-ju-shi-xian-ba-shu-ju-cha-chu-lai-jiao-gei-llm-zu-zhi-yu-yan">工具实现：把数据查出来交给 LLM 组织语言<a class="zola-anchor" href="#gong-ju-shi-xian-ba-shu-ju-cha-chu-lai-jiao-gei-llm-zu-zhi-yu-yan" aria-label="Anchor link for: gong-ju-shi-xian-ba-shu-ju-cha-chu-lai-jiao-gei-llm-zu-zhi-yu-yan" style="visibility: hidden;"></a>
+</h2>
+<p><code>find_nearby_stations</code> 的工作就是查 DB 返回原始文本，LLM 负责把它变成自然语言：</p>
+<pre class="giallo z-code"><code data-lang="rust"><span class="giallo-l"><span class="z-keyword">async</span><span class="z-keyword"> fn</span><span class="z-entity z-name"> query_stations</span><span>(</span><span class="z-variable z-other">pool</span><span class="z-keyword">:</span><span class="z-keyword"> &amp;</span><span class="z-entity z-name">PgPool</span><span>)</span><span class="z-keyword"> -&gt;</span><span class="z-entity z-name"> Result</span><span>&lt;</span><span class="z-entity z-name">Vec</span><span>&lt;</span><span class="z-entity z-name">StationRow</span><span>&gt;</span><span>&gt;</span><span> {</span></span>
+<span class="giallo-l"><span class="z-storage z-type">    let</span><span class="z-storage"> mut</span><span class="z-variable z-other"> tx</span><span class="z-keyword"> =</span><span class="z-variable z-other"> pool</span><span class="z-keyword">.</span><span class="z-entity z-name">begin</span><span>(</span><span>)</span><span class="z-keyword">.</span><span class="z-keyword">await</span><span class="z-keyword">?</span><span>;</span></span>
+<span class="giallo-l"><span class="z-punctuation z-definition z-comment">    //</span><span class="z-comment"> 设置 RLS 会话变量，让当前事务能看到所有企业的站点</span></span>
+<span class="giallo-l"><span class="z-entity z-name">    sqlx</span><span class="z-keyword">::</span><span class="z-entity z-name">query</span><span>(</span><span class="z-punctuation z-definition z-string">&quot;</span><span class="z-string">SELECT set_config(&#39;app.enterprise_id&#39;, &#39;*&#39;, true)</span><span class="z-punctuation z-definition z-string">&quot;</span><span>)</span></span>
+<span class="giallo-l"><span class="z-keyword">        .</span><span class="z-entity z-name">execute</span><span>(</span><span class="z-keyword">&amp;</span><span class="z-storage">mut</span><span class="z-keyword"> *</span><span class="z-variable z-other">tx</span><span>)</span><span class="z-keyword">.</span><span class="z-keyword">await</span><span class="z-keyword">?</span><span>;</span></span>
+<span class="giallo-l"></span>
+<span class="giallo-l"><span class="z-storage z-type">    let</span><span class="z-variable z-other"> rows</span><span class="z-keyword"> =</span><span class="z-entity z-name"> sqlx</span><span class="z-keyword">::</span><span class="z-entity z-name">query_as</span><span class="z-keyword">::</span><span>&lt;</span><span class="z-variable z-other">_</span><span>,</span><span class="z-entity z-name"> StationRow</span><span>&gt;</span><span>(</span><span class="z-string">r</span><span class="z-punctuation z-definition z-string">#</span><span class="z-punctuation z-definition z-string">&quot;</span></span>
+<span class="giallo-l"><span class="z-string">        SELECT</span></span>
+<span class="giallo-l"><span class="z-string">            s.station_name AS name,</span></span>
+<span class="giallo-l"><span class="z-string">            CAST(s.latitude  AS float8) AS lat,</span></span>
+<span class="giallo-l"><span class="z-string">            CAST(s.longitude AS float8) AS lng,</span></span>
+<span class="giallo-l"><span class="z-string">            CAST(COALESCE(g.rated_pressure, 0) AS float8) AS pressure,</span></span>
+<span class="giallo-l"><span class="z-string">            CAST(COALESCE(p.price, 0) AS float8) AS price,</span></span>
+<span class="giallo-l"><span class="z-string">            CAST(COALESCE(gc.free,  0) AS int8) AS free_guns,</span></span>
+<span class="giallo-l"><span class="z-string">            CAST(COALESCE(gc.total, 0) AS int8) AS total_guns</span></span>
+<span class="giallo-l"><span class="z-string">        FROM stations s</span></span>
+<span class="giallo-l"><span class="z-string">        LEFT JOIN LATERAL (</span></span>
+<span class="giallo-l"><span class="z-string">            SELECT MAX(rated_pressure) FROM station_guns</span></span>
+<span class="giallo-l"><span class="z-string">            WHERE station_id = s.station_id AND deleted_at IS NULL</span></span>
+<span class="giallo-l"><span class="z-string">        ) g ON true</span></span>
+<span class="giallo-l"><span class="z-string">        LEFT JOIN LATERAL (</span></span>
+<span class="giallo-l"><span class="z-string">            SELECT price FROM prices</span></span>
+<span class="giallo-l"><span class="z-string">            WHERE owner_id = s.station_id AND owner_type = &#39;station&#39;</span></span>
+<span class="giallo-l"><span class="z-string">              AND deleted_at IS NULL AND status = 1</span></span>
+<span class="giallo-l"><span class="z-string">            ORDER BY effective_date DESC LIMIT 1</span></span>
+<span class="giallo-l"><span class="z-string">        ) p ON true</span></span>
+<span class="giallo-l"><span class="z-string">        LEFT JOIN (</span></span>
+<span class="giallo-l"><span class="z-string">            SELECT station_id,</span></span>
+<span class="giallo-l"><span class="z-string">                COUNT(*) AS total,</span></span>
+<span class="giallo-l"><span class="z-string">                COUNT(*) FILTER (WHERE status = &#39;idle&#39;) AS free</span></span>
+<span class="giallo-l"><span class="z-string">            FROM station_guns WHERE deleted_at IS NULL GROUP BY station_id</span></span>
+<span class="giallo-l"><span class="z-string">        ) gc ON gc.station_id = s.station_id</span></span>
+<span class="giallo-l"><span class="z-string">        WHERE s.deleted_at IS NULL</span></span>
+<span class="giallo-l"><span class="z-punctuation z-definition z-string">    &quot;</span><span class="z-punctuation z-definition z-string">#</span><span>)</span><span class="z-keyword">.</span><span class="z-entity z-name">fetch_all</span><span>(</span><span class="z-keyword">&amp;</span><span class="z-storage">mut</span><span class="z-keyword"> *</span><span class="z-variable z-other">tx</span><span>)</span><span class="z-keyword">.</span><span class="z-keyword">await</span><span class="z-keyword">?</span><span>;</span></span>
+<span class="giallo-l"></span>
+<span class="giallo-l"><span class="z-variable z-other">    tx</span><span class="z-keyword">.</span><span class="z-entity z-name">commit</span><span>(</span><span>)</span><span class="z-keyword">.</span><span class="z-keyword">await</span><span class="z-keyword">?</span><span>;</span></span>
+<span class="giallo-l"><span class="z-entity z-name">    Ok</span><span>(</span><span class="z-variable z-other">rows</span><span>)</span></span>
+<span class="giallo-l"><span>}</span></span></code></pre>
+<p>查出来的数据格式化成这样的文本再交给 LLM：</p>
+<pre class="giallo z-code"><code data-lang="plain"><span class="giallo-l"><span>找到最近 5 个氢站：</span></span>
+<span class="giallo-l"><span>1. 广州越秀区政府配套氢能站 — 0.7km · ¥30.50/kg · 35MPa · 空闲 4/7</span></span>
+<span class="giallo-l"><span>2. 广州白云机场配套氢能站 — 5.7km · ¥30.00/kg · 35MPa · 空闲 5/9</span></span>
+<span class="giallo-l"><span>...</span></span></code></pre>
+<p>LLM 拿到这个文本之后，会自己做推荐、排版、补充建议——这才是它该干的事。</p>
+<hr />
+<h2 id="shi-ji-xiao-guo">实际效果<a class="zola-anchor" href="#shi-ji-xiao-guo" aria-label="Anchor link for: shi-ji-xiao-guo" style="visibility: hidden;"></a>
+</h2>
+<pre class="giallo z-code"><code data-lang="plain"><span class="giallo-l"><span>问：附近哪里能加氢</span></span>
+<span class="giallo-l"><span>答：以下是您附近 5 个加氢站（按距离排序）：</span></span>
+<span class="giallo-l"></span>
+<span class="giallo-l"><span>1. **广州越秀区政府配套氢能站** — 0.7 km，35MPa，¥30.50/kg，空闲 4/7</span></span>
+<span class="giallo-l"><span>2. **广州白云机场配套氢能站** — 5.7 km，35MPa，¥30.00/kg，空闲 5/9</span></span>
+<span class="giallo-l"><span>...</span></span>
+<span class="giallo-l"></span>
+<span class="giallo-l"><span>推荐距离近、价格低的 **越秀站** 或 **白云机场站**。</span></span>
+<span class="giallo-l"><span>需要导航或查询消费记录请告诉我 😊</span></span></code></pre>
+<hr />
+<h2 id="xia-yi-bu">下一步<a class="zola-anchor" href="#xia-yi-bu" aria-label="Anchor link for: xia-yi-bu" style="visibility: hidden;"></a>
+</h2>
+<p>接下来打算做前端的小程序页面，把这个 SSE 接口接进去，让车主真正用起来。</p>
+
+      </article>
+
+      
+      
+
+      
+      
+      <div class="giscus"></div>
+      <style>
+#comments { margin-top: 3rem; padding: 0 15px; }
+.c-item { margin: 1.2rem 0; }
+.c-reply { margin-left: 1.5rem; padding-left: 1rem; border-left: 2px solid var(--text-decoration-color); }
+.c-meta { display: flex; align-items: center; gap: 0.6rem; margin-bottom: 0.3rem; font-size: 0.85em; }
+.c-name { font-weight: bold; color: var(--text-color); }
+.c-time { color: var(--text-pale-color); }
+.c-reply-btn {
+  background: none; border: none; padding: 0;
+  color: var(--primary-color); cursor: pointer;
+  font-size: 0.85em; opacity: 0;
+  transition: opacity 0.15s;
+}
+.c-item:hover .c-reply-btn { opacity: 1; }
+.c-body { color: var(--text-color); line-height: var(--line-height); white-space: pre-wrap; word-break: break-word; }
+.c-loading, .c-empty { color: var(--text-pale-color); font-size: 0.9em; padding: 1rem 0; }
+.c-form { margin-top: 2rem; display: flex; flex-direction: column; gap: 0.6rem; }
+.c-form-row { display: flex; gap: 0.6rem; }
+.c-input {
+  width: 100%; padding: 0.5rem 0.7rem;
+  border: 1.5px solid var(--text-decoration-color);
+  border-radius: 4px;
+  background: var(--bg-color); color: var(--text-color);
+  font-size: 0.9em; font-family: var(--main-font);
+  outline: none; transition: border-color 0.15s;
+}
+.c-input:focus { border-color: var(--primary-color); }
+.c-input-content { resize: vertical; min-height: 100px; }
+.c-reply-tip {
+  font-size: 0.85em; color: var(--primary-color);
+  padding: 0.2rem 0.5rem;
+  background: var(--inline-code-bg-color);
+  border-radius: 4px; align-self: flex-start;
+}
+.c-reply-tip::after { content: " ✕"; opacity: 0.5; }
+.c-form-actions { display: flex; justify-content: flex-end; }
+.c-submit {
+  padding: 0.4rem 1.2rem;
+  background: var(--primary-color); color: var(--bg-color);
+  border: none; border-radius: 4px;
+  cursor: pointer; font-size: 0.9em;
+  transition: opacity 0.15s;
+}
+.c-submit:hover { opacity: 0.85; }
+.c-submit:disabled { opacity: 0.5; cursor: not-allowed; }
+</style>
+<div id="comments" data-page="&#x2F;posts&#x2F;mp-agent-tool-call-2026-06-23&#x2F;"></div>
+<script src="/comments.js"></script>
+
+
+      
+    </div>
+
+    
+
+
+<footer>
+  <div class="left">
+    <div class="copyright">
+      © 2026 Cirray AI
+      
+      <span>|</span>
+      Built with <a href="https://www.getzola.org" rel="noreferrer" target="_blank">zola</a> and <a href="https://github.com/isunjn/serene" rel="noreferrer" target="_blank">serene</a>
+      
+    </div>
+  </div>
+
+  <div class="right">
+    
+    
+    
+    
+
+    
+    
+    
+    <button id="theme-toggle" aria-label="theme switch">
+      <span class="moon-icon"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="18" height="18"><path d="M10 7C10 10.866 13.134 14 17 14C18.9584 14 20.729 13.1957 21.9995 11.8995C22 11.933 22 11.9665 22 12C22 17.5228 17.5228 22 12 22C6.47715 22 2 17.5228 2 12C2 6.47715 6.47715 2 12 2C12.0335 2 12.067 2 12.1005 2.00049C10.8043 3.27098 10 5.04157 10 7ZM4 12C4 16.4183 7.58172 20 12 20C15.0583 20 17.7158 18.2839 19.062 15.7621C18.3945 15.9187 17.7035 16 17 16C12.0294 16 8 11.9706 8 7C8 6.29648 8.08133 5.60547 8.2379 4.938C5.71611 6.28423 4 8.9417 4 12Z" fill="currentColor"></path></svg>
+</span>
+      <span class="sun-icon"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="18" height="18"><path d="M12 18C8.68629 18 6 15.3137 6 12C6 8.68629 8.68629 6 12 6C15.3137 6 18 8.68629 18 12C18 15.3137 15.3137 18 12 18ZM12 16C14.2091 16 16 14.2091 16 12C16 9.79086 14.2091 8 12 8C9.79086 8 8 9.79086 8 12C8 14.2091 9.79086 16 12 16ZM11 1H13V4H11V1ZM11 20H13V23H11V20ZM3.51472 4.92893L4.92893 3.51472L7.05025 5.63604L5.63604 7.05025L3.51472 4.92893ZM16.9497 18.364L18.364 16.9497L20.4853 19.0711L19.0711 20.4853L16.9497 18.364ZM19.0711 3.51472L20.4853 4.92893L18.364 7.05025L16.9497 5.63604L19.0711 3.51472ZM5.63604 16.9497L7.05025 18.364L4.92893 20.4853L3.51472 19.0711L5.63604 16.9497ZM23 11V13H20V11H23ZM4 11V13H1V11H4Z" fill="currentColor"></path></svg>
+</span>
+    </button>
+    
+  </div>
+</footer>
+
+
+
+
+
+  </main>
+</div>
+
+  
+<script src="/js/lightense.min.js"></script>
+
+
+  <script src="https://blog.cirray.cn/js/main.js"></script>
+</body>
+
+</html>
