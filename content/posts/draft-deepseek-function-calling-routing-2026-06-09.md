@@ -1,5 +1,6 @@
 +++
-title = "充电站Agent系列1 —— Function Calling"
+draft = true
+title = "氢能站Agent系列1 —— Function Calling"
 description = "function calling 的核心不是「调函数」，是让模型做路由判断。一步步拆解协议，带你从 JSON 结构到完整流式实现，搭起一套真正能用的智能路由。"
 date = 2026-06-09
 
@@ -12,9 +13,9 @@ lang = "zh"
 toc = true
 +++
 
-今天来给电能管理系统 chatbot 做了一个智能路由：用 DeepSeek 的 function calling 判断"这个问题该不该查业务数据库"，而不是用关键词匹配去猜。
+今天来给氢能管理系统 chatbot 做了一个智能路由：用 DeepSeek 的 function calling 判断"这个问题该不该查业务数据库"，而不是用关键词匹配去猜。
 
-效果很直接——问"现在有多少个充电站点？"会去真正查数据库然后回答；问"你是谁？"就直接让 DeepSeek 回答，不会傻乎乎地跑一条 SQL。顺手把这个机制从头到尾整理一遍，力求讲清楚。
+效果很直接——问"现在有多少个氢能站点？"会去真正查数据库然后回答；问"你是谁？"就直接让 DeepSeek 回答，不会傻乎乎地跑一条 SQL。顺手把这个机制从头到尾整理一遍，力求讲清楚。
 
 ---
 
@@ -58,14 +59,14 @@ POST /v1/chat/completions
 {
   "model": "deepseek-v4-flash",
   "messages": [
-    { "role": "user", "content": "现在系统里有多少个充电站点？" }
+    { "role": "user", "content": "现在系统里有多少个氢能站点？" }
   ],
   "tools": [
     {
       "type": "function",
       "function": {
         "name": "query_hydrogen_business_data",
-        "description": "查询本系统（电能业务管理平台）的真实业务数据，例如站点储量、充电订单等。仅当问题需要查询本系统数据时调用；闲聊不要调用。",
+        "description": "查询本系统（氢能业务管理平台）的真实业务数据，例如站点储量、加氢订单等。仅当问题需要查询本系统数据时调用；闲聊不要调用。",
         "parameters": {
           "type": "object",
           "properties": {
@@ -103,7 +104,7 @@ POST /v1/chat/completions
         "type": "function",
         "function": {
           "name": "query_hydrogen_business_data",
-          "arguments": "{\"question\": \"系统中充电站点的总数\"}"
+          "arguments": "{\"question\": \"系统中氢能站点的总数\"}"
         }
       }]
     }
@@ -140,7 +141,7 @@ POST /v1/chat/completions
 {
   "model": "deepseek-v4-flash",
   "messages": [
-    { "role": "user", "content": "现在系统里有多少个充电站点？" },
+    { "role": "user", "content": "现在系统里有多少个氢能站点？" },
 
     // 第一次响应里模型说的"我要调用工具"
     {
@@ -364,8 +365,8 @@ pub async fn chat(
         kind: "function",
         function: FunctionDef {
             name: "query_hydrogen_business_data",
-            description: "查询本系统（电能业务管理平台）数据库中的真实业务数据，\
-                          例如站点储量、能源现价、充电订单、调度单、车辆能耗等。\
+            description: "查询本系统（氢能业务管理平台）数据库中的真实业务数据，\
+                          例如站点储量、能源现价、加氢订单、调度单、车辆能耗等。\
                           仅当用户问题需要查询本系统业务数据时才调用；\
                           常识性、闲聊、通用知识类问题不要调用。",
             parameters: serde_json::json!({
@@ -539,7 +540,7 @@ description 写得越精确，模型判断越准。`"查询本系统的业务数
 但这个方案很快就会撑不住：
 
 - "帮我看看最近的补氢调度" → 没有关键词但要查库
-- "一共有多少种充电方式" → 有"多少"但这是常识问题
+- "一共有多少种加氢方式" → 有"多少"但这是常识问题
 - "补氢速率计算公式是什么" → 要查专业知识还是查数据库？
 
 维护这套规则会越来越累，而且永远有边界情况。

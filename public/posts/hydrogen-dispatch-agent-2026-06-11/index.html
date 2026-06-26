@@ -12,7 +12,7 @@
   
   <meta name="description" content="用户说一句&#x27;安排一辆车给增城新塘站送500kg氢&#x27;，AI 给出候选车、司机、氢罐的完整派车建议。拆解从对话到调度方案的全过程：function calling 路由 → 三步查询管线 → 结果回填生成回答。">
 
-  <title>氢能站Agent系列3 -- 从对话到调度方案</title>
+  <title>充电站Agent系列3 -- 从对话到调度方案</title>
   <link rel="icon" type="image/png" sizes="32x32" href="https://blog.cirray.cn/img/favicon-32x32.png">
   <link rel="icon" type="image/png" sizes="16x16" href="https://blog.cirray.cn/img/favicon-16x16.png">
   <link rel="apple-touch-icon" sizes="180x180" href="https://blog.cirray.cn/img/apple-touch-icon.png">
@@ -158,7 +158,7 @@
 "></div>
       
       <article class="prose">
-        <h1>氢能站Agent系列3 -- 从对话到调度方案</h1>
+        <h1>充电站Agent系列3 -- 从对话到调度方案</h1>
         <div id="post-info">
           <div id="date">
             <span id="publish">2026-06-11</span>
@@ -191,7 +191,7 @@
 <tr><td><code>plan_hydrogen_dispatch</code></td><td>调度规划（新增）</td></tr>
 </tbody></table>
 <p>路由的"规则"就写在工具描述里：</p>
-<pre class="giallo z-code"><code data-lang="rust"><span class="giallo-l"><span class="z-variable z-other">description</span><span class="z-keyword">:</span><span class="z-punctuation z-definition z-string"> &quot;</span><span class="z-string">为氢气运输调度生成派车建议：根据目的加氢站、补氢量，\</span></span>
+<pre class="giallo z-code"><code data-lang="rust"><span class="giallo-l"><span class="z-variable z-other">description</span><span class="z-keyword">:</span><span class="z-punctuation z-definition z-string"> &quot;</span><span class="z-string">为氢气运输调度生成派车建议：根据目的充电站、补氢量，\</span></span>
 <span class="giallo-l"><span class="z-string">              查询当前可用的运氢车头与可配氢罐，按距离排序给出推荐。\</span></span>
 <span class="giallo-l"><span class="z-string">              仅当用户明确表达「派车/调度/安排车辆送氢到某站」类意图时调用；\</span></span>
 <span class="giallo-l"><span class="z-string">              单纯查询数据（如查车辆列表、查调度单）不要调用。</span><span class="z-punctuation z-definition z-string">&quot;</span><span>,</span></span></code></pre>
@@ -206,7 +206,7 @@
 <h2 id="di-er-bu-san-tiao-sql-sheng-cheng-fang-an">第二步：三条 SQL 生成方案<a class="zola-anchor" href="#di-er-bu-san-tiao-sql-sheng-cheng-fang-an" aria-label="Anchor link for: di-er-bu-san-tiao-sql-sheng-cheng-fang-an" style="visibility: hidden;"></a>
 </h2>
 <p>拿到参数，执行分支在一个数据库事务里跑三步：</p>
-<p><strong>① 目的站定位</strong> —— 名称模糊匹配，"增城新塘" → 广州增城新塘氢能站（拿到坐标）</p>
+<p><strong>① 目的站定位</strong> —— 名称模糊匹配，"增城新塘" → 广州增城新塘充电站（拿到坐标）</p>
 <p><strong>② 候选车排序</strong> —— <code>approved</code> 状态、且没有在途调度单占用的运氢车头，按到目的站的距离排前 3。距离不调地图 API，直接在 SQL 里用 haversine 公式算直线距离 ×1.25 近似道路里程（这是项目后端的既有约定，60 km/h 折算耗时）：</p>
 <pre class="giallo z-code"><code data-lang="sql"><span class="giallo-l"><span class="z-support">round</span><span>(</span><span>((</span><span class="z-constant">6371</span><span class="z-keyword"> *</span><span class="z-support"> acos</span><span>(</span><span class="z-support">LEAST</span><span>(</span><span class="z-constant">1</span><span>.</span><span class="z-constant">0</span><span>,</span></span>
 <span class="giallo-l"><span class="z-support">    cos</span><span>(</span><span class="z-support">radians</span><span>(</span><span>$lat)) </span><span class="z-keyword">*</span><span class="z-support"> cos</span><span>(</span><span class="z-support">radians</span><span>(</span><span class="z-constant">t</span><span>.</span><span class="z-constant">current_lat</span><span>))</span></span>
@@ -221,7 +221,7 @@
 </h2>
 <p>三步查询的结果打包成一个 JSON，以 <code>tool</code> 角色消息回填进对话，再发起一次流式请求让模型生成最终回答：</p>
 <pre class="giallo z-code"><code data-lang="json"><span class="giallo-l"><span>{</span></span>
-<span class="giallo-l"><span class="z-support">  &quot;</span><span class="z-support">station</span><span class="z-support">&quot;</span><span>:</span><span>     {</span><span class="z-support"> &quot;</span><span class="z-support">station_name</span><span class="z-support">&quot;</span><span>:</span><span class="z-punctuation z-definition z-string"> &quot;</span><span class="z-string">广州增城新塘氢能站</span><span class="z-punctuation z-definition z-string">&quot;</span><span>,</span><span class="z-support"> &quot;</span><span class="z-support">address</span><span class="z-support">&quot;</span><span>:</span><span class="z-punctuation z-definition z-string"> &quot;</span><span class="z-string">...</span><span class="z-punctuation z-definition z-string">&quot;</span><span>,</span><span class="z-invalid z-illegal"> .</span><span class="z-invalid z-illegal">.</span><span class="z-invalid z-illegal">.</span><span> }</span><span>,</span></span>
+<span class="giallo-l"><span class="z-support">  &quot;</span><span class="z-support">station</span><span class="z-support">&quot;</span><span>:</span><span>     {</span><span class="z-support"> &quot;</span><span class="z-support">station_name</span><span class="z-support">&quot;</span><span>:</span><span class="z-punctuation z-definition z-string"> &quot;</span><span class="z-string">广州增城新塘充电站</span><span class="z-punctuation z-definition z-string">&quot;</span><span>,</span><span class="z-support"> &quot;</span><span class="z-support">address</span><span class="z-support">&quot;</span><span>:</span><span class="z-punctuation z-definition z-string"> &quot;</span><span class="z-string">...</span><span class="z-punctuation z-definition z-string">&quot;</span><span>,</span><span class="z-invalid z-illegal"> .</span><span class="z-invalid z-illegal">.</span><span class="z-invalid z-illegal">.</span><span> }</span><span>,</span></span>
 <span class="giallo-l"><span class="z-support">  &quot;</span><span class="z-support">candidates</span><span class="z-support">&quot;</span><span>:</span><span>  [</span><span> {</span><span class="z-support"> &quot;</span><span class="z-support">plate</span><span class="z-support">&quot;</span><span>:</span><span class="z-punctuation z-definition z-string"> &quot;</span><span class="z-string">津CH2003</span><span class="z-punctuation z-definition z-string">&quot;</span><span>,</span><span class="z-support"> &quot;</span><span class="z-support">driver_name</span><span class="z-support">&quot;</span><span>:</span><span class="z-punctuation z-definition z-string"> &quot;</span><span class="z-string">张卫东</span><span class="z-punctuation z-definition z-string">&quot;</span><span>,</span></span>
 <span class="giallo-l"><span class="z-support">                     &quot;</span><span class="z-support">road_km_est</span><span class="z-support">&quot;</span><span>:</span><span class="z-constant"> null</span><span>,</span><span class="z-support"> &quot;</span><span class="z-support">eta_min</span><span class="z-support">&quot;</span><span>:</span><span class="z-constant"> null</span><span> }</span><span>,</span><span class="z-invalid z-illegal"> .</span><span class="z-invalid z-illegal">.</span><span class="z-invalid z-illegal">.</span><span> ]</span><span>,</span></span>
 <span class="giallo-l"><span class="z-support">  &quot;</span><span class="z-support">idle_tanks</span><span class="z-support">&quot;</span><span>:</span><span>  [</span><span> {</span><span class="z-support"> &quot;</span><span class="z-support">tank_no</span><span class="z-support">&quot;</span><span>:</span><span class="z-punctuation z-definition z-string"> &quot;</span><span class="z-string">HT-2024-011</span><span class="z-punctuation z-definition z-string">&quot;</span><span>,</span><span class="z-support"> &quot;</span><span class="z-support">rated_capacity</span><span class="z-support">&quot;</span><span>:</span><span class="z-constant"> 500</span><span> }</span><span>,</span><span class="z-invalid z-illegal"> .</span><span class="z-invalid z-illegal">.</span><span class="z-invalid z-illegal">.</span><span> ]</span><span>,</span></span>

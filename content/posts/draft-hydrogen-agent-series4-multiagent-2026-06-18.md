@@ -1,5 +1,6 @@
 +++
-title = "充电站Agent系列4 -- 第二个 Agent"
+draft = true
+title = "氢能站Agent系列4 -- 第二个 Agent"
 description = "Multi-Agent 不是堆 crate，在动手之前先扫代码，结果发现 mng-api 已经在跑预警扫描了。记录两件真正有价值的事：修掉 mp-agent 里的假消费数据，以及让 station-agent 做「响应预警」而非「重复检测」。"
 date = 2026-06-18
 
@@ -53,7 +54,7 @@ let tool_call = routing.tool_calls.as_ref().and_then(|calls| {
 fn consumption_report(q: &str) -> String {
     let period = if q.contains("上月") { "上月" } else { "本月" };
     format!(
-        "<b>{period}</b>充电消费摘要：<br>\
+        "<b>{period}</b>加氢消费摘要：<br>\
         累计加注 <b>32 kg</b><br>\
         合计支出 <b>¥1,241.60</b><br>\
         均价 <b>¥38.80/kg</b><br>\
@@ -151,7 +152,7 @@ let top_station: Option<String> = sqlx::query_scalar(
 .unwrap_or(None);
 ```
 
-这次就算用户充电记录真的是 0 条，也会如实返回"本月暂无充电记录"，而不是永远给同一个假数字。
+这次就算用户加氢记录真的是 0 条，也会如实返回"本月暂无加氢记录"，而不是永远给同一个假数字。
 
 ---
 

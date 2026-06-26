@@ -12,7 +12,7 @@
   
   <meta name="description" content="function calling 的核心不是「调函数」，是让模型做路由判断。一步步拆解协议，带你从 JSON 结构到完整流式实现，搭起一套真正能用的智能路由。">
 
-  <title>氢能站Agent系列1 —— Function Calling</title>
+  <title>充电站Agent系列1 —— Function Calling</title>
   <link rel="icon" type="image/png" sizes="32x32" href="https://blog.cirray.cn/img/favicon-32x32.png">
   <link rel="icon" type="image/png" sizes="16x16" href="https://blog.cirray.cn/img/favicon-16x16.png">
   <link rel="apple-touch-icon" sizes="180x180" href="https://blog.cirray.cn/img/apple-touch-icon.png">
@@ -213,7 +213,7 @@
 "></div>
       
       <article class="prose">
-        <h1>氢能站Agent系列1 —— Function Calling</h1>
+        <h1>充电站Agent系列1 —— Function Calling</h1>
         <div id="post-info">
           <div id="date">
             <span id="publish">2026-06-09</span>
@@ -231,8 +231,8 @@
 
         
 
-        <p>今天来给氢能管理系统 chatbot 做了一个智能路由：用 DeepSeek 的 function calling 判断"这个问题该不该查业务数据库"，而不是用关键词匹配去猜。</p>
-<p>效果很直接——问"现在有多少个氢能站点？"会去真正查数据库然后回答；问"你是谁？"就直接让 DeepSeek 回答，不会傻乎乎地跑一条 SQL。顺手把这个机制从头到尾整理一遍，力求讲清楚。</p>
+        <p>今天来给电能管理系统 chatbot 做了一个智能路由：用 DeepSeek 的 function calling 判断"这个问题该不该查业务数据库"，而不是用关键词匹配去猜。</p>
+<p>效果很直接——问"现在有多少个充电站点？"会去真正查数据库然后回答；问"你是谁？"就直接让 DeepSeek 回答，不会傻乎乎地跑一条 SQL。顺手把这个机制从头到尾整理一遍，力求讲清楚。</p>
 <hr />
 <h2 id="xian-shuo-qing-chu-function-calling-dao-di-shi-sha">先说清楚"function calling"到底是啥<a class="zola-anchor" href="#xian-shuo-qing-chu-function-calling-dao-di-shi-sha" aria-label="Anchor link for: xian-shuo-qing-chu-function-calling-dao-di-shi-sha" style="visibility: hidden;"></a>
 </h2>
@@ -263,14 +263,14 @@
 <span class="giallo-l"><span>{</span></span>
 <span class="giallo-l"><span class="z-support">  &quot;</span><span class="z-support">model</span><span class="z-support">&quot;</span><span>:</span><span class="z-punctuation z-definition z-string"> &quot;</span><span class="z-string">deepseek-v4-flash</span><span class="z-punctuation z-definition z-string">&quot;</span><span>,</span></span>
 <span class="giallo-l"><span class="z-support">  &quot;</span><span class="z-support">messages</span><span class="z-support">&quot;</span><span>:</span><span> [</span></span>
-<span class="giallo-l"><span>    {</span><span class="z-support"> &quot;</span><span class="z-support">role</span><span class="z-support">&quot;</span><span>:</span><span class="z-punctuation z-definition z-string"> &quot;</span><span class="z-string">user</span><span class="z-punctuation z-definition z-string">&quot;</span><span>,</span><span class="z-support"> &quot;</span><span class="z-support">content</span><span class="z-support">&quot;</span><span>:</span><span class="z-punctuation z-definition z-string"> &quot;</span><span class="z-string">现在系统里有多少个氢能站点？</span><span class="z-punctuation z-definition z-string">&quot;</span><span> }</span></span>
+<span class="giallo-l"><span>    {</span><span class="z-support"> &quot;</span><span class="z-support">role</span><span class="z-support">&quot;</span><span>:</span><span class="z-punctuation z-definition z-string"> &quot;</span><span class="z-string">user</span><span class="z-punctuation z-definition z-string">&quot;</span><span>,</span><span class="z-support"> &quot;</span><span class="z-support">content</span><span class="z-support">&quot;</span><span>:</span><span class="z-punctuation z-definition z-string"> &quot;</span><span class="z-string">现在系统里有多少个充电站点？</span><span class="z-punctuation z-definition z-string">&quot;</span><span> }</span></span>
 <span class="giallo-l"><span>  ]</span><span>,</span></span>
 <span class="giallo-l"><span class="z-support">  &quot;</span><span class="z-support">tools</span><span class="z-support">&quot;</span><span>:</span><span> [</span></span>
 <span class="giallo-l"><span>    {</span></span>
 <span class="giallo-l"><span class="z-support">      &quot;</span><span class="z-support">type</span><span class="z-support">&quot;</span><span>:</span><span class="z-punctuation z-definition z-string"> &quot;</span><span class="z-string">function</span><span class="z-punctuation z-definition z-string">&quot;</span><span>,</span></span>
 <span class="giallo-l"><span class="z-support">      &quot;</span><span class="z-support">function</span><span class="z-support">&quot;</span><span>:</span><span> {</span></span>
 <span class="giallo-l"><span class="z-support">        &quot;</span><span class="z-support">name</span><span class="z-support">&quot;</span><span>:</span><span class="z-punctuation z-definition z-string"> &quot;</span><span class="z-string">query_hydrogen_business_data</span><span class="z-punctuation z-definition z-string">&quot;</span><span>,</span></span>
-<span class="giallo-l"><span class="z-support">        &quot;</span><span class="z-support">description</span><span class="z-support">&quot;</span><span>:</span><span class="z-punctuation z-definition z-string"> &quot;</span><span class="z-string">查询本系统（氢能业务管理平台）的真实业务数据，例如站点储量、加氢订单等。仅当问题需要查询本系统数据时调用；闲聊不要调用。</span><span class="z-punctuation z-definition z-string">&quot;</span><span>,</span></span>
+<span class="giallo-l"><span class="z-support">        &quot;</span><span class="z-support">description</span><span class="z-support">&quot;</span><span>:</span><span class="z-punctuation z-definition z-string"> &quot;</span><span class="z-string">查询本系统（电能业务管理平台）的真实业务数据，例如站点储量、充电订单等。仅当问题需要查询本系统数据时调用；闲聊不要调用。</span><span class="z-punctuation z-definition z-string">&quot;</span><span>,</span></span>
 <span class="giallo-l"><span class="z-support">        &quot;</span><span class="z-support">parameters</span><span class="z-support">&quot;</span><span>:</span><span> {</span></span>
 <span class="giallo-l"><span class="z-support">          &quot;</span><span class="z-support">type</span><span class="z-support">&quot;</span><span>:</span><span class="z-punctuation z-definition z-string"> &quot;</span><span class="z-string">object</span><span class="z-punctuation z-definition z-string">&quot;</span><span>,</span></span>
 <span class="giallo-l"><span class="z-support">          &quot;</span><span class="z-support">properties</span><span class="z-support">&quot;</span><span>:</span><span> {</span></span>
@@ -302,7 +302,7 @@
 <span class="giallo-l"><span class="z-support">        &quot;</span><span class="z-support">type</span><span class="z-support">&quot;</span><span>:</span><span class="z-punctuation z-definition z-string"> &quot;</span><span class="z-string">function</span><span class="z-punctuation z-definition z-string">&quot;</span><span>,</span></span>
 <span class="giallo-l"><span class="z-support">        &quot;</span><span class="z-support">function</span><span class="z-support">&quot;</span><span>:</span><span> {</span></span>
 <span class="giallo-l"><span class="z-support">          &quot;</span><span class="z-support">name</span><span class="z-support">&quot;</span><span>:</span><span class="z-punctuation z-definition z-string"> &quot;</span><span class="z-string">query_hydrogen_business_data</span><span class="z-punctuation z-definition z-string">&quot;</span><span>,</span></span>
-<span class="giallo-l"><span class="z-support">          &quot;</span><span class="z-support">arguments</span><span class="z-support">&quot;</span><span>:</span><span class="z-punctuation z-definition z-string"> &quot;</span><span class="z-string">{</span><span class="z-constant">\&quot;</span><span class="z-string">question</span><span class="z-constant">\&quot;</span><span class="z-string">: </span><span class="z-constant">\&quot;</span><span class="z-string">系统中氢能站点的总数</span><span class="z-constant">\&quot;</span><span class="z-string">}</span><span class="z-punctuation z-definition z-string">&quot;</span></span>
+<span class="giallo-l"><span class="z-support">          &quot;</span><span class="z-support">arguments</span><span class="z-support">&quot;</span><span>:</span><span class="z-punctuation z-definition z-string"> &quot;</span><span class="z-string">{</span><span class="z-constant">\&quot;</span><span class="z-string">question</span><span class="z-constant">\&quot;</span><span class="z-string">: </span><span class="z-constant">\&quot;</span><span class="z-string">系统中充电站点的总数</span><span class="z-constant">\&quot;</span><span class="z-string">}</span><span class="z-punctuation z-definition z-string">&quot;</span></span>
 <span class="giallo-l"><span>        }</span></span>
 <span class="giallo-l"><span>      }</span><span>]</span></span>
 <span class="giallo-l"><span>    }</span></span>
@@ -328,7 +328,7 @@
 <pre class="giallo z-code"><code data-lang="json"><span class="giallo-l"><span>{</span></span>
 <span class="giallo-l"><span class="z-support">  &quot;</span><span class="z-support">model</span><span class="z-support">&quot;</span><span>:</span><span class="z-punctuation z-definition z-string"> &quot;</span><span class="z-string">deepseek-v4-flash</span><span class="z-punctuation z-definition z-string">&quot;</span><span>,</span></span>
 <span class="giallo-l"><span class="z-support">  &quot;</span><span class="z-support">messages</span><span class="z-support">&quot;</span><span>:</span><span> [</span></span>
-<span class="giallo-l"><span>    {</span><span class="z-support"> &quot;</span><span class="z-support">role</span><span class="z-support">&quot;</span><span>:</span><span class="z-punctuation z-definition z-string"> &quot;</span><span class="z-string">user</span><span class="z-punctuation z-definition z-string">&quot;</span><span>,</span><span class="z-support"> &quot;</span><span class="z-support">content</span><span class="z-support">&quot;</span><span>:</span><span class="z-punctuation z-definition z-string"> &quot;</span><span class="z-string">现在系统里有多少个氢能站点？</span><span class="z-punctuation z-definition z-string">&quot;</span><span> }</span><span>,</span></span>
+<span class="giallo-l"><span>    {</span><span class="z-support"> &quot;</span><span class="z-support">role</span><span class="z-support">&quot;</span><span>:</span><span class="z-punctuation z-definition z-string"> &quot;</span><span class="z-string">user</span><span class="z-punctuation z-definition z-string">&quot;</span><span>,</span><span class="z-support"> &quot;</span><span class="z-support">content</span><span class="z-support">&quot;</span><span>:</span><span class="z-punctuation z-definition z-string"> &quot;</span><span class="z-string">现在系统里有多少个充电站点？</span><span class="z-punctuation z-definition z-string">&quot;</span><span> }</span><span>,</span></span>
 <span class="giallo-l"></span>
 <span class="giallo-l"><span class="z-punctuation z-definition z-comment">    //</span><span class="z-comment"> 第一次响应里模型说的&quot;我要调用工具&quot;</span></span>
 <span class="giallo-l"><span>    {</span></span>
@@ -529,8 +529,8 @@
 <span class="giallo-l"><span class="z-variable z-other">        kind</span><span class="z-keyword">:</span><span class="z-punctuation z-definition z-string"> &quot;</span><span class="z-string">function</span><span class="z-punctuation z-definition z-string">&quot;</span><span>,</span></span>
 <span class="giallo-l"><span class="z-variable z-other">        function</span><span class="z-keyword">:</span><span class="z-entity z-name"> FunctionDef</span><span> {</span></span>
 <span class="giallo-l"><span class="z-variable z-other">            name</span><span class="z-keyword">:</span><span class="z-punctuation z-definition z-string"> &quot;</span><span class="z-string">query_hydrogen_business_data</span><span class="z-punctuation z-definition z-string">&quot;</span><span>,</span></span>
-<span class="giallo-l"><span class="z-variable z-other">            description</span><span class="z-keyword">:</span><span class="z-punctuation z-definition z-string"> &quot;</span><span class="z-string">查询本系统（氢能业务管理平台）数据库中的真实业务数据，\</span></span>
-<span class="giallo-l"><span class="z-string">                          例如站点储量、能源现价、加氢订单、调度单、车辆能耗等。\</span></span>
+<span class="giallo-l"><span class="z-variable z-other">            description</span><span class="z-keyword">:</span><span class="z-punctuation z-definition z-string"> &quot;</span><span class="z-string">查询本系统（电能业务管理平台）数据库中的真实业务数据，\</span></span>
+<span class="giallo-l"><span class="z-string">                          例如站点储量、能源现价、充电订单、调度单、车辆能耗等。\</span></span>
 <span class="giallo-l"><span class="z-string">                          仅当用户问题需要查询本系统业务数据时才调用；\</span></span>
 <span class="giallo-l"><span class="z-string">                          常识性、闲聊、通用知识类问题不要调用。</span><span class="z-punctuation z-definition z-string">&quot;</span><span>,</span></span>
 <span class="giallo-l"><span class="z-variable z-other">            parameters</span><span class="z-keyword">:</span><span class="z-entity z-name"> serde_json</span><span class="z-keyword">::</span><span class="z-entity z-name">json!</span><span>(</span><span>{</span></span>
@@ -678,7 +678,7 @@
 <p>但这个方案很快就会撑不住：</p>
 <ul>
 <li>"帮我看看最近的补氢调度" → 没有关键词但要查库</li>
-<li>"一共有多少种加氢方式" → 有"多少"但这是常识问题</li>
+<li>"一共有多少种充电方式" → 有"多少"但这是常识问题</li>
 <li>"补氢速率计算公式是什么" → 要查专业知识还是查数据库？</li>
 </ul>
 <p>维护这套规则会越来越累，而且永远有边界情况。</p>

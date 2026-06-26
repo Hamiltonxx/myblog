@@ -12,7 +12,7 @@
   
   <meta name="description" content="把一堆 contains() 硬匹配替换成 LLM 自主决策调工具，代码更少，识别更准，还能轻松扩展新能力。">
 
-  <title>氢能站Agent系列5 -- 客户端(小程序)Agent Tool Call</title>
+  <title>充电站Agent系列5 -- 客户端(小程序)Agent Tool Call</title>
   <link rel="icon" type="image/png" sizes="32x32" href="https://blog.cirray.cn/img/favicon-32x32.png">
   <link rel="icon" type="image/png" sizes="16x16" href="https://blog.cirray.cn/img/favicon-16x16.png">
   <link rel="apple-touch-icon" sizes="180x180" href="https://blog.cirray.cn/img/apple-touch-icon.png">
@@ -173,7 +173,7 @@
 "></div>
       
       <article class="prose">
-        <h1>氢能站Agent系列5 -- 客户端(小程序)Agent Tool Call</h1>
+        <h1>充电站Agent系列5 -- 客户端(小程序)Agent Tool Call</h1>
         <div id="post-info">
           <div id="date">
             <span id="publish">2026-06-23</span>
@@ -192,7 +192,7 @@
         
 
         <p>小程序 AI 助手（mp-agent）从"关键词匹配"升级成了真正的 Tool Call 驱动。</p>
-<p>以前用户问"哪里能加氢？"触发不了，现在可以正确识别并查数据库。</p>
+<p>以前用户问"哪里能充电？"触发不了，现在可以正确识别并查数据库。</p>
 <hr />
 <h2 id="tool-call-de-si-lu">Tool Call 的思路<a class="zola-anchor" href="#tool-call-de-si-lu" aria-label="Anchor link for: tool-call-de-si-lu" style="visibility: hidden;"></a>
 </h2>
@@ -236,7 +236,7 @@
 <span class="giallo-l"><span class="z-variable z-other">            kind</span><span class="z-keyword">:</span><span class="z-punctuation z-definition z-string"> &quot;</span><span class="z-string">function</span><span class="z-punctuation z-definition z-string">&quot;</span><span>,</span></span>
 <span class="giallo-l"><span class="z-variable z-other">            function</span><span class="z-keyword">:</span><span class="z-entity z-name"> FunctionDef</span><span> {</span></span>
 <span class="giallo-l"><span class="z-variable z-other">                name</span><span class="z-keyword">:</span><span class="z-punctuation z-definition z-string"> &quot;</span><span class="z-string">find_nearby_stations</span><span class="z-punctuation z-definition z-string">&quot;</span><span>,</span></span>
-<span class="giallo-l"><span class="z-variable z-other">                description</span><span class="z-keyword">:</span><span class="z-punctuation z-definition z-string"> &quot;</span><span class="z-string">查询用户附近的加氢站，返回距离、价格、压力等级、空闲枪数</span><span class="z-punctuation z-definition z-string">&quot;</span><span>,</span></span>
+<span class="giallo-l"><span class="z-variable z-other">                description</span><span class="z-keyword">:</span><span class="z-punctuation z-definition z-string"> &quot;</span><span class="z-string">查询用户附近的充电站，返回距离、价格、压力等级、空闲枪数</span><span class="z-punctuation z-definition z-string">&quot;</span><span>,</span></span>
 <span class="giallo-l"><span class="z-variable z-other">                parameters</span><span class="z-keyword">:</span><span class="z-entity z-name"> serde_json</span><span class="z-keyword">::</span><span class="z-entity z-name">json!</span><span>(</span><span>{</span></span>
 <span class="giallo-l"><span class="z-punctuation z-definition z-string">                    &quot;</span><span class="z-string">type</span><span class="z-punctuation z-definition z-string">&quot;</span><span class="z-keyword">:</span><span class="z-punctuation z-definition z-string"> &quot;</span><span class="z-string">object</span><span class="z-punctuation z-definition z-string">&quot;</span><span>,</span></span>
 <span class="giallo-l"><span class="z-punctuation z-definition z-string">                    &quot;</span><span class="z-string">properties</span><span class="z-punctuation z-definition z-string">&quot;</span><span class="z-keyword">:</span><span> {</span><span>}</span><span>,</span></span>
@@ -248,7 +248,7 @@
 <span class="giallo-l"><span class="z-variable z-other">            kind</span><span class="z-keyword">:</span><span class="z-punctuation z-definition z-string"> &quot;</span><span class="z-string">function</span><span class="z-punctuation z-definition z-string">&quot;</span><span>,</span></span>
 <span class="giallo-l"><span class="z-variable z-other">            function</span><span class="z-keyword">:</span><span class="z-entity z-name"> FunctionDef</span><span> {</span></span>
 <span class="giallo-l"><span class="z-variable z-other">                name</span><span class="z-keyword">:</span><span class="z-punctuation z-definition z-string"> &quot;</span><span class="z-string">get_consumption_report</span><span class="z-punctuation z-definition z-string">&quot;</span><span>,</span></span>
-<span class="giallo-l"><span class="z-variable z-other">                description</span><span class="z-keyword">:</span><span class="z-punctuation z-definition z-string"> &quot;</span><span class="z-string">查询当前登录用户的加氢消费记录汇总</span><span class="z-punctuation z-definition z-string">&quot;</span><span>,</span></span>
+<span class="giallo-l"><span class="z-variable z-other">                description</span><span class="z-keyword">:</span><span class="z-punctuation z-definition z-string"> &quot;</span><span class="z-string">查询当前登录用户的充电消费记录汇总</span><span class="z-punctuation z-definition z-string">&quot;</span><span>,</span></span>
 <span class="giallo-l"><span class="z-variable z-other">                parameters</span><span class="z-keyword">:</span><span class="z-entity z-name"> serde_json</span><span class="z-keyword">::</span><span class="z-entity z-name">json!</span><span>(</span><span>{</span></span>
 <span class="giallo-l"><span class="z-punctuation z-definition z-string">                    &quot;</span><span class="z-string">type</span><span class="z-punctuation z-definition z-string">&quot;</span><span class="z-keyword">:</span><span class="z-punctuation z-definition z-string"> &quot;</span><span class="z-string">object</span><span class="z-punctuation z-definition z-string">&quot;</span><span>,</span></span>
 <span class="giallo-l"><span class="z-punctuation z-definition z-string">                    &quot;</span><span class="z-string">properties</span><span class="z-punctuation z-definition z-string">&quot;</span><span class="z-keyword">:</span><span> {</span></span>
@@ -398,18 +398,18 @@
 <span class="giallo-l"><span>}</span></span></code></pre>
 <p>查出来的数据格式化成这样的文本再交给 LLM：</p>
 <pre class="giallo z-code"><code data-lang="plain"><span class="giallo-l"><span>找到最近 5 个氢站：</span></span>
-<span class="giallo-l"><span>1. 广州越秀区政府配套氢能站 — 0.7km · ¥30.50/kg · 35MPa · 空闲 4/7</span></span>
-<span class="giallo-l"><span>2. 广州白云机场配套氢能站 — 5.7km · ¥30.00/kg · 35MPa · 空闲 5/9</span></span>
+<span class="giallo-l"><span>1. 广州越秀区政府配套充电站 — 0.7km · ¥30.50/kg · 35MPa · 空闲 4/7</span></span>
+<span class="giallo-l"><span>2. 广州白云机场配套充电站 — 5.7km · ¥30.00/kg · 35MPa · 空闲 5/9</span></span>
 <span class="giallo-l"><span>...</span></span></code></pre>
 <p>LLM 拿到这个文本之后，会自己做推荐、排版、补充建议——这才是它该干的事。</p>
 <hr />
 <h2 id="shi-ji-xiao-guo">实际效果<a class="zola-anchor" href="#shi-ji-xiao-guo" aria-label="Anchor link for: shi-ji-xiao-guo" style="visibility: hidden;"></a>
 </h2>
-<pre class="giallo z-code"><code data-lang="plain"><span class="giallo-l"><span>问：附近哪里能加氢</span></span>
-<span class="giallo-l"><span>答：以下是您附近 5 个加氢站（按距离排序）：</span></span>
+<pre class="giallo z-code"><code data-lang="plain"><span class="giallo-l"><span>问：附近哪里能充电</span></span>
+<span class="giallo-l"><span>答：以下是您附近 5 个充电站（按距离排序）：</span></span>
 <span class="giallo-l"></span>
-<span class="giallo-l"><span>1. **广州越秀区政府配套氢能站** — 0.7 km，35MPa，¥30.50/kg，空闲 4/7</span></span>
-<span class="giallo-l"><span>2. **广州白云机场配套氢能站** — 5.7 km，35MPa，¥30.00/kg，空闲 5/9</span></span>
+<span class="giallo-l"><span>1. **广州越秀区政府配套充电站** — 0.7 km，35MPa，¥30.50/kg，空闲 4/7</span></span>
+<span class="giallo-l"><span>2. **广州白云机场配套充电站** — 5.7 km，35MPa，¥30.00/kg，空闲 5/9</span></span>
 <span class="giallo-l"><span>...</span></span>
 <span class="giallo-l"></span>
 <span class="giallo-l"><span>推荐距离近、价格低的 **越秀站** 或 **白云机场站**。</span></span>
