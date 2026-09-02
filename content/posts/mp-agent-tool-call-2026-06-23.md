@@ -1,5 +1,5 @@
 +++
-title = "充电站Agent系列5 -- 客户端(小程序)Agent Tool Call"
+title = "氢能站Agent系列5 -- 客户端(小程序)Agent Tool Call"
 description = "把一堆 contains() 硬匹配替换成 LLM 自主决策调工具，代码更少，识别更准，还能轻松扩展新能力。"
 date = 2026-06-23
 
@@ -14,7 +14,7 @@ toc = true
 
 小程序 AI 助手（mp-agent）从"关键词匹配"升级成了真正的 Tool Call 驱动。
 
-以前用户问"哪里能充电？"触发不了，现在可以正确识别并查数据库。
+以前用户问"哪里能加氢？"触发不了，现在可以正确识别并查数据库。
 
 ---
 
@@ -73,7 +73,7 @@ fn tool_defs() -> Vec<ToolDef> {
             kind: "function",
             function: FunctionDef {
                 name: "find_nearby_stations",
-                description: "查询用户附近的充电站，返回距离、价格、压力等级、空闲枪数",
+                description: "查询用户附近的加氢站，返回距离、价格、压力等级、空闲枪数",
                 parameters: serde_json::json!({
                     "type": "object",
                     "properties": {},
@@ -85,7 +85,7 @@ fn tool_defs() -> Vec<ToolDef> {
             kind: "function",
             function: FunctionDef {
                 name: "get_consumption_report",
-                description: "查询当前登录用户的充电消费记录汇总",
+                description: "查询当前登录用户的加氢消费记录汇总",
                 parameters: serde_json::json!({
                     "type": "object",
                     "properties": {
@@ -260,8 +260,8 @@ async fn query_stations(pool: &PgPool) -> Result<Vec<StationRow>> {
 
 ```
 找到最近 5 个氢站：
-1. 广州越秀区政府配套充电站 — 0.7km · ¥30.50/kg · 35MPa · 空闲 4/7
-2. 广州白云机场配套充电站 — 5.7km · ¥30.00/kg · 35MPa · 空闲 5/9
+1. 广州越秀区政府配套氢能站 — 0.7km · ¥30.50/kg · 35MPa · 空闲 4/7
+2. 广州白云机场配套氢能站 — 5.7km · ¥30.00/kg · 35MPa · 空闲 5/9
 ...
 ```
 
@@ -272,11 +272,11 @@ LLM 拿到这个文本之后，会自己做推荐、排版、补充建议——�
 ## 实际效果
 
 ```
-问：附近哪里能充电
-答：以下是您附近 5 个充电站（按距离排序）：
+问：附近哪里能加氢
+答：以下是您附近 5 个加氢站（按距离排序）：
 
-1. **广州越秀区政府配套充电站** — 0.7 km，35MPa，¥30.50/kg，空闲 4/7
-2. **广州白云机场配套充电站** — 5.7 km，35MPa，¥30.00/kg，空闲 5/9
+1. **广州越秀区政府配套氢能站** — 0.7 km，35MPa，¥30.50/kg，空闲 4/7
+2. **广州白云机场配套氢能站** — 5.7 km，35MPa，¥30.00/kg，空闲 5/9
 ...
 
 推荐距离近、价格低的 **越秀站** 或 **白云机场站**。
